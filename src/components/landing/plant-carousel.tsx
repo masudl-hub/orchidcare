@@ -10,21 +10,24 @@ export const plants = [
   { src: "/botanical-pixels/93dae5631bdd5ebffbdd38f9b27ffb732cef3e4c.png", alt: "Pruning shears", route: "/pruning-101" },
 ];
 
-const ITEM_HEIGHT = 280;
+const DEFAULT_WIDTH = 180;
+const DEFAULT_HEIGHT = 280;
 
 interface PlantCarouselProps {
   activeIndex: number;
+  width?: number;
+  height?: number;
 }
 
-export function PlantCarousel({ activeIndex }: PlantCarouselProps) {
+export function PlantCarousel({ activeIndex, width = DEFAULT_WIDTH, height = DEFAULT_HEIGHT }: PlantCarouselProps) {
   const count = plants.length;
 
   return (
     <div
       className="relative z-10"
       style={{
-        height: ITEM_HEIGHT,
-        width: 180,
+        height,
+        width,
       }}
     >
       {plants.map((plant, i) => {
@@ -36,7 +39,7 @@ export function PlantCarousel({ activeIndex }: PlantCarouselProps) {
         const absOffset = Math.abs(offset);
         const opacity = offset === 0 ? 1 : absOffset === 1 ? 0.2 : 0;
         const scale = offset === 0 ? 1 : 0.6;
-        const translateY = offset * (ITEM_HEIGHT * 0.65);
+        const translateY = offset * (height * 0.65);
         const isVisible = absOffset <= 1;
 
         return (

@@ -4,7 +4,8 @@ import { Link, useNavigate } from "react-router-dom";
 import { useIsTouch } from "@/hooks/use-mobile";
 import { TelegramFallback } from "./telegram-fallback";
 
-const purpleOrchidSrc = "/plant_assets_art/T_phalaenopsis_orchid/phalaenopsis_orchid_transparent.png";
+const purpleOrchidSrc =
+  "/plant_assets_art/T_phalaenopsis_orchid/phalaenopsis_orchid_transparent.png";
 
 // The purple orchid is at index 3 in the plants array
 const PURPLE_ORCHID_INDEX = 3;

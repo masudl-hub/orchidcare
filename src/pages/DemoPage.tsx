@@ -516,7 +516,7 @@ export default function DemoPage() {
             initial={{ opacity: 0, y: 6 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -6 }}
-            transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+            transition={{ duration: 0.4, delay: 0.3, ease: [0.22, 1, 0.36, 1] }}
             style={{
               textAlign: 'center',
               padding: '12px 24px 32px',
@@ -604,27 +604,34 @@ export default function DemoPage() {
         )}
       </AnimatePresence>
 
-      {/* Input bar */}
-      <DemoInputBar
-        onSend={sendMessage}
-        onGoLive={handleMicClick}
-        isLoading={isLoading}
-        disabled={(mode as string) === 'limit_reached'}
-      />
-
-      {/* Turn counter */}
-      <div
-        style={{
-          flexShrink: 0,
-          paddingBottom: 'max(4px, env(safe-area-inset-bottom))',
-          backgroundColor: '#000',
-        }}
+      {/* Input bar + turn counter — staggered fade-in on landing */}
+      <motion.div
+        initial={showLanding ? { opacity: 0 } : { opacity: 1 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.4, delay: showLanding ? 0.5 : 0, ease: [0.22, 1, 0.36, 1] }}
+        style={{ flexShrink: 0 }}
       >
-        <DemoTurnCounter
-          turnsRemaining={turnsRemaining.text}
-          totalTurns={MAX_TEXT_TURNS}
+        <DemoInputBar
+          onSend={sendMessage}
+          onGoLive={handleMicClick}
+          isLoading={isLoading}
+          disabled={(mode as string) === 'limit_reached'}
         />
-      </div>
+
+        {/* Turn counter */}
+        <div
+          style={{
+            flexShrink: 0,
+            paddingBottom: 'max(4px, env(safe-area-inset-bottom))',
+            backgroundColor: '#000',
+          }}
+        >
+          <DemoTurnCounter
+            turnsRemaining={turnsRemaining.text}
+            totalTurns={MAX_TEXT_TURNS}
+          />
+        </div>
+      </motion.div>
 
       {/* Bottom centering spacer — heavier weight than top so input
           sits above center; collapses after first send */}

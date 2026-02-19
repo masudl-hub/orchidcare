@@ -1,7 +1,7 @@
 import { PlantCarousel, plants } from "./plant-carousel";
 import { useState, useCallback, useRef, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { useIsTouch } from "@/hooks/use-mobile";
+import { useIsTouch, useIsMobile } from "@/hooks/use-mobile";
 import { TelegramFallback } from "./telegram-fallback";
 
 const purpleOrchidSrc =
@@ -10,12 +10,15 @@ const purpleOrchidSrc =
 // The purple orchid is at index 3 in the plants array
 const PURPLE_ORCHID_INDEX = 3;
 
-// Canvas matches carousel dimensions exactly
-const CANVAS_WIDTH = 180;
-const CANVAS_HEIGHT = 280;
+// Desktop canvas dimensions
+const CANVAS_WIDTH_LG = 180;
+const CANVAS_HEIGHT_LG = 280;
+// Mobile canvas dimensions
+const CANVAS_WIDTH_SM = 90;
+const CANVAS_HEIGHT_SM = 140;
 
 // De-pixelation steps — pixel widths from super blocky to full res
-const PIXEL_STEPS = [3, 4, 6, 8, 12, 16, 24, 32, 48, 72, 100, 140, CANVAS_WIDTH];
+const PIXEL_STEPS = [3, 4, 6, 8, 12, 16, 24, 32, 48, 72, 100, 140, CANVAS_WIDTH_LG];
 
 const DEEP_LINK = "https://t.me/orchidcare_bot?start=web";
 
@@ -38,7 +41,12 @@ export function OrchidHero({ onStartClick, onLoginClick, onDemoClick }: OrchidHe
   const imgRef = useRef<HTMLImageElement | null>(null);
 
   const isTouch = useIsTouch();
+  const isMobile = useIsMobile();
   const [showFallback, setShowFallback] = useState(false);
+
+  // Responsive dimensions
+  const canvasW = isMobile ? CANVAS_WIDTH_SM : CANVAS_WIDTH_LG;
+  const canvasH = isMobile ? CANVAS_HEIGHT_SM : CANVAS_HEIGHT_LG;
 
   // --- De-pixelation logic ---
   const drawAtResolution = useCallback((pixelWidth: number) => {
@@ -61,7 +69,7 @@ export function OrchidHero({ onStartClick, onLoginClick, onDemoClick }: OrchidHe
     offCtx.drawImage(img, 0, 0, pixelWidth, pixelHeight);
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.imageSmoothingEnabled = pixelWidth >= CANVAS_WIDTH;
+    ctx.imageSmoothingEnabled = pixelWidth >= CANVAS_WIDTH_LG;
     ctx.drawImage(offscreen, 0, 0, pixelWidth, pixelHeight, 0, 0, canvas.width, canvas.height);
   }, []);
 
@@ -238,7 +246,7 @@ export function OrchidHero({ onStartClick, onLoginClick, onDemoClick }: OrchidHe
       <div className="relative px-8 md:px-16 pt-[24px]">
         {/* Tagline */}
         <div
-          className={`font-mono text-sm mb-[-100px] ${revealClass(0)}`}
+          className={`font-mono text-sm mb-[-40px] md:mb-[-100px] ${revealClass(0)}`}
           style={{ ...revealStyle(0), fontSize: "16px" }}
         >
           plant care made easy
@@ -246,7 +254,7 @@ export function OrchidHero({ onStartClick, onLoginClick, onDemoClick }: OrchidHe
 
         {/* ORCHID text */}
         <div
-          className="relative text-[160px] leading-none tracking-tight flex items-end"
+          className="relative text-[48px] sm:text-[80px] md:text-[120px] lg:text-[160px] leading-none tracking-tight flex items-end"
           style={{ fontFamily: '"Press Start 2P", cursive' }}
         >
           {/* ORCH */}
@@ -259,7 +267,7 @@ export function OrchidHero({ onStartClick, onLoginClick, onDemoClick }: OrchidHe
 
           {/* Carousel / Canvas slot */}
           <div
-            className="inline-flex items-end mx-[-40px] mb-[-4px] relative z-10"
+            className="inline-flex items-end mx-[-12px] sm:mx-[-20px] md:mx-[-30px] lg:mx-[-40px] mb-[-2px] md:mb-[-4px] relative z-10"
             onClick={handleOrchidClick}
             style={{ cursor: phase === "ready" && isTouch ? "pointer" : "default" }}
           >
@@ -324,20 +332,20 @@ export function OrchidHero({ onStartClick, onLoginClick, onDemoClick }: OrchidHe
               opacity: canvasFading ? 1 : 0,
               transition: "opacity 500ms ease-out",
             }}>
-              <PlantCarousel activeIndex={activeIndex} />
+              <PlantCarousel activeIndex={activeIndex} width={canvasW} height={canvasH} />
             </div>
 
             {/* De-pixelating canvas — overlays the carousel, fades out when done */}
             <canvas
               ref={canvasRef}
-              width={CANVAS_WIDTH}
-              height={CANVAS_HEIGHT}
+              width={CANVAS_WIDTH_LG}
+              height={CANVAS_HEIGHT_LG}
               className={`absolute inset-0 z-20 transition-opacity duration-500 ease-out ${
                 canvasFading ? "opacity-0 pointer-events-none" : "opacity-100"
               }`}
               style={{
-                width: CANVAS_WIDTH,
-                height: CANVAS_HEIGHT,
+                width: canvasW,
+                height: canvasH,
                 imageRendering: "pixelated",
               }}
             />
@@ -356,7 +364,7 @@ export function OrchidHero({ onStartClick, onLoginClick, onDemoClick }: OrchidHe
 
         {/* Navigation links */}
         <div
-          className={`mt-5 font-mono text-[22px] space-y-2 ${revealClass(250)}`}
+          className={`mt-5 font-mono text-[16px] sm:text-[18px] md:text-[22px] space-y-2 ${revealClass(250)}`}
           style={revealStyle(250)}
         >
           <div

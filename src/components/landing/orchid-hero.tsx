@@ -65,9 +65,18 @@ export function OrchidHero({ onStartClick, onLoginClick, onDemoClick }: OrchidHe
   }, []);
 
   useEffect(() => {
+    // Skip straight to revealed state if image fails
+    const skipToReady = () => {
+      setLoadingProgress(100);
+      setCanvasFading(true);
+      setPhase("revealing");
+      setTimeout(() => setPhase("ready"), 400);
+    };
+
     // Load image and run de-pixelation
     const img = new Image();
     img.crossOrigin = "anonymous";
+    img.onerror = skipToReady;
     img.onload = () => {
       imgRef.current = img;
 
@@ -97,13 +106,10 @@ export function OrchidHero({ onStartClick, onLoginClick, onDemoClick }: OrchidHe
         setLoadingProgress(progress);
 
         if (currentStep >= stepCount - 1) {
-          // De-pixelation complete — immediately start revealing & fading canvas
-          // Use requestAnimationFrame to batch state updates in same paint
           requestAnimationFrame(() => {
             setLoadingProgress(100);
             setCanvasFading(true);
             setPhase("revealing");
-            // After reveal animations finish, go to ready
             setTimeout(() => setPhase("ready"), 1200);
           });
           return;

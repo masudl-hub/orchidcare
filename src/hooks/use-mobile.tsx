@@ -17,3 +17,18 @@ export function useIsMobile() {
 
   return !!isMobile;
 }
+
+/** Detects touch-primary devices via pointer capability (more accurate than width). */
+export function useIsTouch() {
+  const [isTouch, setIsTouch] = React.useState(false);
+
+  React.useEffect(() => {
+    const mql = window.matchMedia("(pointer: coarse)");
+    const onChange = () => setIsTouch(mql.matches);
+    mql.addEventListener("change", onChange);
+    setIsTouch(mql.matches);
+    return () => mql.removeEventListener("change", onChange);
+  }, []);
+
+  return isTouch;
+}

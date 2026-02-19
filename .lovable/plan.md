@@ -1,59 +1,81 @@
 
 
-# Migrate Orchid Project
+# Mobile Responsiveness Plan
 
-Full copy of the Orchid plant care AI app from the source project into this one.
+## Problem
+The landing page is completely broken on mobile (as shown in the screenshot). The "ORCHID" text at 160px font size overflows the viewport, and the plant carousel is clipped. The layout was designed for desktop only.
 
-## Batch 1: Config Files
-- Copy `tailwind.config.ts` (custom colors, fonts, animations, border-radius)
-- Copy `index.html` (PWA meta tags, Telegram SDK, service worker)
-- Copy `components.json` (already identical)
-- Install new dependencies: `@fontsource/instrument-serif`, `@google/genai`, `framer-motion`, `jspdf`, `lenis`, `pixi.js`, `qrcode-generator`, `react-markdown`
+## Scope
+Fix mobile responsiveness across the main user-facing pages **without changing the desktop experience at all**. This means using responsive breakpoints (e.g., `md:` prefixes) so desktop stays identical.
 
-## Batch 2: Core Source Files
-- Copy `src/index.css`, `src/App.tsx`, `src/App.css`, `src/main.tsx`
-- Copy `src/types/qrcode-generator.d.ts`
-- Copy `src/integrations/supabase/client.ts`, `src/integrations/supabase/types.ts`
+## Pages and Components to Fix
 
-## Batch 3: UI Components (src/components/ui/)
-- Copy all 49 UI component files (many already exist but may have customizations)
+### 1. OrchidHero (`src/components/landing/orchid-hero.tsx`) -- Primary Fix
+This is the page shown in the screenshot. Issues:
+- `text-[160px]` "ORCHID" title overflows on any screen under ~900px
+- Carousel is fixed at 180x280px, clips on narrow screens
+- Navigation links at 22px are fine but could use tighter spacing
+- Canvas de-pixelation dimensions (180x280) are fixed
 
-## Batch 4: App Components
-- Copy `src/components/call/` (5 files: CallScreen, CallControls, AnnotationOverlay, CallErrorBoundary, OrchidAvatar)
-- Copy `src/components/dashboard/` (2 files: Dashboard, SystemProtocols)
-- Copy `src/components/demo/` (6 files + artifacts subfolder with 7 files)
-- Copy `src/components/figma/` (1 file: ImageWithFallback)
-- Copy `src/components/landing/` (25+ files: Hero, Nav, feature sections, QR canvas, etc.)
-- Copy `src/components/plants/` (1 file: PlantDetail)
-- Copy root components: BrutalistTooltip, ConnectTelegram, CreateAccount, LinkPhone, Login, NavLink, OnboardingComplete, ProfileConfig, SmoothScroll
+**Changes:**
+- Scale the "ORCHID" text down on mobile: `text-[48px] sm:text-[80px] md:text-[120px] lg:text-[160px]`
+- Scale carousel/canvas dimensions proportionally on mobile (e.g., 100x160 on small screens)
+- Adjust the carousel negative margins (`mx-[-40px]`) for mobile
+- Reduce padding on mobile
+- Keep all desktop values behind `md:` or `lg:` breakpoints so nothing changes on desktop
 
-## Batch 5: Pages (16 pages)
-- Auth, BeginPage, Dashboard, DemoPage, DevCallPage, Explorations, Index, LiveCallPage, LoginPage, NotFound, Onboarding, OrchidPage, PixelGarden, Plants, Proposal, Settings
+### 2. StartPage (`src/components/landing/start-page.tsx`)
+- Already uses `px-8 md:px-16` which is good
+- Max-width of 520px should work on mobile
+- Font sizes (18px, 22px) may need slight reduction on small screens
+- Scroll-snap sections at `min-h-screen` should work
 
-## Batch 6: Hooks, Contexts & Lib
-- Copy `src/hooks/` (8 files including call/ subfolder)
-- Copy `src/contexts/AuthContext.tsx`
-- Copy `src/lib/` (utils, theme, demoLimit, orchid-grid, qr-matrix, pixel-canvas/ with 6+ files including precomputed formations JSON)
+**Changes:**
+- Reduce `/start` text and paragraph font sizes slightly on mobile
+- Ensure back button positioning works with safe areas
 
-## Batch 7: Edge Functions
-- Copy `supabase/functions/_shared/` (5 files: auth, context, research, tools, types)
-- Copy 6 edge functions: call-session, demo-agent, dev-call-proxy, orchid-agent, proactive-agent, telegram-bot
+### 3. PlantCarousel (`src/components/landing/plant-carousel.tsx`)
+- Fixed at 180x280px -- needs to accept dynamic sizing from parent
 
-## Batch 8: Public Assets
-- Copy `public/manifest.json`, `public/sw.js`, `public/sad_palm.png`, `public/mites_palm.png`, videos
-- Copy `public/icons/` (2 PWA icons)
-- Copy `public/botanical-pixels/` (14 images)
-- Copy `public/prop_pothos/` (8 images)
-- Copy `public/plant_assets_art/` (~80 plant folders, ~600+ assets)
-- Copy `public/tools_art/` (~35 tool folders, ~280+ assets)
+**Changes:**
+- Accept optional `width` and `height` props, defaulting to current values
+- OrchidHero passes smaller dimensions on mobile
 
-## Batch 9: Docs & Root Files
-- Copy `docs/` folder (5 markdown files: DATABASE_SCHEMA, MIGRATION, REBUILD_PROMPT, SECRETS, VIDEO_GENERATION)
-- Copy root markdown files: DEMO_PAGE_SPEC.md, ORCHID_DECISIONS.md, PIXEL_CANVAS_SPEC.md
+### 4. DemoPage (`src/pages/DemoPage.tsx`)
+- Already has responsive canvas height logic (`getCanvasHeightPercent`)
+- Uses `env(safe-area-inset-top)` for the back button -- good
+- May need minor input bar adjustments
 
-## Notes
-- Database migrations will NOT be copied (they need to be applied via Supabase)
-- `.env`, `package.json`, `package-lock.json` excluded per instructions
-- Supabase connection will need to be configured separately on this project
-- Secrets (API keys etc.) will need to be re-added manually
+**Changes:**
+- Verify input bar doesn't overflow on narrow screens (likely already okay)
+- Minor padding tweaks if needed
+
+### 5. LoginPage / Login Component (`src/components/Login.tsx`)
+- Uses fixed character grid layout -- may need scaling
+- Likely already workable but should verify
+
+**Changes:**
+- Ensure the `/LOGIN` text and form fit on 320px screens
+- Reduce font sizes behind mobile breakpoints if needed
+
+### 6. Meta viewport and PWA
+- Check `index.html` has proper viewport meta tag
+- `manifest.json` already has portrait orientation -- good
+
+## Technical Approach
+- Use Tailwind responsive prefixes (`sm:`, `md:`, `lg:`) for all changes
+- Use CSS `clamp()` for fluid typography where appropriate
+- Add `env(safe-area-inset-*)` padding for notched devices
+- Never alter any value at the `md:` breakpoint and above (desktop stays untouched)
+
+## File Changes Summary
+
+| File | Change |
+|------|--------|
+| `src/components/landing/orchid-hero.tsx` | Responsive font size, carousel size, margins, padding |
+| `src/components/landing/plant-carousel.tsx` | Accept dynamic width/height props |
+| `src/components/landing/start-page.tsx` | Smaller font sizes on mobile, safe area padding |
+| `src/pages/DemoPage.tsx` | Minor mobile padding tweaks if needed |
+| `src/components/Login.tsx` | Ensure form fits narrow screens |
+| `index.html` | Verify viewport meta tag exists |
 

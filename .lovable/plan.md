@@ -1,81 +1,39 @@
 
-
-# Mobile Responsiveness Plan
+# Fix: Cascade Loading on /demo Page
 
 ## Problem
-The landing page is completely broken on mobile (as shown in the screenshot). The "ORCHID" text at 160px font size overflows the viewport, and the plant carousel is clipped. The layout was designed for desktop only.
+The PixelCanvas appears last because it has two async initialization steps (PixiJS app init + orchid image sampling) while the intro text and input bar render instantly. This causes a jarring "pop-in" effect.
 
-## Scope
-Fix mobile responsiveness across the main user-facing pages **without changing the desktop experience at all**. This means using responsive breakpoints (e.g., `md:` prefixes) so desktop stays identical.
+## Solution
+Stagger the visibility of the three landing elements so they cascade in order, and make the canvas container reserve its space immediately (preventing layout shift):
 
-## Pages and Components to Fix
+1. **Canvas first** -- Reserve space immediately with a fixed-height container. The canvas fades in as soon as PixiJS initializes (it already does, but the text/input currently beat it).
 
-### 1. OrchidHero (`src/components/landing/orchid-hero.tsx`) -- Primary Fix
-This is the page shown in the screenshot. Issues:
-- `text-[160px]` "ORCHID" title overflows on any screen under ~900px
-- Carousel is fixed at 180x280px, clips on narrow screens
-- Navigation links at 22px are fine but could use tighter spacing
-- Canvas de-pixelation dimensions (180x280) are fixed
+2. **Stagger text and input** -- Delay the intro text and input bar appearance so they animate in *after* the canvas, creating a top-down cascade:
+   - Canvas: appears immediately (no artificial delay, just its natural init time)
+   - Intro text: delay 300ms
+   - Input bar + turn counter: delay 500ms
 
-**Changes:**
-- Scale the "ORCHID" text down on mobile: `text-[48px] sm:text-[80px] md:text-[120px] lg:text-[160px]`
-- Scale carousel/canvas dimensions proportionally on mobile (e.g., 100x160 on small screens)
-- Adjust the carousel negative margins (`mx-[-40px]`) for mobile
-- Reduce padding on mobile
-- Keep all desktop values behind `md:` or `lg:` breakpoints so nothing changes on desktop
+3. **Preload the orchid image** -- Add a `<link rel="preload">` in `index.html` for the orchid PNG so it's already cached by the time the PixelCanvas component mounts. This significantly reduces the canvas init time.
 
-### 2. StartPage (`src/components/landing/start-page.tsx`)
-- Already uses `px-8 md:px-16` which is good
-- Max-width of 520px should work on mobile
-- Font sizes (18px, 22px) may need slight reduction on small screens
-- Scroll-snap sections at `min-h-screen` should work
+## Changes
 
-**Changes:**
-- Reduce `/start` text and paragraph font sizes slightly on mobile
-- Ensure back button positioning works with safe areas
+### 1. `index.html`
+Add a preload link for the orchid image so the browser fetches it early:
+```html
+<link rel="preload" href="/plant_assets_art/T_phalaenopsis_orchid/phalaenopsis_orchid_pixel_bw_light.png" as="image" />
+```
 
-### 3. PlantCarousel (`src/components/landing/plant-carousel.tsx`)
-- Fixed at 180x280px -- needs to accept dynamic sizing from parent
+### 2. `src/pages/DemoPage.tsx`
+- Add staggered animation delays to the landing elements using framer-motion's `transition.delay`:
+  - Landing canvas wrapper: `delay: 0` (no change)
+  - Landing text: `delay: 0.3` (appears 300ms after mount)
+  - Input bar wrapper: `delay: 0.5` on an AnimatePresence/motion wrapper (appears 500ms after mount)
+  - Turn counter: same 0.5s delay
+- Wrap the input bar and turn counter in a motion.div with initial opacity 0 that fades in with the delay (only on the landing state, i.e., when `!hasSentMessage`)
 
-**Changes:**
-- Accept optional `width` and `height` props, defaulting to current values
-- OrchidHero passes smaller dimensions on mobile
+### 3. `src/lib/pixel-canvas/PixelCanvas.tsx`
+No changes needed -- the async init is the bottleneck, and preloading the image will make it faster. The canvas already renders as soon as PixiJS is ready.
 
-### 4. DemoPage (`src/pages/DemoPage.tsx`)
-- Already has responsive canvas height logic (`getCanvasHeightPercent`)
-- Uses `env(safe-area-inset-top)` for the back button -- good
-- May need minor input bar adjustments
-
-**Changes:**
-- Verify input bar doesn't overflow on narrow screens (likely already okay)
-- Minor padding tweaks if needed
-
-### 5. LoginPage / Login Component (`src/components/Login.tsx`)
-- Uses fixed character grid layout -- may need scaling
-- Likely already workable but should verify
-
-**Changes:**
-- Ensure the `/LOGIN` text and form fit on 320px screens
-- Reduce font sizes behind mobile breakpoints if needed
-
-### 6. Meta viewport and PWA
-- Check `index.html` has proper viewport meta tag
-- `manifest.json` already has portrait orientation -- good
-
-## Technical Approach
-- Use Tailwind responsive prefixes (`sm:`, `md:`, `lg:`) for all changes
-- Use CSS `clamp()` for fluid typography where appropriate
-- Add `env(safe-area-inset-*)` padding for notched devices
-- Never alter any value at the `md:` breakpoint and above (desktop stays untouched)
-
-## File Changes Summary
-
-| File | Change |
-|------|--------|
-| `src/components/landing/orchid-hero.tsx` | Responsive font size, carousel size, margins, padding |
-| `src/components/landing/plant-carousel.tsx` | Accept dynamic width/height props |
-| `src/components/landing/start-page.tsx` | Smaller font sizes on mobile, safe area padding |
-| `src/pages/DemoPage.tsx` | Minor mobile padding tweaks if needed |
-| `src/components/Login.tsx` | Ensure form fits narrow screens |
-| `index.html` | Verify viewport meta tag exists |
-
+## Result
+The page will load as: black screen -> canvas fades in -> intro text fades in -> input area fades in, creating a smooth top-down cascade. The image preload means the canvas should appear within ~100-200ms of mount instead of ~500ms+.

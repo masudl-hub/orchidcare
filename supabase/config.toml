@@ -1,16 +1,1 @@
-project_id = "bwxpaaebtblouaddgcsu"
-
-[functions.orchid-agent]
-verify_jwt = false
-
-[functions.proactive-agent]
-verify_jwt = false
-
-[functions.demo-agent]
-verify_jwt = false
-
-[functions.telegram-bot]
-verify_jwt = false
-
-[functions.call-session]
-verify_jwt = false
+project_id = "ewkfjmekrootyiijrgfh"

@@ -1,96 +1,172 @@
+@import '@fontsource/instrument-serif/400.css';
+@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
-All colors MUST be HSL.
-*/
+/* Lenis Smooth Scroll */
+html.lenis, html.lenis body {
+  height: auto;
+}
+
+.lenis.lenis-smooth {
+  scroll-behavior: auto !important;
+}
+
+.lenis.lenis-smooth [data-lenis-prevent] {
+  overscroll-behavior: contain;
+}
+
+.lenis.lenis-stopped {
+  overflow: hidden;
+}
+
+.lenis.lenis-smooth iframe {
+  pointer-events: none;
+}
+
+/* Orchid Premium Design System */
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
+    /* Default: Botanical Cream (light, organic) */
+    --background: 45 30% 97%;
+    --foreground: 150 25% 10%;
 
-    --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
+    --card: 45 25% 99%;
+    --card-foreground: 150 25% 10%;
 
-    --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
+    --popover: 45 25% 99%;
+    --popover-foreground: 150 25% 10%;
 
-    --primary: 222.2 47.4% 11.2%;
-    --primary-foreground: 210 40% 98%;
+    /* Primary - forest green */
+    --primary: 152 55% 28%;
+    --primary-foreground: 45 30% 97%;
 
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
+    /* Secondary - warm cream */
+    --secondary: 40 35% 92%;
+    --secondary-foreground: 150 20% 20%;
 
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
+    /* Muted - soft sage */
+    --muted: 120 12% 92%;
+    --muted-foreground: 150 10% 40%;
 
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
+    /* Accent - golden warmth */
+    --accent: 42 70% 85%;
+    --accent-foreground: 42 50% 20%;
 
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive: 0 70% 50%;
+    --destructive-foreground: 45 30% 97%;
 
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
+    --border: 120 15% 88%;
+    --input: 120 15% 88%;
+    --ring: 152 55% 28%;
 
-    --radius: 0.5rem;
+    --radius: 0.75rem;
 
-    --sidebar-background: 0 0% 98%;
+    /* Landing page specific */
+    --hero-bg: 150 20% 6%;
+    --hero-fg: 45 25% 95%;
+    --demo-bubble-user: 152 50% 35%;
+    --demo-bubble-agent: 150 10% 20%;
 
-    --sidebar-foreground: 240 5.3% 26.1%;
-
-    --sidebar-primary: 240 5.9% 10%;
-
-    --sidebar-primary-foreground: 0 0% 98%;
-
-    --sidebar-accent: 240 4.8% 95.9%;
-
-    --sidebar-accent-foreground: 240 5.9% 10%;
-
-    --sidebar-border: 220 13% 91%;
-
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    /* Sidebar (unused but keeping for shadcn compatibility) */
+    --sidebar-background: 45 30% 97%;
+    --sidebar-foreground: 150 25% 10%;
+    --sidebar-primary: 152 55% 28%;
+    --sidebar-primary-foreground: 45 30% 97%;
+    --sidebar-accent: 120 12% 92%;
+    --sidebar-accent-foreground: 150 25% 10%;
+    --sidebar-border: 120 15% 88%;
+    --sidebar-ring: 152 55% 28%;
   }
 
-  .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
+  /* Emerald Night Theme (dark, dramatic) */
+  .dark,
+  .theme-emerald-night {
+    --background: 150 20% 4%;
+    --foreground: 45 20% 95%;
 
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
+    --card: 150 18% 7%;
+    --card-foreground: 45 20% 95%;
 
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
+    --popover: 150 18% 7%;
+    --popover-foreground: 45 20% 95%;
 
-    --primary: 210 40% 98%;
-    --primary-foreground: 222.2 47.4% 11.2%;
+    /* Primary - vibrant emerald */
+    --primary: 158 65% 42%;
+    --primary-foreground: 150 20% 4%;
 
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
+    /* Secondary - deep forest */
+    --secondary: 150 15% 12%;
+    --secondary-foreground: 45 15% 85%;
 
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
+    /* Muted - charcoal green */
+    --muted: 150 10% 15%;
+    --muted-foreground: 150 8% 55%;
 
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
+    /* Accent - muted gold */
+    --accent: 45 30% 18%;
+    --accent-foreground: 45 50% 80%;
 
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive: 0 55% 45%;
+    --destructive-foreground: 45 20% 95%;
 
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 212.7 26.8% 83.9%;
-    --sidebar-background: 240 5.9% 10%;
-    --sidebar-foreground: 240 4.8% 95.9%;
-    --sidebar-primary: 224.3 76.3% 48%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 240 3.7% 15.9%;
-    --sidebar-accent-foreground: 240 4.8% 95.9%;
-    --sidebar-border: 240 3.7% 15.9%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    --border: 150 12% 15%;
+    --input: 150 12% 15%;
+    --ring: 158 65% 42%;
+
+    /* Landing page specific */
+    --hero-bg: 150 20% 4%;
+    --hero-fg: 45 20% 95%;
+    --demo-bubble-user: 158 60% 38%;
+    --demo-bubble-agent: 150 12% 12%;
+
+    --sidebar-background: 150 20% 4%;
+    --sidebar-foreground: 45 20% 95%;
+    --sidebar-primary: 158 65% 42%;
+    --sidebar-primary-foreground: 150 20% 4%;
+    --sidebar-accent: 150 10% 15%;
+    --sidebar-accent-foreground: 45 20% 95%;
+    --sidebar-border: 150 12% 15%;
+    --sidebar-ring: 158 65% 42%;
+  }
+
+  /* Botanical Cream Theme (explicit class) */
+  .theme-botanical-cream {
+    --background: 45 30% 97%;
+    --foreground: 150 25% 10%;
+
+    --card: 45 25% 99%;
+    --card-foreground: 150 25% 10%;
+
+    --popover: 45 25% 99%;
+    --popover-foreground: 150 25% 10%;
+
+    --primary: 152 55% 28%;
+    --primary-foreground: 45 30% 97%;
+
+    --secondary: 40 35% 92%;
+    --secondary-foreground: 150 20% 20%;
+
+    --muted: 120 12% 92%;
+    --muted-foreground: 150 10% 40%;
+
+    --accent: 42 70% 85%;
+    --accent-foreground: 42 50% 20%;
+
+    --destructive: 0 70% 50%;
+    --destructive-foreground: 45 30% 97%;
+
+    --border: 120 15% 88%;
+    --input: 120 15% 88%;
+    --ring: 152 55% 28%;
+
+    --hero-bg: 150 20% 6%;
+    --hero-fg: 45 25% 95%;
+    --demo-bubble-user: 152 50% 35%;
+    --demo-bubble-agent: 150 10% 20%;
   }
 }
 
@@ -99,7 +175,181 @@ All colors MUST be HSL.
     @apply border-border;
   }
 
-  body {
-    @apply bg-background text-foreground;
+  html {
+    scroll-behavior: smooth;
   }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-feature-settings: "cv11", "ss01";
+  }
+
+  /* Smooth scroll override for Lenis */
+  html.lenis {
+    height: auto;
+  }
+
+  .lenis.lenis-smooth {
+    scroll-behavior: auto;
+  }
+}
+
+/* Typography */
+@layer utilities {
+  .font-serif {
+    font-family: 'Instrument Serif', Georgia, serif;
+  }
+
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  .text-hero {
+    font-size: clamp(2.5rem, 8vw, 6rem);
+    line-height: 1.05;
+    letter-spacing: -0.02em;
+  }
+
+  .text-display {
+    font-size: clamp(2rem, 5vw, 4rem);
+    line-height: 1.1;
+    letter-spacing: -0.015em;
+  }
+
+  .text-title {
+    font-size: clamp(1.5rem, 3vw, 2.5rem);
+    line-height: 1.2;
+    letter-spacing: -0.01em;
+  }
+}
+
+/* Premium effects */
+@layer utilities {
+  .glass {
+    @apply bg-background/80 backdrop-blur-xl;
+  }
+
+  .glass-dark {
+    background: hsl(var(--hero-bg) / 0.8);
+    backdrop-filter: blur(24px);
+  }
+
+  .gradient-radial {
+    background: radial-gradient(ellipse at center, var(--tw-gradient-stops));
+  }
+
+  .gradient-mesh {
+    background: 
+      radial-gradient(at 40% 20%, hsl(158 65% 42% / 0.15) 0px, transparent 50%),
+      radial-gradient(at 80% 0%, hsl(152 55% 28% / 0.1) 0px, transparent 50%),
+      radial-gradient(at 0% 50%, hsl(158 65% 42% / 0.08) 0px, transparent 50%),
+      radial-gradient(at 80% 50%, hsl(45 30% 50% / 0.05) 0px, transparent 50%),
+      radial-gradient(at 0% 100%, hsl(158 65% 42% / 0.1) 0px, transparent 50%);
+  }
+
+  .text-gradient {
+    @apply bg-clip-text text-transparent;
+    background-image: linear-gradient(135deg, hsl(var(--primary)), hsl(158 55% 55%));
+  }
+
+  .text-gradient-subtle {
+    @apply bg-clip-text text-transparent;
+    background-image: linear-gradient(180deg, hsl(var(--foreground)), hsl(var(--muted-foreground)));
+  }
+}
+
+/* Animations */
+@keyframes float {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50% { transform: translateY(-20px) rotate(2deg); }
+}
+
+@keyframes pulse-glow {
+  0%, 100% { opacity: 0.4; transform: scale(1); }
+  50% { opacity: 0.8; transform: scale(1.05); }
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(30px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes scale-fade-in {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@layer utilities {
+  .animate-float {
+    animation: float 8s ease-in-out infinite;
+  }
+
+  .animate-pulse-glow {
+    animation: pulse-glow 3s ease-in-out infinite;
+  }
+
+  .animate-shimmer {
+    animation: shimmer 2s linear infinite;
+    background-size: 200% 100%;
+  }
+
+  .animate-fade-up {
+    animation: fade-up 0.6s ease-out forwards;
+  }
+
+  .animate-scale-fade-in {
+    animation: scale-fade-in 0.4s ease-out forwards;
+  }
+}
+
+/* Phone mockup styles */
+.phone-mockup {
+  background: linear-gradient(
+    145deg,
+    hsl(0 0% 15%) 0%,
+    hsl(0 0% 8%) 50%,
+    hsl(0 0% 5%) 100%
+  );
+  border-radius: 3rem;
+  padding: 0.75rem;
+  box-shadow: 
+    0 50px 100px -20px rgba(0, 0, 0, 0.5),
+    0 30px 60px -30px rgba(0, 0, 0, 0.6),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+.phone-screen {
+  background: hsl(var(--hero-bg));
+  border-radius: 2.25rem;
+  overflow: hidden;
+}
+
+.phone-notch {
+  width: 30%;
+  height: 28px;
+  background: hsl(0 0% 5%);
+  border-radius: 0 0 1rem 1rem;
+  margin: 0 auto;
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Selection */
+::selection {
+  background: hsl(var(--primary) / 0.3);
+  color: hsl(var(--foreground));
 }

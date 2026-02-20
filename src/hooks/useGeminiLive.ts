@@ -249,20 +249,14 @@ export function useGeminiLive() {
         model: GEMINI_MODEL,
         config: {
           responseModalities: [Modality.AUDIO],
-          ...(options?.vadConfig ? {
-            realtimeInputConfig: {
-              automaticActivityDetection: {
-                ...(options.vadConfig.silenceDurationMs != null && {
-                  silenceDurationMs: options.vadConfig.silenceDurationMs,
-                }),
-                ...(options.vadConfig.endOfSpeechSensitivity && {
-                  endOfSpeechSensitivity: options.vadConfig.endOfSpeechSensitivity === 'low'
-                    ? EndSensitivity.END_SENSITIVITY_LOW
-                    : EndSensitivity.END_SENSITIVITY_HIGH,
-                }),
-              },
+      realtimeInputConfig: {
+            automaticActivityDetection: {
+              silenceDurationMs: options?.vadConfig?.silenceDurationMs ?? 1500,
+              endOfSpeechSensitivity: options?.vadConfig?.endOfSpeechSensitivity === 'high'
+                ? EndSensitivity.END_SENSITIVITY_HIGH
+                : EndSensitivity.END_SENSITIVITY_LOW,
             },
-          } : {}),
+          },
         },
         callbacks: {
           onopen: () => {
@@ -308,17 +302,13 @@ export function useGeminiLive() {
         },
       });
 
-      // Run mic, camera permission probe, and WebSocket in parallel.
-      // Capture mic errors separately so we can surface them specifically.
+      // Run mic + WebSocket in parallel.
+      // Camera permission is NOT requested here — only when user toggles video.
       const [session] = await Promise.all([
         sessionPromise,
         capture.startCapture().then(
           () => { log('Microphone access GRANTED'); },
           (err: unknown) => { micErr = err; },
-        ),
-        video.requestPermission().then(
-          () => { log('Camera permission GRANTED'); },
-          () => { log('Camera permission denied — video toggle will be unavailable'); },
         ),
       ]);
 
@@ -326,10 +316,17 @@ export function useGeminiLive() {
       if (micErr) {
         // Close the WebSocket session that was opened in parallel
         try { session.close(); } catch { /* ignore */ }
-        const detail = micErr instanceof Error ? `${(micErr as Error).name}: ${(micErr as Error).message}` : String(micErr);
-        log(`Microphone access FAILED: ${detail}`);
-        setErrorDetail(`Mic error: ${detail}`);
-        setStatus('error');
+        const isPermissionDenied = micErr instanceof Error && (micErr as Error).name === 'NotAllowedError';
+        if (isPermissionDenied) {
+          log('Microphone access DENIED by user');
+          setErrorDetail('Audio access rejected. Call ended.');
+          setStatus('ended');
+        } else {
+          const detail = micErr instanceof Error ? `${(micErr as Error).name}: ${(micErr as Error).message}` : String(micErr);
+          log(`Microphone access FAILED: ${detail}`);
+          setErrorDetail(`Mic error: ${detail}`);
+          setStatus('error');
+        }
         connectingRef.current = false;
         return;
       }
@@ -381,7 +378,7 @@ export function useGeminiLive() {
     } finally {
       connectingRef.current = false;
     }
-  }, [log, playback.startPlayback, capture.startCapture, capture.onAudioData, video.requestPermission]);
+  }, [log, playback.startPlayback, capture.startCapture, capture.onAudioData]);
 
   // ---------------------------------------------------------------------------
   // attemptReconnect — exponential backoff reconnect (1s, 2s, 4s), max 3 tries

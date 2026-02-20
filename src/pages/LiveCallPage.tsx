@@ -118,6 +118,47 @@ function LiveCallPageInner() {
     tg?.close?.();
   }, [gemini.disconnect, sessionId, callDuration, getInitData, getTelegram]);
 
+  // Permission denied — clean "ended" state with friendly message
+  const isPermissionDenied = gemini.status === 'ended' && gemini.errorDetail?.includes('rejected');
+  if (isPermissionDenied) {
+    return (
+      <div style={{
+        minHeight: '100vh',
+        backgroundColor: '#000',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '24px',
+        gap: '16px',
+      }}>
+        <p style={{
+          fontFamily: 'ui-monospace, monospace',
+          color: 'rgba(255,255,255,0.5)',
+          fontSize: '14px',
+          textAlign: 'center',
+        }}>
+          {gemini.errorDetail}
+        </p>
+        <button
+          onClick={() => { const tg = getTelegram(); tg?.close?.(); }}
+          style={{
+            backgroundColor: 'transparent',
+            border: '1px solid rgba(255,255,255,0.3)',
+            borderRadius: '0',
+            color: 'rgba(255,255,255,0.6)',
+            fontFamily: 'ui-monospace, monospace',
+            fontSize: '11px',
+            padding: '8px 16px',
+            cursor: 'pointer',
+          }}
+        >
+          Close
+        </button>
+      </div>
+    );
+  }
+
   // Show error state with debug details (visible in Mini App since we can't see console)
   const showError = error || gemini.status === 'error';
   const errorMessage = error || gemini.errorDetail || 'Unknown error';

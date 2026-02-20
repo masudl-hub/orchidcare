@@ -293,7 +293,7 @@ export const voiceToolDeclarations = [
       },
       {
         name: "capture_plant_snapshot",
-        description: "Capture a visual snapshot of a plant for the visual memory chronicle. Stores a description and image from the current video frame so you can remember what plants look like over time. Use when identifying/diagnosing a saved plant, or when the user asks you to remember what a plant looks like. Requires user confirmation for voice call captures.",
+        description: "Capture a visual snapshot of a plant for the visual memory chronicle. NEVER call without explicit user consent — always ask first ('Want me to save a snapshot?') and wait for confirmation. If the plant isn't saved yet, call save_plant first, then capture the snapshot. Provide a thorough description of what you see.",
         parameters: {
           type: "OBJECT",
           properties: {
@@ -302,6 +302,10 @@ export const voiceToolDeclarations = [
             context: { type: "STRING", description: "Why: identification, diagnosis, routine_check, user_requested" },
             health_notes: { type: "STRING", description: "Optional health observations at this point in time" },
             confirmed: { type: "BOOLEAN", description: "Must be true — ask the user for confirmation before calling this tool" },
+            save_if_missing: { type: "BOOLEAN", description: "Set to true to auto-save the plant if it doesn't exist yet. Requires species." },
+            species: { type: "STRING", description: "Species name, required when save_if_missing is true" },
+            nickname: { type: "STRING", description: "Optional nickname for the new plant (used with save_if_missing)" },
+            location: { type: "STRING", description: "Optional location in home (used with save_if_missing)" },
           },
           required: ["plant_identifier", "description", "confirmed"],
         },

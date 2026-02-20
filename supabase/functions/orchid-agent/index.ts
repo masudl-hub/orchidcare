@@ -810,7 +810,8 @@ Use when:
 - User explicitly asks to "capture", "save a snapshot", or "remember what this looks like"
 - During routine check-ins where a photo is shared
 
-The snapshot includes a detailed visual description that you'll see in future conversations, so be thorough in the description.`,
+The snapshot includes a detailed visual description that you'll see in future conversations, so be thorough in the description.
+If the plant isn't saved yet, set save_if_missing: true and include species so it gets saved alongside the snapshot.`,
       parameters: {
         type: "object",
         properties: {
@@ -830,6 +831,22 @@ The snapshot includes a detailed visual description that you'll see in future co
           health_notes: {
             type: "string",
             description: "Optional health observations at this point in time",
+          },
+          save_if_missing: {
+            type: "boolean",
+            description: "Set to true to auto-save the plant if it doesn't exist yet. Requires species.",
+          },
+          species: {
+            type: "string",
+            description: "Species name, required when save_if_missing is true",
+          },
+          nickname: {
+            type: "string",
+            description: "Optional nickname for the new plant",
+          },
+          location: {
+            type: "string",
+            description: "Optional location in home for the new plant",
           },
         },
         required: ["plant_identifier", "description"],
@@ -3199,6 +3216,10 @@ ${proactiveContext.events.map((e: any) => `- ${e.message_hint}`).join("\n")}
                 context: args.context || "user_requested",
                 health_notes: args.health_notes,
                 source: "telegram_photo",
+                save_if_missing: args.save_if_missing,
+                species: args.species,
+                nickname: args.nickname,
+                location: args.location,
               },
               uploadedPhotoPath || mediaUrl0 || undefined,
             );

@@ -678,6 +678,10 @@ export async function capturePlantSnapshot(
     health_notes?: string;
     image_base64?: string;
     source?: string;
+    save_if_missing?: boolean;
+    species?: string;
+    nickname?: string;
+    location?: string;
   },
   existingImagePath?: string,
 ): Promise<{
@@ -689,11 +693,27 @@ export async function capturePlantSnapshot(
   try {
     // Resolve the plant
     const resolution = await resolvePlants(supabase, profileId, args.plant_identifier);
-    if (resolution.plants.length === 0) {
-      return { success: false, error: `Couldn't find a plant matching "${args.plant_identifier}"` };
-    }
+    let plant: any;
 
-    const plant = resolution.plants[0];
+    if (resolution.plants.length === 0) {
+      // If caller provided species info, save the plant first
+      if (args.save_if_missing && args.species) {
+        const saveResult = await savePlant(supabase, profileId, {
+          species: args.species,
+          nickname: args.nickname,
+          location: args.location,
+        }, existingImagePath);
+        if (!saveResult.success) {
+          return { success: false, error: `Couldn't save plant: ${saveResult.error}` };
+        }
+        plant = saveResult.plant;
+        console.log(`[capturePlantSnapshot] Auto-saved plant "${plant.name}" before capturing snapshot`);
+      } else {
+        return { success: false, error: `Couldn't find a plant matching "${args.plant_identifier}". Save it first or include species with save_if_missing: true.` };
+      }
+    } else {
+      plant = resolution.plants[0];
+    }
     let imagePath = existingImagePath || "";
 
     // If base64 image provided (voice call capture), upload to storage

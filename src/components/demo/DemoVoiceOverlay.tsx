@@ -32,7 +32,7 @@ export function DemoVoiceOverlay({
 
     async function init() {
       try {
-        console.log('[DemoVoice] Fetching voice token...');
+        if (import.meta.env.DEV) console.log('[DemoVoice] Fetching voice token...');
         const res = await fetch(`${SUPABASE_URL}/functions/v1/demo-agent/voice-token`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -49,19 +49,19 @@ export function DemoVoiceOverlay({
         const data = await res.json();
         const ephemeralToken = data.token;
         const updatedDemoToken = data.demoToken || demoToken;
-        console.log('[DemoVoice] Token received, length:', ephemeralToken?.length);
+        if (import.meta.env.DEV) console.log('[DemoVoice] Token received, length:', ephemeralToken?.length);
 
         if (!ephemeralToken) throw new Error('No ephemeral token received');
 
         newTokenRef.current = updatedDemoToken;
 
         const sessionId = crypto.randomUUID();
-        console.log('[DemoVoice] Connecting to Gemini Live...');
+        if (import.meta.env.DEV) console.log('[DemoVoice] Connecting to Gemini Live...');
         await gemini.connect(ephemeralToken, sessionId, '', {
           toolsUrl: `${SUPABASE_URL}/functions/v1/demo-agent/voice-tools`,
           extraAuth: { demoToken: updatedDemoToken },
         });
-        console.log('[DemoVoice] connect() returned');
+        if (import.meta.env.DEV) console.log('[DemoVoice] connect() returned');
       } catch (err) {
         // AbortController.abort() causes an AbortError — ignore it silently
         if (err instanceof DOMException && err.name === 'AbortError') return;
@@ -111,7 +111,7 @@ export function DemoVoiceOverlay({
   // Handle connection ending (SDK close / error)
   // -------------------------------------------------------------------------
   useEffect(() => {
-    console.log(`[DemoVoice] Status: ${gemini.status}${gemini.errorDetail ? ` — ${gemini.errorDetail}` : ''}`);
+    if (import.meta.env.DEV) console.log(`[DemoVoice] Status: ${gemini.status}${gemini.errorDetail ? ` — ${gemini.errorDetail}` : ''}`);
     if (gemini.status === 'ended' && !endedRef.current) {
       endedRef.current = true;
       onEnd(newTokenRef.current);

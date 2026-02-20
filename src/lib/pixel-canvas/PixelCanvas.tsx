@@ -94,7 +94,7 @@ export function PixelCanvas({
           autoDensity: true,
         });
       } catch (e) {
-        console.error('[PixelCanvas] app.init() FAILED:', e);
+        if (import.meta.env.DEV) console.error('[PixelCanvas] app.init() FAILED:', e);
         return;
       }
 
@@ -174,7 +174,7 @@ export function PixelCanvas({
         if (cancelled || destroyedRef.current) return;
 
         const positions = gridToPositions(result.grid);
-        console.log(`[PixelCanvas] sampled ${positions.length} active pixels`);
+        if (import.meta.env.DEV) console.log(`[PixelCanvas] sampled ${positions.length} active pixels`);
         engine.setHome(positions);
 
         // Create foreground particles for active pixels (these move/morph)
@@ -214,7 +214,7 @@ export function PixelCanvas({
         };
 
         initedRef.current = true;
-        console.log(`[PixelCanvas] created ${particles.length} particles, starting ticker`);
+        if (import.meta.env.DEV) console.log(`[PixelCanvas] created ${particles.length} particles, starting ticker`);
         // Start animation ticker
         app.ticker.add((ticker) => {
           if (destroyedRef.current) return;
@@ -273,7 +273,7 @@ export function PixelCanvas({
       if (entry) {
         positions = entry.positions;
       } else {
-        console.warn(`[PixelCanvas] Formation template not found: ${formation.id}`);
+        if (import.meta.env.DEV) console.warn(`[PixelCanvas] Formation template not found: ${formation.id}`);
       }
     } else if (formation.type === 'text' && formation.text) {
       positions = textToGridPositions(formation.text, GRID_COLS, GRID_ROWS);

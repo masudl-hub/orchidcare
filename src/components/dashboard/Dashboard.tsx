@@ -879,13 +879,15 @@ const OverviewView = ({ onNavigateToPlant, onViewAllPlants, allSpecimens }: { on
   
   // Auto-initialize settings if they're missing (once)
   useEffect(() => {
-    console.log('[Dashboard] Auto-init effect:', {
-      needsInitialization,
-      attempted: initializationAttempted.current,
-      isPending: initializeSettings.isPending
-    });
+    if (import.meta.env.DEV) {
+      console.log('[Dashboard] Auto-init effect:', {
+        needsInitialization,
+        attempted: initializationAttempted.current,
+        isPending: initializeSettings.isPending
+      });
+    }
     if (needsInitialization && !initializationAttempted.current && !initializeSettings.isPending) {
-      console.log('Settings need initialization - creating default rows');
+      if (import.meta.env.DEV) console.log('Settings need initialization - creating default rows');
       initializationAttempted.current = true;
       initializeSettings.mutate();
     }
@@ -912,12 +914,14 @@ const OverviewView = ({ onNavigateToPlant, onViewAllPlants, allSpecimens }: { on
     canCreateReminders: systemSettings.can_create_reminders ?? true,
   } : null;
 
-  console.log('[Dashboard] Protocols result:', {
-    hasSystemSettings: !!systemSettings,
-    needsInitialization,
-    protocolsIsNull: protocols === null,
-    protocols
-  });
+  if (import.meta.env.DEV) {
+    console.log('[Dashboard] Protocols result:', {
+      hasSystemSettings: !!systemSettings,
+      needsInitialization,
+      protocolsIsNull: protocols === null,
+      protocols
+    });
+  }
 
   const [tempProtocols, setTempProtocols] = useState(protocols);
   

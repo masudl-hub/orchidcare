@@ -152,7 +152,7 @@ export default function Settings() {
   // Auto-initialize settings if they're missing (once)
   useEffect(() => {
     if (needsInitialization && !initializationAttempted.current && !initializeSettings.isPending) {
-      console.log('Settings need initialization - creating default rows');
+      if (import.meta.env.DEV) console.log('Settings need initialization - creating default rows');
       initializationAttempted.current = true;
       initializeSettings.mutate();
     }

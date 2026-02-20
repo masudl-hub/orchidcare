@@ -291,6 +291,34 @@ export const voiceToolDeclarations = [
           required: ["prompt"],
         },
       },
+      {
+        name: "capture_plant_snapshot",
+        description: "Capture a visual snapshot of a plant for the visual memory chronicle. Stores a description and image from the current video frame so you can remember what plants look like over time. Use when identifying/diagnosing a saved plant, or when the user asks you to remember what a plant looks like. Requires user confirmation for voice call captures.",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            plant_identifier: { type: "STRING", description: "Name/nickname of the plant to attach the snapshot to" },
+            description: { type: "STRING", description: "Detailed visual description: size, color, leaf shape/count, health markers, pot type, distinguishing features. Be specific enough to match later." },
+            context: { type: "STRING", description: "Why: identification, diagnosis, routine_check, user_requested" },
+            health_notes: { type: "STRING", description: "Optional health observations at this point in time" },
+            confirmed: { type: "BOOLEAN", description: "Must be true — ask the user for confirmation before calling this tool" },
+          },
+          required: ["plant_identifier", "description", "confirmed"],
+        },
+      },
+      {
+        name: "compare_plant_snapshots",
+        description: "Compare how a plant looks now vs. previous snapshots. Fetches stored visual descriptions and returns a temporal comparison. Use when the user asks how a plant has changed, whether it's improved, or wants to see its history.",
+        behavior: "NON_BLOCKING",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            plant_identifier: { type: "STRING", description: "Name/nickname of the plant to compare snapshots for" },
+            comparison_type: { type: "STRING", description: "latest (compare last 2), all (summarize full timeline), or specific" },
+          },
+          required: ["plant_identifier"],
+        },
+      },
     ],
   },
 ];

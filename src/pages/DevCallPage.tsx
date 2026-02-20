@@ -261,6 +261,7 @@ function DevCallPageInner() {
           onToggleVideo={gemini.toggleVideo}
           onToggleFacingMode={gemini.toggleFacingMode}
           onEndCall={handleEndCall}
+          onCaptureSnapshot={gemini.captureSnapshot}
         />
 
         {/* Debug drawer — right edge */}

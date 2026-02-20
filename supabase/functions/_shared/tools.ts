@@ -746,6 +746,93 @@ export async function capturePlantSnapshot(
   }
 }
 
+export async function comparePlantSnapshots(
+  supabase: any,
+  profileId: string,
+  plantIdentifier: string,
+  comparisonType: string,
+  LOVABLE_API_KEY?: string,
+): Promise<Record<string, unknown>> {
+  try {
+    const resolution = await resolvePlants(supabase, profileId, plantIdentifier);
+    if (resolution.plants.length === 0) {
+      return { success: false, error: `Couldn't find a plant matching "${plantIdentifier}"` };
+    }
+
+    const plant = resolution.plants[0];
+    const plantName = plant.nickname || plant.species || plant.name;
+
+    // Fetch all snapshots for this plant, ordered by date
+    const { data: snapshots, error } = await supabase
+      .from("plant_snapshots")
+      .select("*")
+      .eq("plant_id", plant.id)
+      .order("created_at", { ascending: true });
+
+    if (error) {
+      return { success: false, error: error.message };
+    }
+
+    if (!snapshots || snapshots.length === 0) {
+      return { success: false, error: `No snapshots found for ${plantName}. Take some photos first!` };
+    }
+
+    if (snapshots.length === 1) {
+      const s = snapshots[0];
+      return {
+        success: true,
+        plantName,
+        snapshotCount: 1,
+        summary: `Only one snapshot exists for ${plantName} (${s.context}, ${new Date(s.created_at).toLocaleDateString()}): ${s.description}${s.health_notes ? ` Health: ${s.health_notes}` : ""}`,
+      };
+    }
+
+    // Build timeline for LLM comparison
+    const timeline = snapshots.map((s: any, i: number) => {
+      const date = new Date(s.created_at).toLocaleDateString();
+      return `Snapshot ${i + 1} (${date}, ${s.context}): ${s.description}${s.health_notes ? ` | Health: ${s.health_notes}` : ""}`;
+    }).join("\n");
+
+    if (!LOVABLE_API_KEY) {
+      // Return raw timeline without AI summary
+      return { success: true, plantName, snapshotCount: snapshots.length, timeline };
+    }
+
+    // Use AI to generate a meaningful comparison
+    const prompt = comparisonType === "latest"
+      ? `Compare the two most recent snapshots of this ${plant.species || "plant"} called "${plantName}":\n\n${timeline}\n\nFocus on changes between the last two entries. What improved? What got worse? Any new growth? Be specific and concise (3-4 sentences for voice).`
+      : `Summarize the visual timeline of this ${plant.species || "plant"} called "${plantName}":\n\n${timeline}\n\nDescribe the overall trajectory: growth, health changes, any recurring issues. Be concise (4-5 sentences for voice).`;
+
+    const resp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "google/gemini-3-flash-preview",
+        messages: [
+          { role: "system", content: "You are an expert botanist comparing plant photos over time. Provide clear, specific observations about changes. This will be spoken aloud." },
+          { role: "user", content: prompt },
+        ],
+        temperature: 0.7,
+      }),
+    });
+
+    const data = await resp.json();
+    const comparison = data.choices?.[0]?.message?.content || "Unable to generate comparison.";
+
+    return {
+      success: true,
+      plantName,
+      snapshotCount: snapshots.length,
+      firstSnapshot: new Date(snapshots[0].created_at).toLocaleDateString(),
+      latestSnapshot: new Date(snapshots[snapshots.length - 1].created_at).toLocaleDateString(),
+      comparison,
+    };
+  } catch (error) {
+    console.error("[comparePlantSnapshots] Exception:", error);
+    return { success: false, error: String(error) };
+  }
+}
+
 export async function checkAgentPermission(supabase: any, profileId: string, capability: string): Promise<boolean> {
   try {
     const { data, error } = await supabase
@@ -757,10 +844,9 @@ export async function checkAgentPermission(supabase: any, profileId: string, cap
 
     if (error) {
       console.error(`[Permissions] Error checking ${capability}:`, error);
-      return true; // Default to allowing if error (fail open for phone-first users)
+      return true;
     }
 
-    // If no permission record exists (legacy user), allow by default
     if (!data) {
       return true;
     }
@@ -768,6 +854,6 @@ export async function checkAgentPermission(supabase: any, profileId: string, cap
     return data.enabled;
   } catch (error) {
     console.error(`[Permissions] Exception checking ${capability}:`, error);
-    return true; // Fail open
+    return true;
   }
 }

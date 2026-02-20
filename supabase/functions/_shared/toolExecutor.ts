@@ -12,6 +12,8 @@ import {
   saveUserInsight,
   updateNotificationPreferences,
   updateProfile,
+  capturePlantSnapshot,
+  comparePlantSnapshots,
 } from "./tools.ts";
 import {
   callResearchAgent,
@@ -179,6 +181,32 @@ export async function executeTool(
       }
       break;
     }
+
+    case "capture_plant_snapshot": {
+      if (!args.confirmed) {
+        result = { success: false, error: "User confirmation required. Ask them first, then call with confirmed=true." };
+      } else {
+        result = await capturePlantSnapshot(supabase, profileId, {
+          plant_identifier: args.plant_identifier as string,
+          description: args.description as string,
+          context: (args.context as string) || "user_requested",
+          health_notes: args.health_notes as string | undefined,
+          image_base64: args.image_base64 as string | undefined,
+          source: "voice_call_capture",
+        });
+      }
+      break;
+    }
+
+    case "compare_plant_snapshots":
+      result = await comparePlantSnapshots(
+        supabase,
+        profileId,
+        args.plant_identifier as string,
+        (args.comparison_type as string) || "latest",
+        LOVABLE_API_KEY,
+      );
+      break;
 
     default:
       result = { success: false, error: `Unknown tool: ${toolName}` };

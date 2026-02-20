@@ -1,7 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { encode as base64Encode } from "https://deno.land/std@0.168.0/encoding/base64.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { Bot } from "https://deno.land/x/grammy@v1.21.1/mod.ts";
+import { Bot } from "npm:grammy@1.21.1";
 
 // ============================================================================
 // TELEGRAM BOT - Adapter between Telegram Bot API and orchid-agent
@@ -201,6 +201,7 @@ async function callAgent(
   channel: string = "telegram",
   mediaBase64?: string,
   mediaMimeType?: string,
+  telegramChatId?: number,
 ): Promise<{ reply: string; mediaToSend: Array<{ url: string; caption?: string }> }> {
   const orchidAgentUrl = `${SUPABASE_URL}/functions/v1/orchid-agent`;
 
@@ -215,8 +216,12 @@ async function callAgent(
     payload.mediaMimeType = mediaMimeType;
   }
 
+  if (telegramChatId) {
+    payload.telegramChatId = String(telegramChatId);
+  }
+
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 55000);
+  const timeout = setTimeout(() => controller.abort(), 150000);
 
   const startTime = Date.now();
   const msgPreview = message.length > 100 ? message.substring(0, 100) + "..." : message;
@@ -274,7 +279,7 @@ async function callAgent(
   } catch (error) {
     const elapsed = Date.now() - startTime;
     if (error instanceof DOMException && error.name === "AbortError") {
-      console.error(`[TelegramBot] callAgent: TIMEOUT — aborted after ${elapsed}ms (limit=55s)`);
+      console.error(`[TelegramBot] callAgent: TIMEOUT — aborted after ${elapsed}ms (limit=150s)`);
       return { reply: "I'm taking longer than usual. Please try again.", mediaToSend: [] };
     }
     const errStr = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
@@ -632,7 +637,7 @@ bot.on("message:text", async (ctx) => {
   // Call the agent with continuous typing indicator
   const stopTyping = startTypingIndicator(chatId);
   try {
-    const { reply, mediaToSend } = await callAgent(profile.id, text);
+    const { reply, mediaToSend } = await callAgent(profile.id, text, "telegram", undefined, undefined, chatId);
 
     // Send text reply (split if needed)
     const chunks = splitMessage(reply);
@@ -707,7 +712,7 @@ bot.on("message:photo", async (ctx) => {
   const message = caption || "What can you tell me about this plant?";
   const stopTyping = startTypingIndicator(chatId);
   try {
-    const { reply, mediaToSend } = await callAgent(profile.id, message, "telegram", photoData.base64, photoData.mimeType);
+    const { reply, mediaToSend } = await callAgent(profile.id, message, "telegram", photoData.base64, photoData.mimeType, chatId);
 
     const chunks = splitMessage(reply);
     console.log(`[TelegramBot] message:photo: sending reply — ${chunks.length} chunks, ${reply.length} total chars`);
@@ -766,7 +771,7 @@ bot.on("message:video", async (ctx) => {
   const message = caption || "Here's a video of my plant.";
   const stopTyping = startTypingIndicator(chatId);
   try {
-    const { reply, mediaToSend } = await callAgent(profile.id, message, "telegram", videoData.base64, "video/mp4");
+    const { reply, mediaToSend } = await callAgent(profile.id, message, "telegram", videoData.base64, "video/mp4", chatId);
 
     const chunks = splitMessage(reply);
     for (const chunk of chunks) {
@@ -813,7 +818,7 @@ bot.on("message:voice", async (ctx) => {
 
   const stopTyping = startTypingIndicator(chatId);
   try {
-    const { reply, mediaToSend } = await callAgent(profile.id, "Voice message from user.", "telegram", voiceData.base64, "audio/ogg");
+    const { reply, mediaToSend } = await callAgent(profile.id, "Voice message from user.", "telegram", voiceData.base64, "audio/ogg", chatId);
 
     const chunks = splitMessage(reply);
     for (const chunk of chunks) {
@@ -857,7 +862,7 @@ bot.on("message:audio", async (ctx) => {
   const mimeType = audio.mime_type || "audio/ogg";
   const stopTyping = startTypingIndicator(chatId);
   try {
-    const { reply, mediaToSend } = await callAgent(profile.id, "Audio message from user.", "telegram", audioData.base64, mimeType);
+    const { reply, mediaToSend } = await callAgent(profile.id, "Audio message from user.", "telegram", audioData.base64, mimeType, chatId);
 
     const chunks = splitMessage(reply);
     for (const chunk of chunks) {
@@ -908,7 +913,7 @@ bot.on("message:document", async (ctx) => {
     const message = caption || "What can you tell me about this plant?";
     const stopTyping = startTypingIndicator(chatId);
     try {
-      const { reply, mediaToSend } = await callAgent(profile.id, message, "telegram", photoData.base64, doc.mime_type);
+      const { reply, mediaToSend } = await callAgent(profile.id, message, "telegram", photoData.base64, doc.mime_type, chatId);
 
       const chunks = splitMessage(reply);
       for (const chunk of chunks) {

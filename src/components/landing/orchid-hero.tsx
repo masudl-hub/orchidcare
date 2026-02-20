@@ -43,6 +43,7 @@ export function OrchidHero({ onStartClick, onLoginClick, onDemoClick }: OrchidHe
   const lastStepTime = useRef(0);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const imgRef = useRef<HTMLImageElement | null>(null);
+  const [canvasReady, setCanvasReady] = useState(fromApp);
 
   const isTouch = useIsTouch();
   const isMobile = useIsMobile();
@@ -80,16 +81,6 @@ export function OrchidHero({ onStartClick, onLoginClick, onDemoClick }: OrchidHe
   useEffect(() => {
     if (fromApp) return;
 
-    // Draw dark placeholder immediately so the canvas is never blank on a white background
-    const canvas = canvasRef.current;
-    if (canvas) {
-      const ctx = canvas.getContext("2d");
-      if (ctx) {
-        ctx.fillStyle = "#0a0a0a";
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-      }
-    }
-
     // Skip straight to revealed state if image fails
     const skipToReady = () => {
       setLoadingProgress(100);
@@ -107,6 +98,7 @@ export function OrchidHero({ onStartClick, onLoginClick, onDemoClick }: OrchidHe
 
       // Draw first frame
       drawAtResolution(PIXEL_STEPS[0]);
+      setCanvasReady(true);
 
       const totalDuration = 2500;
       const stepCount = PIXEL_STEPS.length;
@@ -389,13 +381,16 @@ export function OrchidHero({ onStartClick, onLoginClick, onDemoClick }: OrchidHe
               width={CANVAS_WIDTH_LG}
               height={CANVAS_HEIGHT_LG}
               className={`absolute inset-0 z-20 transition-opacity duration-500 ease-out ${
-                canvasFading ? "opacity-0 pointer-events-none" : "opacity-100"
+                canvasFading ? "opacity-0 pointer-events-none" : ""
               }`}
               style={{
-                width: canvasW,
-                height: canvasH,
-                imageRendering: "pixelated",
-                cursor: phase === "ready" ? "pointer" : "default",
+                ...{
+                  width: canvasW,
+                  height: canvasH,
+                  imageRendering: "pixelated" as const,
+                  cursor: phase === "ready" ? "pointer" : "default",
+                },
+                opacity: canvasFading ? 0 : canvasReady ? 1 : 0,
               }}
               onClick={handleCarouselClick}
             />

@@ -401,6 +401,57 @@ export type Database = {
           },
         ]
       }
+      plant_snapshots: {
+        Row: {
+          context: string
+          created_at: string
+          description: string
+          health_notes: string | null
+          id: string
+          image_path: string
+          plant_id: string
+          profile_id: string
+          source: string
+        }
+        Insert: {
+          context?: string
+          created_at?: string
+          description: string
+          health_notes?: string | null
+          id?: string
+          image_path: string
+          plant_id: string
+          profile_id: string
+          source?: string
+        }
+        Update: {
+          context?: string
+          created_at?: string
+          description?: string
+          health_notes?: string | null
+          id?: string
+          image_path?: string
+          plant_id?: string
+          profile_id?: string
+          source?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "plant_snapshots_plant_id_fkey"
+            columns: ["plant_id"]
+            isOneToOne: false
+            referencedRelation: "plants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "plant_snapshots_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       plants: {
         Row: {
           acquired_date: string | null

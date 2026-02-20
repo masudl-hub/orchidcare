@@ -5,7 +5,7 @@ import { resize } from "https://deno.land/x/deno_image@0.0.4/mod.ts";
 import { decode as base64Decode } from "https://deno.land/std@0.208.0/encoding/base64.ts";
 
 // Shared modules
-import { resolvePlants, savePlant, modifyPlant, deletePlant, createReminder, deleteReminder, logCareEvent, saveUserInsight, updateNotificationPreferences, updateProfile, checkAgentPermission, TOOL_CAPABILITY_MAP } from "../_shared/tools.ts";
+import { resolvePlants, savePlant, modifyPlant, deletePlant, createReminder, deleteReminder, logCareEvent, saveUserInsight, updateNotificationPreferences, updateProfile, checkAgentPermission, capturePlantSnapshot, TOOL_CAPABILITY_MAP } from "../_shared/tools.ts";
 import { callResearchAgent, callMapsShoppingAgent, verifyStoreInventory, parseDistance, geocodeLocation } from "../_shared/research.ts";
 import { loadHierarchicalContext, buildEnrichedSystemPrompt, formatTimeUntil, formatTimeSince, formatTimeAgo, formatInsightKey } from "../_shared/context.ts";
 import type { HierarchicalContext, PlantResolutionResult, StoreRecommendation, StoreSearchResult, StoreVerification } from "../_shared/types.ts";
@@ -796,6 +796,43 @@ After updating, immediately continue with the user's original request (e.g., aft
           prompt: { type: "string", description: "Detailed description of the image to generate" },
         },
         required: ["prompt"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "capture_plant_snapshot",
+      description: `Capture a visual snapshot of a plant for the visual memory chronicle. This stores a description and image reference so you can remember what plants look like over time.
+
+Use when:
+- User sends a photo and you've identified/diagnosed a plant they have saved
+- User explicitly asks to "capture", "save a snapshot", or "remember what this looks like"
+- During routine check-ins where a photo is shared
+
+The snapshot includes a detailed visual description that you'll see in future conversations, so be thorough in the description.`,
+      parameters: {
+        type: "object",
+        properties: {
+          plant_identifier: {
+            type: "string",
+            description: "Name/nickname of the plant to attach the snapshot to",
+          },
+          description: {
+            type: "string",
+            description: "Detailed visual description: size, color, leaf shape/count, health markers, pot type, distinguishing features. Be specific enough to match later.",
+          },
+          context: {
+            type: "string",
+            enum: ["identification", "diagnosis", "routine_check", "user_requested"],
+            description: "Why the snapshot is being taken",
+          },
+          health_notes: {
+            type: "string",
+            description: "Optional health observations at this point in time",
+          },
+        },
+        required: ["plant_identifier", "description"],
       },
     },
   },
@@ -2046,6 +2083,61 @@ interface MediaInfo {
 }
 
 
+// ============================================================================
+// VISUAL DESCRIPTION GENERATOR (for plant snapshot memory)
+// ============================================================================
+
+async function generateVisualDescription(
+  base64Image: string,
+  species: string,
+  context: "identification" | "diagnosis" | "routine_check" | "user_requested",
+  LOVABLE_API_KEY: string,
+): Promise<string> {
+  try {
+    const contextPrompts: Record<string, string> = {
+      identification: `Describe this ${species} plant in detail for future visual recognition. Include: size, color, leaf shape/count, distinguishing features, pot type, and overall health appearance. Be specific enough that someone could match this plant from a different photo later. 2-3 sentences max.`,
+      diagnosis: `Describe the current visual state of this ${species} plant, focusing on health indicators. Note: leaf color, any discoloration/spots/wilting, growth patterns, and overall vitality. Be specific about problem areas. 2-3 sentences max.`,
+      routine_check: `Describe the current state of this ${species} plant for a growth timeline. Note size, new growth, leaf count, color, and any changes that would be notable over time. 2-3 sentences max.`,
+      user_requested: `Provide a detailed visual description of this ${species} plant. Include size, shape, color, leaf characteristics, pot, and any notable features. 2-3 sentences max.`,
+    };
+
+    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${LOVABLE_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "google/gemini-2.5-flash-lite",
+        messages: [
+          { role: "system", content: contextPrompts[context] || contextPrompts.identification },
+          {
+            role: "user",
+            content: [
+              { type: "text", text: `Describe this ${species} plant for visual memory.` },
+              { type: "image_url", image_url: { url: `data:image/jpeg;base64,${base64Image}` } },
+            ],
+          },
+        ],
+        max_tokens: 200,
+      }),
+    });
+
+    if (!response.ok) {
+      console.error(`[generateVisualDescription] Failed: ${response.status}`);
+      return "";
+    }
+
+    const data = await response.json();
+    const description = data.choices?.[0]?.message?.content?.trim() || "";
+    console.log(`[generateVisualDescription] Generated ${description.length} char description`);
+    return description;
+  } catch (error) {
+    console.error("[generateVisualDescription] Error:", error);
+    return "";
+  }
+}
+
 
 
 // ============================================================================
@@ -2255,8 +2347,22 @@ serve(async (req: Request) => {
     // Get user's plants for context
     const { data: userPlants } = await supabase
       .from("plants")
-      .select("name, species, nickname, location_in_home")
+      .select("id, name, species, nickname, location_in_home")
       .eq("profile_id", profile?.id);
+
+    // Get latest 3 snapshots per plant for visual context
+    const plantIds = (userPlants || []).map((p: any) => p.id);
+    let plantSnapshots: any[] = [];
+    if (plantIds.length > 0) {
+      const { data: snaps } = await supabase
+        .from("plant_snapshots")
+        .select("id, plant_id, description, health_notes, context, created_at")
+        .eq("profile_id", profile?.id)
+        .in("plant_id", plantIds)
+        .order("created_at", { ascending: false })
+        .limit(plantIds.length * 3); // ~3 per plant
+      plantSnapshots = snaps || [];
+    }
 
     // Build enriched conversation history with photo annotations
     const conversationHistory = hierarchicalContext.recentMessages.reverse().map((m) => {
@@ -2423,6 +2529,7 @@ ${body ? `Accompanying text: ${body}` : ""}`;
       hierarchicalContext,
       userPlants || [],
       profile,
+      plantSnapshots,
     );
 
     // Inject proactive context if this is a proactive trigger
@@ -2631,6 +2738,42 @@ ${proactiveContext.events.map((e: any) => `- ${e.message_hint}`).join("\n")}
                   { species: toolResult.data.species },
                 );
               }
+
+              // Auto-capture plant snapshot for visual memory
+              // Try to match to an existing saved plant
+              if (uploadedPhotoPath || mediaUrl0) {
+                const species = toolResult.data.species || "Unknown";
+                const { data: matchedPlants } = await supabase
+                  .from("plants")
+                  .select("id, name, nickname, species")
+                  .eq("profile_id", profile?.id)
+                  .or(`name.ilike.%${species}%,species.ilike.%${species}%`)
+                  .limit(1);
+
+                if (matchedPlants && matchedPlants.length > 0) {
+                  const plant = matchedPlants[0];
+                  // Generate a visual description via a quick LLM call
+                  const descResult = await generateVisualDescription(
+                    mediaInfo.base64,
+                    species,
+                    "identification",
+                    LOVABLE_API_KEY,
+                  );
+                  
+                  await capturePlantSnapshot(
+                    supabase,
+                    profile?.id,
+                    {
+                      plant_identifier: plant.nickname || plant.name,
+                      description: descResult || `${species} - identified from photo`,
+                      context: "identification",
+                      source: "telegram_photo",
+                    },
+                    uploadedPhotoPath || mediaUrl0,
+                  );
+                  console.log(`[VisualMemory] Auto-captured snapshot for ${plant.nickname || plant.name}`);
+                }
+              }
             }
             } else {
               toolResult = { success: false, error: "No photo attached. Please send a photo with your message so I can identify the plant." };
@@ -2684,6 +2827,38 @@ ${proactiveContext.events.map((e: any) => `- ${e.message_hint}`).join("\n")}
                   functionName,
                   { diagnosis: toolResult.data.diagnosis, severity: toolResult.data.severity },
                 );
+              }
+
+              // Auto-capture snapshot for diagnosis visual memory
+              if ((uploadedPhotoPath || mediaUrl0) && diagnosePlantId) {
+                const diagPlant = await supabase
+                  .from("plants")
+                  .select("name, nickname, species")
+                  .eq("id", diagnosePlantId)
+                  .single();
+
+                if (diagPlant.data) {
+                  const descResult = await generateVisualDescription(
+                    mediaInfo.base64,
+                    diagPlant.data.species || diagPlant.data.name,
+                    "diagnosis",
+                    LOVABLE_API_KEY,
+                  );
+                  
+                  await capturePlantSnapshot(
+                    supabase,
+                    profile?.id,
+                    {
+                      plant_identifier: diagPlant.data.nickname || diagPlant.data.name,
+                      description: descResult || `Diagnosis photo - ${toolResult.data.diagnosis}`,
+                      context: "diagnosis",
+                      source: "telegram_photo",
+                      health_notes: `${toolResult.data.diagnosis} (${toolResult.data.severity}). Treatment: ${toolResult.data.treatment || "none"}`,
+                    },
+                    uploadedPhotoPath || mediaUrl0,
+                  );
+                  console.log(`[VisualMemory] Auto-captured diagnosis snapshot for ${diagPlant.data.nickname || diagPlant.data.name}`);
+                }
               }
             }
             } else {
@@ -2942,6 +3117,31 @@ ${proactiveContext.events.map((e: any) => `- ${e.message_hint}`).join("\n")}
                 null,
                 functionName,
                 { key: args.insight_key },
+              );
+            }
+          } else if (functionName === "capture_plant_snapshot") {
+            toolResult = await capturePlantSnapshot(
+              supabase,
+              profile?.id,
+              {
+                plant_identifier: args.plant_identifier,
+                description: args.description,
+                context: args.context || "user_requested",
+                health_notes: args.health_notes,
+                source: "telegram_photo",
+              },
+              uploadedPhotoPath || mediaUrl0 || undefined,
+            );
+            if (toolResult.success && toolResult.snapshot) {
+              await logAgentOperation(
+                supabase,
+                profile?.id,
+                correlationId,
+                "create",
+                "plant_snapshots",
+                toolResult.snapshot.id,
+                functionName,
+                { plant: toolResult.plantName, context: args.context },
               );
             }
           }

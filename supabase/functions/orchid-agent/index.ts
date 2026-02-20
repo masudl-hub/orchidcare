@@ -2108,7 +2108,7 @@ async function generateVisualDescription(
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash-lite",
+        model: "google/gemini-3-flash-preview",
         messages: [
           { role: "system", content: contextPrompts[context] || contextPrompts.identification },
           {

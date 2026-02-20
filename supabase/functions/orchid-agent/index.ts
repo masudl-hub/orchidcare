@@ -1144,6 +1144,44 @@ interface ImageGuideStep {
   imageUrl: string;
 }
 
+/**
+ * Send a photo directly to a Telegram chat via Bot API.
+ * Used for fire-and-forget delivery during guide generation.
+ */
+async function sendPhotoToTelegram(
+  chatId: string,
+  imageBase64: string,
+  imageType: string,
+  caption: string,
+  botToken: string,
+): Promise<boolean> {
+  try {
+    const binaryData = Uint8Array.from(atob(imageBase64), (c) => c.charCodeAt(0));
+    const blob = new Blob([binaryData], { type: `image/${imageType}` });
+
+    const formData = new FormData();
+    formData.append("chat_id", chatId);
+    formData.append("photo", blob, `guide-step.${imageType}`);
+    if (caption) formData.append("caption", caption);
+
+    const resp = await fetch(`https://api.telegram.org/bot${botToken}/sendPhoto`, {
+      method: "POST",
+      body: formData,
+    });
+
+    if (!resp.ok) {
+      const errText = await resp.text();
+      console.error(`[sendPhotoToTelegram] Failed: ${resp.status} — ${errText.substring(0, 200)}`);
+      return false;
+    }
+    console.log(`[sendPhotoToTelegram] Sent photo to chat ${chatId}`);
+    return true;
+  } catch (err) {
+    console.error(`[sendPhotoToTelegram] Error:`, err);
+    return false;
+  }
+}
+
 async function callImageGenerationAgent(
   supabase: any,
   profileId: string,
@@ -1152,6 +1190,8 @@ async function callImageGenerationAgent(
   stepCount: number,
   LOVABLE_API_KEY: string,
   SUPABASE_URL: string,
+  telegramChatId?: string,
+  telegramBotToken?: string,
 ): Promise<{ success: boolean; images?: ImageGuideStep[]; error?: string }> {
   try {
     console.log(`[ImageGenAgent] Generating ${stepCount}-step guide for: ${task} (PARALLEL)`);
@@ -1174,7 +1214,16 @@ MUST include text labels on the image:
 - Arrow pointing to gloves: "Protects hands from irritating sap"
 - Show the ${species} plant clearly
 
-Style: Watercolor botanical illustration, warm cream background, educational diagram with clear annotations.`,
+VISUAL STYLE — "Botanical Pixels":
+- Clean WHITE background for maximum legibility
+- Illustrated botanical plants and foliage (detailed, lush, naturalistic illustrations — NOT pixel art for the plants themselves)
+- Typography: "Press Start 2P" style pixel font for step titles/headers, monospace for labels and annotations
+- Layout: grid-based, structured information design with clear visual hierarchy
+- Annotations: use thin dark lines and small monospace labels, well-placed arrows
+- Color palette: rich botanical greens and earth tones for plants, black text, subtle gray grid lines
+- Think illustrated botanical field guide meets retro game UI — beautiful plant drawings with pixel-font headers
+- NO watercolor washes, NO cream/beige backgrounds
+- Keep all text highly legible — avoid placing text over busy illustration areas`,
           },
           2: {
             title: "MAKE THE CUT",
@@ -1187,7 +1236,17 @@ MUST include text labels on the image:
 - Arrow pointing to removed lower leaves: "Remove bottom 2-3 leaves"
 - If applicable: "Let milky sap dry 30 min before planting"
 
-Show the cutting clearly with visible nodes. Style: Watercolor botanical, hands performing action, educational annotations.`,
+Show the cutting clearly with visible nodes.
+
+VISUAL STYLE — "Botanical Pixels":
+- Clean WHITE background for maximum legibility
+- Illustrated botanical plants and foliage (detailed, lush, naturalistic illustrations — NOT pixel art for the plants themselves)
+- Typography: "Press Start 2P" style pixel font for step titles/headers, monospace for labels and annotations
+- Layout: grid-based, structured information design with clear visual hierarchy
+- Annotations: use thin dark lines and small monospace labels, well-placed arrows
+- Color palette: rich botanical greens and earth tones for plants, black text, subtle gray grid lines
+- NO watercolor washes, NO cream/beige backgrounds
+- Keep all text highly legible — avoid placing text over busy illustration areas`,
           },
           3: {
             title: "ROOT & CARE",
@@ -1201,7 +1260,15 @@ MUST include text labels on the image:
 - "Place in bright indirect light, no direct sun"
 - "Pot up when roots are 2-3 inches long"
 
-Style: Watercolor botanical illustration with care annotations.`,
+VISUAL STYLE — "Botanical Pixels":
+- Clean WHITE background for maximum legibility
+- Illustrated botanical plants and foliage (detailed, lush, naturalistic illustrations — NOT pixel art for the plants themselves)
+- Typography: "Press Start 2P" style pixel font for step titles/headers, monospace for labels and annotations
+- Layout: grid-based, structured information design with clear visual hierarchy
+- Annotations: use thin dark lines and small monospace labels, well-placed arrows
+- Color palette: rich botanical greens and earth tones for plants, black text, subtle gray grid lines
+- NO watercolor washes, NO cream/beige backgrounds
+- Keep all text highly legible — avoid placing text over busy illustration areas`,
           },
           4: {
             title: "TRANSPLANT",
@@ -1214,7 +1281,15 @@ MUST include text labels on the image:
 - "Keep soil consistently moist for first 2 weeks"
 - "Gradually reduce humidity"
 
-Style: Watercolor botanical illustration with educational annotations.`,
+VISUAL STYLE — "Botanical Pixels":
+- Clean WHITE background for maximum legibility
+- Illustrated botanical plants and foliage (detailed, lush, naturalistic illustrations — NOT pixel art for the plants themselves)
+- Typography: "Press Start 2P" style pixel font for step titles/headers, monospace for labels and annotations
+- Layout: grid-based, structured information design with clear visual hierarchy
+- Annotations: use thin dark lines and small monospace labels, well-placed arrows
+- Color palette: rich botanical greens and earth tones for plants, black text, subtle gray grid lines
+- NO watercolor washes, NO cream/beige backgrounds
+- Keep all text highly legible — avoid placing text over busy illustration areas`,
           },
         };
 
@@ -1235,7 +1310,15 @@ MUST include labels:
 - "Ensure drainage holes"
 - "Use appropriate soil mix for ${species}"
 
-Style: Watercolor botanical illustration with educational labels.`,
+VISUAL STYLE — "Botanical Pixels":
+- Clean WHITE background for maximum legibility
+- Illustrated botanical plants and foliage (detailed, lush, naturalistic illustrations — NOT pixel art for the plants themselves)
+- Typography: "Press Start 2P" style pixel font for step titles/headers, monospace for labels and annotations
+- Layout: grid-based, structured information design with clear visual hierarchy
+- Annotations: use thin dark lines and small monospace labels, well-placed arrows
+- Color palette: rich botanical greens and earth tones for plants, black text, subtle gray grid lines
+- NO watercolor washes, NO cream/beige backgrounds
+- Keep all text highly legible — avoid placing text over busy illustration areas`,
           },
           2: {
             title: "REMOVE & INSPECT ROOTS",
@@ -1247,7 +1330,15 @@ MUST include labels:
 - "Trim any dead/rotting roots"
 - "Healthy roots are white/tan, firm"
 
-Style: Watercolor botanical, show root detail with annotations.`,
+VISUAL STYLE — "Botanical Pixels":
+- Clean WHITE background for maximum legibility
+- Illustrated botanical plants and foliage (detailed, lush, naturalistic illustrations — NOT pixel art for the plants themselves)
+- Typography: "Press Start 2P" style pixel font for step titles/headers, monospace for labels and annotations
+- Layout: grid-based, structured information design with clear visual hierarchy
+- Annotations: use thin dark lines and small monospace labels, well-placed arrows
+- Color palette: rich botanical greens and earth tones for plants, black text, subtle gray grid lines
+- NO watercolor washes, NO cream/beige backgrounds
+- Keep all text highly legible — avoid placing text over busy illustration areas`,
           },
           3: {
             title: "REPLANT & WATER",
@@ -1260,7 +1351,15 @@ MUST include labels:
 - "Water thoroughly until draining"
 - "Wait 1-2 weeks before fertilizing"
 
-Style: Watercolor botanical with care annotations.`,
+VISUAL STYLE — "Botanical Pixels":
+- Clean WHITE background for maximum legibility
+- Illustrated botanical plants and foliage (detailed, lush, naturalistic illustrations — NOT pixel art for the plants themselves)
+- Typography: "Press Start 2P" style pixel font for step titles/headers, monospace for labels and annotations
+- Layout: grid-based, structured information design with clear visual hierarchy
+- Annotations: use thin dark lines and small monospace labels, well-placed arrows
+- Color palette: rich botanical greens and earth tones for plants, black text, subtle gray grid lines
+- NO watercolor washes, NO cream/beige backgrounds
+- Keep all text highly legible — avoid placing text over busy illustration areas`,
           },
         };
 
@@ -1280,7 +1379,15 @@ MUST include labels:
 - Show the plant's current state
 - Include any safety notes
 
-Style: Watercolor botanical illustration, educational diagram with annotations.`,
+VISUAL STYLE — "Botanical Pixels":
+- Clean WHITE background for maximum legibility
+- Illustrated botanical plants and foliage (detailed, lush, naturalistic illustrations — NOT pixel art for the plants themselves)
+- Typography: "Press Start 2P" style pixel font for step titles/headers, monospace for labels and annotations
+- Layout: grid-based, structured information design with clear visual hierarchy
+- Annotations: use thin dark lines and small monospace labels, well-placed arrows
+- Color palette: rich botanical greens and earth tones for plants, black text, subtle gray grid lines
+- NO watercolor washes, NO cream/beige backgrounds
+- Keep all text highly legible — avoid placing text over busy illustration areas`,
         },
         2: {
           title: "MAIN ACTION",
@@ -1292,7 +1399,15 @@ MUST include labels:
 - Label the "why" behind the technique
 - Include timing/frequency if relevant
 
-Style: Watercolor botanical with hands performing action, clear labels.`,
+VISUAL STYLE — "Botanical Pixels":
+- Clean WHITE background for maximum legibility
+- Illustrated botanical plants and foliage (detailed, lush, naturalistic illustrations — NOT pixel art for the plants themselves)
+- Typography: "Press Start 2P" style pixel font for step titles/headers, monospace for labels and annotations
+- Layout: grid-based, structured information design with clear visual hierarchy
+- Annotations: use thin dark lines and small monospace labels, well-placed arrows
+- Color palette: rich botanical greens and earth tones for plants, black text, subtle gray grid lines
+- NO watercolor washes, NO cream/beige backgrounds
+- Keep all text highly legible — avoid placing text over busy illustration areas`,
         },
         3: {
           title: "AFTERCARE",
@@ -1304,7 +1419,15 @@ MUST include labels:
 - Ongoing care requirements
 - Signs of success to look for
 
-Style: Watercolor botanical illustration with care annotations.`,
+VISUAL STYLE — "Botanical Pixels":
+- Clean WHITE background for maximum legibility
+- Illustrated botanical plants and foliage (detailed, lush, naturalistic illustrations — NOT pixel art for the plants themselves)
+- Typography: "Press Start 2P" style pixel font for step titles/headers, monospace for labels and annotations
+- Layout: grid-based, structured information design with clear visual hierarchy
+- Annotations: use thin dark lines and small monospace labels, well-placed arrows
+- Color palette: rich botanical greens and earth tones for plants, black text, subtle gray grid lines
+- NO watercolor washes, NO cream/beige backgrounds
+- Keep all text highly legible — avoid placing text over busy illustration areas`,
         },
       };
 
@@ -1322,86 +1445,97 @@ ${detailedPrompt}
 
 CRITICAL REQUIREMENTS:
 1. Include clear text labels and arrows ON the image explaining WHY each action matters
-2. Use a consistent warm cream/beige background
-3. Soft watercolor botanical art style
-4. Make annotations legible and well-placed
-5. This is step ${step} of ${stepCount} - make it clear this is part of a sequence`;
+2. VISUAL STYLE — "Botanical Pixels": Clean WHITE background, illustrated botanical plants (detailed, lush, naturalistic — NOT pixel art for plants), "Press Start 2P" style pixel font for headers, monospace for labels, grid-based layout, thin dark annotation lines, rich botanical greens and earth tones, NO watercolor washes, NO cream/beige backgrounds
+3. Make annotations legible and well-placed — avoid placing text over busy illustration areas
+4. This is step ${step} of ${stepCount} - make it clear this is part of a sequence`;
 
       console.log(`[ImageGenAgent] Starting parallel generation for step ${step}/${stepCount}...`);
 
-      try {
-        const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${LOVABLE_API_KEY}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            model: "google/gemini-3-pro-image-preview",
-            messages: [{ role: "user", content: stepPrompt }],
-            modalities: ["image", "text"],
-          }),
-        });
+      // Retry loop: max 2 attempts with 2s backoff
+      for (let attempt = 1; attempt <= 2; attempt++) {
+        try {
+          const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${LOVABLE_API_KEY}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              model: "google/gemini-3-pro-image-preview",
+              messages: [{ role: "user", content: stepPrompt }],
+              modalities: ["image", "text"],
+            }),
+          });
 
-        if (!response.ok) {
-          console.error(`[ImageGenAgent] Step ${step} generation failed:`, response.status);
+          if (!response.ok) {
+            console.warn(`[ImageGenAgent] Step ${step} attempt ${attempt} failed: ${response.status}`);
+            if (attempt < 2) { await new Promise(r => setTimeout(r, 2000)); continue; }
+            return null;
+          }
+
+          const data = await response.json();
+          const messageContent = data.choices?.[0]?.message?.content || "";
+          const imageData = data.choices?.[0]?.message?.images?.[0]?.image_url?.url;
+
+          if (imageData && imageData.startsWith("data:image")) {
+            const base64Match = imageData.match(/^data:image\/(\w+);base64,(.+)$/);
+            if (base64Match) {
+              const imageType = base64Match[1];
+              const base64Data = base64Match[2];
+
+              // If Telegram delivery is enabled, send directly BEFORE storage upload
+              if (telegramChatId && telegramBotToken) {
+                const caption = `Step ${step}: ${stepTitle}\n${messageContent || ""}`.substring(0, 1024);
+                await sendPhotoToTelegram(telegramChatId, base64Data, imageType, caption, telegramBotToken);
+              }
+
+              // Upload to Supabase Storage (non-blocking relative to Telegram delivery)
+              const fileName = `${profileId}/${Date.now()}-step${step}.${imageType}`;
+              const binaryData = Uint8Array.from(atob(base64Data), (c) => c.charCodeAt(0));
+
+              const { error: uploadError } = await supabase.storage
+                .from("generated-guides")
+                .upload(fileName, binaryData, {
+                  contentType: `image/${imageType}`,
+                  upsert: false,
+                });
+
+              if (uploadError) {
+                console.error(`[ImageGenAgent] Upload error for step ${step}:`, uploadError);
+                // Image was already sent to Telegram if applicable, so not a total failure
+                return null;
+              }
+
+              const { data: signedUrlData, error: signedUrlError } = await supabase.storage
+                .from("generated-guides")
+                .createSignedUrl(fileName, 3600);
+
+              if (signedUrlError || !signedUrlData?.signedUrl) {
+                console.error(`[ImageGenAgent] Signed URL error for step ${step}:`, signedUrlError);
+                return null;
+              }
+
+              const imageUrl = signedUrlData.signedUrl;
+              console.log(`[ImageGenAgent] Step ${step} uploaded with signed URL`);
+
+              return {
+                step,
+                description: messageContent || `Step ${step}`,
+                imageUrl: imageUrl,
+              };
+            }
+          }
+
+          console.warn(`[ImageGenAgent] No image in response for step ${step}, attempt ${attempt}`);
+          if (attempt < 2) { await new Promise(r => setTimeout(r, 2000)); continue; }
+          return null;
+        } catch (stepError) {
+          console.warn(`[ImageGenAgent] Step ${step} attempt ${attempt} error:`, stepError);
+          if (attempt < 2) { await new Promise(r => setTimeout(r, 2000)); continue; }
           return null;
         }
-
-        const data = await response.json();
-        const messageContent = data.choices?.[0]?.message?.content || "";
-        const imageData = data.choices?.[0]?.message?.images?.[0]?.image_url?.url;
-
-        if (imageData && imageData.startsWith("data:image")) {
-          // Extract base64 from data URL
-          const base64Match = imageData.match(/^data:image\/(\w+);base64,(.+)$/);
-          if (base64Match) {
-            const imageType = base64Match[1];
-            const base64Data = base64Match[2];
-
-            // Upload to Supabase Storage
-            const fileName = `${profileId}/${Date.now()}-step${step}.${imageType}`;
-            const binaryData = Uint8Array.from(atob(base64Data), (c) => c.charCodeAt(0));
-
-            const { error: uploadError } = await supabase.storage
-              .from("generated-guides")
-              .upload(fileName, binaryData, {
-                contentType: `image/${imageType}`,
-                upsert: false,
-              });
-
-            if (uploadError) {
-              console.error(`[ImageGenAgent] Upload error for step ${step}:`, uploadError);
-              return null;
-            }
-
-            // Generate signed URL (1 hour expiry) instead of public URL for security
-            const { data: signedUrlData, error: signedUrlError } = await supabase.storage
-              .from("generated-guides")
-              .createSignedUrl(fileName, 3600); // 1 hour expiry
-
-            if (signedUrlError || !signedUrlData?.signedUrl) {
-              console.error(`[ImageGenAgent] Signed URL error for step ${step}:`, signedUrlError);
-              return null;
-            }
-
-            const imageUrl = signedUrlData.signedUrl;
-            console.log(`[ImageGenAgent] Step ${step} uploaded with signed URL`);
-
-            return {
-              step,
-              description: messageContent || `Step ${step}`,
-              imageUrl: imageUrl,
-            };
-          }
-        }
-
-        console.log(`[ImageGenAgent] No image in response for step ${step}`);
-        return null;
-      } catch (stepError) {
-        console.error(`[ImageGenAgent] Error generating step ${step}:`, stepError);
-        return null;
       }
+      return null;
     }
 
     // Generate ALL steps in parallel - this reduces ~90s to ~30s
@@ -1424,6 +1558,12 @@ CRITICAL REQUIREMENTS:
     });
 
     console.log(`[ImageGenAgent] Successfully generated ${images.length}/${stepCount} step images in parallel`);
+
+    // If images were already sent directly to Telegram, return empty images array
+    // so mediaToSend stays empty (images already delivered)
+    if (telegramChatId && telegramBotToken) {
+      return { success: true, images: [] };
+    }
     return { success: true, images };
   } catch (error) {
     console.error("[ImageGenAgent] Error:", error);
@@ -2936,6 +3076,14 @@ ${proactiveContext.events.map((e: any) => `- ${e.message_hint}`).join("\n")}
           }
           // New multimedia tools
           else if (functionName === "generate_visual_guide") {
+            // Thread telegramChatId for fire-and-forget delivery
+            const telegramChatId = (channel === "telegram" && profile?.telegram_chat_id)
+              ? String(profile.telegram_chat_id)
+              : undefined;
+            const telegramBotToken = telegramChatId
+              ? Deno.env.get("TELEGRAM_BOT_TOKEN") || undefined
+              : undefined;
+
             toolResult = await callImageGenerationAgent(
               supabase,
               profile?.id,
@@ -2944,6 +3092,8 @@ ${proactiveContext.events.map((e: any) => `- ${e.message_hint}`).join("\n")}
               args.step_count || 3,
               LOVABLE_API_KEY,
               SUPABASE_URL!,
+              telegramChatId,
+              telegramBotToken,
             );
 
             // Add generated images to media queue for sending

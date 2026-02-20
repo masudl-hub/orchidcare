@@ -1,7 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { encode as base64Encode } from "https://deno.land/std@0.168.0/encoding/base64.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { Bot } from "https://deno.land/x/grammy@v1.21.1/mod.ts";
+import { Bot } from "npm:grammy@1.21.1";
 
 // ============================================================================
 // TELEGRAM BOT - Adapter between Telegram Bot API and orchid-agent

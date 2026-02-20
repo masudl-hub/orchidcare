@@ -379,7 +379,7 @@ const voiceToolDeclarations = [
       },
       {
         name: "annotate_view",
-        description: "Draw pixel-art annotations on the user's camera feed. Use when video is active to point out features — leaf damage, pests, good placement spots, soil issues. Places markers on a 3x3 grid.",
+        description: "Draw pixel-art annotations on the user's camera feed. Use when video is active to point out features — leaf damage, pests, good placement spots, soil issues. Places markers on a 5x5 grid.",
         parameters: {
           type: "OBJECT",
           properties: {
@@ -388,7 +388,7 @@ const voiceToolDeclarations = [
               items: {
                 type: "OBJECT",
                 properties: {
-                  region: { type: "STRING", description: "Grid region: TL, TC, TR, ML, MC, MR, BL, BC, BR" },
+                  region: { type: "STRING", description: "Grid region (5x5): T1 T2 T3 T4 T5 / U1 U2 U3 U4 U5 / M1 M2 M3 M4 M5 / L1 L2 L3 L4 L5 / B1 B2 B3 B4 B5" },
                   type: { type: "STRING", description: "Marker type: arrow, circle, x, or label" },
                   label: { type: "STRING", description: "Short text label (max 12 chars). Required for label type." },
                   direction: { type: "STRING", description: "For arrows only: up, down, left, right, up-left, up-right, down-left, down-right" },

@@ -314,6 +314,8 @@ export function useGeminiLive() {
 
       // Mic is required — bail if it failed
       if (micErr) {
+        // Close the WebSocket session that was opened in parallel
+        try { session.close(); } catch { /* ignore */ }
         const detail = micErr instanceof Error ? `${(micErr as Error).name}: ${(micErr as Error).message}` : String(micErr);
         log(`Microphone access FAILED: ${detail}`);
         setErrorDetail(`Mic error: ${detail}`);

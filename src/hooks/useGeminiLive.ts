@@ -290,9 +290,12 @@ export function useGeminiLive() {
               connectedRef.current = false;
               setStatus('ended');
             } else if (connectedRef.current) {
-              // Unexpected disconnect while connected — attempt reconnect
+              // Unexpected disconnect while connected — clean up resources, then reconnect
               connectedRef.current = false;
               capture.onAudioData.current = null;
+              capture.stopCapture();
+              playback.stopPlayback();
+              log('Cleaned up audio resources before reconnect');
               attemptReconnectRef.current();
             } else {
               setErrorDetail(`Connection closed (code=${e.code}, reason="${e.reason || 'none'}")`);
@@ -415,6 +418,7 @@ export function useGeminiLive() {
         connectingRef.current = false;
         connectedRef.current = false;
         sessionRef.current = null;
+        greetingSentRef.current = false;
         // Reconnect using same session/initData but new token
         await connect(newToken, sessionIdRef.current, initDataRef.current, opts);
       } catch (err) {

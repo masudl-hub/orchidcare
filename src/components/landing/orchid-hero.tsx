@@ -20,6 +20,31 @@ const CANVAS_HEIGHT_SM = 140;
 // De-pixelation steps — pixel widths from super blocky to full res
 const PIXEL_STEPS = [3, 4, 6, 8, 12, 16, 24, 32, 48, 72, 100, 140, CANVAS_WIDTH_LG];
 
+/**
+ * Build a tiny ~3×5 placeholder Image synchronously using canvas.
+ * Returns an Image whose src is a data URI — loads instantly, no network.
+ * The colors approximate the orchid: purple flowers, green leaves, brown pot.
+ */
+function createPlaceholderImage(): HTMLImageElement {
+  const w = 3, h = 5;
+  const c = document.createElement("canvas");
+  c.width = w;
+  c.height = h;
+  const ctx = c.getContext("2d")!;
+  // Purple flowers (top 2 rows)
+  ctx.fillStyle = "#9B6DB0";
+  ctx.fillRect(0, 0, w, 2);
+  // Green leaves / stem (middle 2 rows)
+  ctx.fillStyle = "#5A8A4A";
+  ctx.fillRect(0, 2, w, 2);
+  // Terracotta pot (bottom row)
+  ctx.fillStyle = "#B87A4A";
+  ctx.fillRect(0, 4, w, 1);
+  const img = new Image();
+  img.src = c.toDataURL();
+  return img;
+}
+
 const DEEP_LINK = "https://t.me/orchidcare_bot?start=web";
 
 type Phase = "depixelating" | "revealing" | "ready";
@@ -81,67 +106,70 @@ export function OrchidHero({ onStartClick, onLoginClick, onDemoClick }: OrchidHe
   useEffect(() => {
     if (fromApp) return;
 
-    // Skip straight to revealed state if image fails
-    const skipToReady = () => {
-      setLoadingProgress(100);
-      setCanvasFading(true);
-      setPhase("revealing");
-      setTimeout(() => setPhase("ready"), 400);
+    // --- Immediate: draw first frame from placeholder (zero network wait) ---
+    const placeholder = createPlaceholderImage();
+    imgRef.current = placeholder;
+    drawAtResolution(PIXEL_STEPS[0]);
+    setCanvasReady(true);
+
+    // --- Animation timer: starts NOW, not after network load ---
+    const totalDuration = 2500;
+    const stepCount = PIXEL_STEPS.length;
+
+    // Weighted timing — linger on blocky, speed through clear
+    const stepDurations: number[] = [];
+    let totalWeight = 0;
+    for (let i = 0; i < stepCount; i++) {
+      const weight = stepCount - i;
+      stepDurations.push(weight);
+      totalWeight += weight;
+    }
+    for (let i = 0; i < stepCount; i++) {
+      stepDurations[i] = (stepDurations[i] / totalWeight) * totalDuration;
+    }
+
+    let currentStep = 0;
+    let cancelled = false;
+
+    const scheduleNext = () => {
+      if (cancelled) return;
+
+      const progress = (currentStep / (stepCount - 1)) * 100;
+      setLoadingProgress(progress);
+
+      if (currentStep >= stepCount - 1) {
+        requestAnimationFrame(() => {
+          setLoadingProgress(100);
+          setCanvasFading(true);
+          setPhase("revealing");
+          setTimeout(() => setPhase("ready"), 1200);
+        });
+        return;
+      }
+
+      setTimeout(() => {
+        if (cancelled) return;
+        currentStep++;
+        drawAtResolution(PIXEL_STEPS[currentStep]);
+        scheduleNext();
+      }, stepDurations[currentStep]);
     };
 
-    // Load image and run de-pixelation
-    const img = new Image();
-    img.crossOrigin = "anonymous";
-    img.onerror = skipToReady;
-    img.onload = () => {
-      imgRef.current = img;
+    scheduleNext();
 
-      // Draw first frame
-      drawAtResolution(PIXEL_STEPS[0]);
-      setCanvasReady(true);
-
-      const totalDuration = 2500;
-      const stepCount = PIXEL_STEPS.length;
-
-      // Weighted timing — linger on blocky, speed through clear
-      const stepDurations: number[] = [];
-      let totalWeight = 0;
-      for (let i = 0; i < stepCount; i++) {
-        const weight = stepCount - i;
-        stepDurations.push(weight);
-        totalWeight += weight;
-      }
-      for (let i = 0; i < stepCount; i++) {
-        stepDurations[i] = (stepDurations[i] / totalWeight) * totalDuration;
-      }
-
-      let currentStep = 0;
-
-      const scheduleNext = () => {
-        // Update loading progress
-        const progress = (currentStep / (stepCount - 1)) * 100;
-        setLoadingProgress(progress);
-
-        if (currentStep >= stepCount - 1) {
-          requestAnimationFrame(() => {
-            setLoadingProgress(100);
-            setCanvasFading(true);
-            setPhase("revealing");
-            setTimeout(() => setPhase("ready"), 1200);
-          });
-          return;
-        }
-
-        setTimeout(() => {
-          currentStep++;
-          drawAtResolution(PIXEL_STEPS[currentStep]);
-          scheduleNext();
-        }, stepDurations[currentStep]);
-      };
-
-      scheduleNext();
+    // --- Async: load full-res image in parallel, swap when ready ---
+    const fullImg = new Image();
+    fullImg.crossOrigin = "anonymous";
+    fullImg.onload = () => {
+      // Swap the source so remaining steps use full resolution
+      imgRef.current = fullImg;
+      // Re-draw current step with the better source
+      drawAtResolution(PIXEL_STEPS[Math.min(currentStep, stepCount - 1)]);
     };
-    img.src = purpleOrchidSrc;
+    // onerror is fine — the placeholder carries the animation to completion
+    fullImg.src = purpleOrchidSrc;
+
+    return () => { cancelled = true; };
   }, [drawAtResolution, fromApp]);
 
   // --- Wheel handler ---

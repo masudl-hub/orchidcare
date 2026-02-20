@@ -6,7 +6,7 @@ import { decode as base64Decode } from "https://deno.land/std@0.208.0/encoding/b
 
 // Shared modules
 import { resolvePlants, savePlant, modifyPlant, deletePlant, createReminder, deleteReminder, logCareEvent, saveUserInsight, updateNotificationPreferences, updateProfile, checkAgentPermission, TOOL_CAPABILITY_MAP } from "../_shared/tools.ts";
-import { callResearchAgent, callMapsShoppingAgent, verifyStoreInventory, parseDistance } from "../_shared/research.ts";
+import { callResearchAgent, callMapsShoppingAgent, verifyStoreInventory, parseDistance, geocodeLocation } from "../_shared/research.ts";
 import { loadHierarchicalContext, buildEnrichedSystemPrompt, formatTimeUntil, formatTimeSince, formatTimeAgo, formatInsightKey } from "../_shared/context.ts";
 import type { HierarchicalContext, PlantResolutionResult, StoreRecommendation, StoreSearchResult, StoreVerification } from "../_shared/types.ts";
 
@@ -470,6 +470,30 @@ Use this to confirm availability before making strong recommendations.`,
           },
         },
         required: ["store_name", "product", "location"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_cached_stores",
+      description: `Retrieve recently cached store search results (less than 24 hours old) for follow-up questions.
+
+Use this INSTEAD of find_stores when:
+- User asks for "more stores" / "other options" / "what else" for the SAME product
+- User wants to compare stores from a previous search
+- User asks about a store that was in the original results
+
+Only call find_stores again if the product or location has CHANGED.`,
+      parameters: {
+        type: "object",
+        properties: {
+          product_query: {
+            type: "string",
+            description: "The product the user originally searched for (e.g., 'rooting hormone', 'orchid bark')",
+          },
+        },
+        required: ["product_query"],
       },
     },
   },
@@ -3147,6 +3171,37 @@ ${proactiveContext.events.map((e: any) => `- ${e.message_hint}`).join("\n")}
               { query: args.product_query },
             );
 
+            // NON-BLOCKING: Backfill lat/lng if profile is missing coordinates
+            if (!profile?.latitude && profile?.location && profile?.id) {
+              geocodeLocation(profile.location).then(coords => {
+                if (coords) {
+                  supabase.from("profiles").update({
+                    latitude: coords.lat,
+                    longitude: coords.lng
+                  }).eq("id", profile.id).then(() => {
+                    console.log(`[${correlationId}] Backfilled coordinates for profile ${profile.id}`);
+                  });
+                }
+              }).catch(() => {});
+            }
+
+            // NON-BLOCKING: Cache store results in generated_content for follow-up queries
+            if (toolResult.success && toolResult.data?.stores?.length > 0 && profile?.id) {
+              supabase.from("generated_content").insert({
+                profile_id: profile.id,
+                content_type: "store_search",
+                content: {
+                  stores: toolResult.data.stores,
+                  searchedFor: toolResult.data.searchedFor,
+                  location: toolResult.data.location,
+                  timestamp: new Date().toISOString()
+                },
+                task_description: `Store search: ${args.product_query} near ${profile.location}`
+              }).then(() => {
+                console.log(`[${correlationId}] Cached ${toolResult.data.stores.length} store results`);
+              }).catch(() => {});
+            }
+
             // AGENTIC RETRY: If no stores found, automatically trigger research fallback
             if (toolResult.success && toolResult.data?.stores?.length === 0 && PERPLEXITY_API_KEY) {
               console.log(
@@ -3205,6 +3260,58 @@ ${proactiveContext.events.map((e: any) => `- ${e.message_hint}`).join("\n")}
                 { store: args.store_name, product: args.product },
               );
             }
+          } else if (functionName === "get_cached_stores") {
+            // Retrieve cached store search results from generated_content
+            const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+            const { data: cachedResults } = await supabase
+              .from("generated_content")
+              .select("content, created_at, task_description")
+              .eq("profile_id", profile?.id)
+              .eq("content_type", "store_search")
+              .gte("created_at", twentyFourHoursAgo)
+              .order("created_at", { ascending: false })
+              .limit(5);
+
+            if (cachedResults && cachedResults.length > 0) {
+              // Find the best match by checking if searchedFor overlaps with the query
+              const queryLower = (args.product_query || "").toLowerCase();
+              const bestMatch = cachedResults.find((r: any) =>
+                (r.content?.searchedFor || "").toLowerCase().includes(queryLower) ||
+                queryLower.includes((r.content?.searchedFor || "").toLowerCase())
+              ) || cachedResults[0];
+
+              const stores = bestMatch.content?.stores || [];
+              console.log(`[${correlationId}] get_cached_stores: found ${stores.length} cached stores for "${args.product_query}"`);
+              toolResult = {
+                success: true,
+                data: {
+                  stores,
+                  searchedFor: bestMatch.content?.searchedFor,
+                  location: bestMatch.content?.location,
+                  cachedAt: bestMatch.created_at,
+                  totalStoresAvailable: stores.length,
+                },
+              };
+            } else {
+              console.log(`[${correlationId}] get_cached_stores: no cached results, suggest calling find_stores`);
+              toolResult = {
+                success: true,
+                data: {
+                  stores: [],
+                  message: "No recent store search results cached. Use find_stores to search for stores.",
+                },
+              };
+            }
+            await logAgentOperation(
+              supabase,
+              profile?.id,
+              correlationId,
+              "read",
+              "generated_content",
+              null,
+              functionName,
+              { query: args.product_query },
+            );
           } else if (functionName === "update_notification_preferences") {
             toolResult = await updateNotificationPreferences(supabase, profile?.id, args);
             if (toolResult.success) {

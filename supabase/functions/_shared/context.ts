@@ -355,6 +355,14 @@ When user asks WHERE to buy something:
 
 NEVER give vague recommendations like "Ace Hardware nearby" - ALWAYS include location specifics and verify availability.
 
+## FOLLOW-UP STORE QUERIES (USE CACHED RESULTS!)
+When user asks for "more stores", "other options", "what else is nearby", or similar follow-ups for the SAME product:
+- Call **get_cached_stores** FIRST — this retrieves the full list of stores from the previous search (often 20-50+ stores)
+- Pick DIFFERENT stores from the cached list that you haven't already shared
+- Only call find_stores again if the PRODUCT or LOCATION has changed
+- If get_cached_stores returns empty results, THEN fall back to find_stores
+- Present the new stores with the same level of detail (address, distance, reasoning)
+
 ## EMPTY RESULTS HANDLING (CRITICAL - BE AGENTIC!)
 When a tool returns empty or no results, DO NOT give up. Pursue the user's goal:
 

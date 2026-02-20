@@ -65,6 +65,8 @@ function DevCallPageInner() {
     localStorage.getItem(STORAGE_KEYS.chatId) || ''
   );
   const [voice, setVoice] = useState<string>('Aoede');
+  const [vadEndSensitivity, setVadEndSensitivity] = useState<'default' | 'low' | 'high'>('default');
+  const [vadSilenceMs, setVadSilenceMs] = useState(2000);
   const [systemPrompt, setSystemPrompt] = useState(DEFAULT_SYSTEM_PROMPT);
   const [callDuration, setCallDuration] = useState(0);
   const [initError, setInitError] = useState<string | null>(null);
@@ -123,8 +125,17 @@ function DevCallPageInner() {
     if (!ephemeralToken) throw new Error('token.name is empty');
 
     setInCall(true);
-    gemini.connect(ephemeralToken, 'dev-session', '');
-  }, [apiKey, voice, systemPrompt, gemini]);
+    gemini.connect(ephemeralToken, 'dev-session', '', {
+      ...(vadEndSensitivity !== 'default' ? {
+        vadConfig: {
+          endOfSpeechSensitivity: vadEndSensitivity as 'low' | 'high',
+          silenceDurationMs: vadSilenceMs,
+        },
+      } : vadSilenceMs !== 2000 ? {
+        vadConfig: { silenceDurationMs: vadSilenceMs },
+      } : {}),
+    });
+  }, [apiKey, voice, systemPrompt, vadEndSensitivity, vadSilenceMs, gemini]);
 
   // ---------------------------------------------------------------------------
   // Full mode start — edge function creates session + token with full context
@@ -168,8 +179,14 @@ function DevCallPageInner() {
     gemini.connect(tokenData.token, createData.sessionId, '', {
       toolsUrl: `${proxyBase}/tools`,
       extraAuth: devAuth,
+      ...(vadEndSensitivity !== 'default' || vadSilenceMs !== 2000 ? {
+        vadConfig: {
+          ...(vadEndSensitivity !== 'default' && { endOfSpeechSensitivity: vadEndSensitivity as 'low' | 'high' }),
+          ...(vadSilenceMs !== 2000 && { silenceDurationMs: vadSilenceMs }),
+        },
+      } : {}),
     });
-  }, [devSecret, chatId, gemini]);
+  }, [devSecret, chatId, vadEndSensitivity, vadSilenceMs, gemini]);
 
   // ---------------------------------------------------------------------------
   // Start handler (dispatches to mode)
@@ -239,8 +256,10 @@ function DevCallPageInner() {
           onFormationComplete={() => gemini.setCurrentFormation(null)}
           annotations={gemini.currentAnnotations}
           onAnnotationsComplete={() => gemini.setCurrentAnnotations(null)}
+          facingMode={gemini.facingMode}
           onToggleMic={gemini.toggleMic}
           onToggleVideo={gemini.toggleVideo}
+          onToggleFacingMode={gemini.toggleFacingMode}
           onEndCall={handleEndCall}
         />
 
@@ -271,10 +290,31 @@ function DevCallPageInner() {
               borderLeft: '1px solid rgba(255,255,255,0.1)',
               padding: '48px 10px 10px', fontFamily: mono, fontSize: '10px',
               color: 'rgba(255,255,255,0.4)', overflow: 'auto', wordBreak: 'break-all',
+              display: 'flex', flexDirection: 'column', gap: '8px',
             }}>
-              {gemini.debugLog.map((line, i) => (
-                <div key={i} style={{ marginBottom: '3px' }}>{line}</div>
-              ))}
+              {/* Frame preview — shows exactly what Gemini is receiving */}
+              {gemini.lastVideoFrame ? (
+                <div style={{ flexShrink: 0 }}>
+                  <div style={{ marginBottom: '4px', fontSize: '9px', color: 'rgba(255,255,255,0.3)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+                    what gemini sees (1fps)
+                  </div>
+                  <img
+                    src={gemini.lastVideoFrame}
+                    alt="last frame"
+                    style={{ width: '100%', display: 'block', border: '1px solid rgba(255,255,255,0.15)' }}
+                  />
+                </div>
+              ) : (
+                <div style={{ flexShrink: 0, fontSize: '9px', color: 'rgba(255,255,255,0.2)', fontStyle: 'italic' }}>
+                  camera off — no frames being sent
+                </div>
+              )}
+              {/* Log lines */}
+              <div style={{ flexShrink: 0 }}>
+                {gemini.debugLog.map((line, i) => (
+                  <div key={i} style={{ marginBottom: '3px' }}>{line}</div>
+                ))}
+              </div>
             </div>
           </div>
         </div>
@@ -349,6 +389,40 @@ function DevCallPageInner() {
                     fontSize: '11px', cursor: 'pointer', transition: 'all 100ms',
                   }}>{v}</button>
                 ))}
+              </div>
+            </div>
+
+            {/* VAD Sensitivity */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              <label style={labelStyle}>End-of-Speech Sensitivity</label>
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                {(['default', 'low', 'high'] as const).map(v => (
+                  <button key={v} onClick={() => setVadEndSensitivity(v)} style={{
+                    backgroundColor: vadEndSensitivity === v ? '#fff' : 'transparent',
+                    color: vadEndSensitivity === v ? '#000' : 'rgba(255,255,255,0.5)',
+                    border: `1px solid ${vadEndSensitivity === v ? '#fff' : 'rgba(255,255,255,0.2)'}`,
+                    borderRadius: '0', padding: '6px 12px', fontFamily: mono,
+                    fontSize: '11px', cursor: 'pointer', transition: 'all 100ms',
+                  }}>{v}</button>
+                ))}
+              </div>
+            </div>
+
+            {/* Silence Duration */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              <label style={labelStyle}>Silence Duration: {vadSilenceMs}ms</label>
+              <input
+                type="range"
+                min={500}
+                max={4000}
+                step={250}
+                value={vadSilenceMs}
+                onChange={e => setVadSilenceMs(Number(e.target.value))}
+                style={{ width: '100%', accentColor: '#fff' }}
+              />
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '9px', color: 'rgba(255,255,255,0.25)' }}>
+                <span>500ms (fast)</span>
+                <span>4000ms (patient)</span>
               </div>
             </div>
 

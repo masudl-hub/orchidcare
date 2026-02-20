@@ -48,6 +48,7 @@ export function PixelCanvas({
   const particlesRef = useRef<Particle[]>([]);
   const bgParticlesRef = useRef<Particle[]>([]);
   const glowRef = useRef<Graphics | null>(null);
+  const fgContainerRef = useRef<ParticleContainer | null>(null);
   const timeRef = useRef(0);
   const destroyedRef = useRef(false);
   const initedRef = useRef(false);
@@ -141,6 +142,7 @@ export function PixelCanvas({
         roundPixels: true,
       });
       app.stage.addChild(pc);
+      fgContainerRef.current = pc;
 
       // Create a white square texture for particles.
       const whiteTexture = createWhiteTexture(app);
@@ -211,6 +213,7 @@ export function PixelCanvas({
           onFormationCompleteRef.current?.();
         };
 
+        initedRef.current = true;
         console.log(`[PixelCanvas] created ${particles.length} particles, starting ticker`);
         // Start animation ticker
         app.ticker.add((ticker) => {
@@ -237,6 +240,7 @@ export function PixelCanvas({
       smoothX.current = null;
       smoothY.current = null;
       glowRef.current = null;
+      fgContainerRef.current = null;
       // Clear the container so re-mount doesn't stack canvases
       if (el) el.innerHTML = '';
     };
@@ -247,7 +251,7 @@ export function PixelCanvas({
   // -----------------------------------------------------------------------
   useEffect(() => {
     const engine = engineRef.current;
-    if (!engine) return;
+    if (!engine || !initedRef.current) return;
 
     if (formation === null) {
       // Return to orchid home
@@ -271,9 +275,11 @@ export function PixelCanvas({
       } else {
         console.warn(`[PixelCanvas] Formation template not found: ${formation.id}`);
       }
+    } else if (formation.type === 'text' && formation.text) {
+      positions = textToGridPositions(formation.text, GRID_COLS, GRID_ROWS);
+    } else if (formation.type === 'list' && formation.items && formation.items.length > 0) {
+      positions = listToGridPositions(formation.items, GRID_COLS, GRID_ROWS);
     }
-    // Text, list, svg, compound types are not yet resolved here.
-    // They require BitmapFont / SVG rasterizer (Phase 3).
 
     if (!positions || positions.length === 0) return;
 
@@ -302,15 +308,15 @@ export function PixelCanvas({
 
     if (needed <= current) return;
 
-    // Get the particle container (second child after glow)
-    const pc = app.stage.children[1] as ParticleContainer;
+    const pc = fgContainerRef.current;
     if (!pc) return;
 
     const whiteTexture = particlesRef.current[0]?.texture ?? Texture.WHITE;
 
     // Extend smooth arrays
-    const oldSx = smoothX.current!;
-    const oldSy = smoothY.current!;
+    if (!smoothX.current || !smoothY.current) return;
+    const oldSx = smoothX.current;
+    const oldSy = smoothY.current;
     const newSx = new Float32Array(needed);
     const newSy = new Float32Array(needed);
     newSx.set(oldSx);
@@ -457,4 +463,120 @@ function createWhiteTexture(_app: Application): Texture {
   // Texture.WHITE is a built-in 1x1 white pixel. Since we scale via
   // scaleX/scaleY on each particle, this is sufficient.
   return Texture.WHITE;
+}
+
+// ---------------------------------------------------------------------------
+// Helper: rasterize a text string into grid positions via offscreen canvas
+// ---------------------------------------------------------------------------
+function textToGridPositions(
+  text: string,
+  cols: number,
+  rows: number,
+): { x: number; y: number }[] {
+  const canvas = document.createElement('canvas');
+  canvas.width = cols;
+  canvas.height = rows;
+  const ctx = canvas.getContext('2d')!;
+
+  ctx.fillStyle = '#000';
+  ctx.fillRect(0, 0, cols, rows);
+
+  ctx.fillStyle = '#fff';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+
+  const fontSizes = [14, 12, 10, 8, 6];
+  let rendered = false;
+
+  for (const size of fontSizes) {
+    ctx.font = `bold ${size}px 'Press Start 2P', ui-monospace, monospace`;
+    const measured = ctx.measureText(text).width;
+    if (measured <= cols * 0.88) {
+      ctx.fillText(text, cols / 2, rows / 2);
+      rendered = true;
+      break;
+    }
+  }
+
+  if (!rendered) {
+    // Text too long even at size 6 — split into two lines
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, cols, rows);
+    ctx.fillStyle = '#fff';
+    ctx.font = `bold 6px 'Press Start 2P', ui-monospace, monospace`;
+
+    let splitIdx = Math.floor(text.length / 2);
+    const spaceLeft = text.lastIndexOf(' ', splitIdx);
+    const spaceRight = text.indexOf(' ', splitIdx);
+    if (spaceLeft > 0 && (spaceRight < 0 || splitIdx - spaceLeft <= spaceRight - splitIdx)) {
+      splitIdx = spaceLeft;
+    } else if (spaceRight > 0) {
+      splitIdx = spaceRight;
+    }
+
+    const line1 = text.slice(0, splitIdx).trim();
+    const line2 = text.slice(splitIdx).trim();
+    ctx.fillText(line1, cols / 2, rows * 0.4);
+    ctx.fillText(line2, cols / 2, rows * 0.6);
+  }
+
+  return sampleCanvasPixels(ctx, cols, rows);
+}
+
+// ---------------------------------------------------------------------------
+// Helper: rasterize a list of items into grid positions via offscreen canvas
+// ---------------------------------------------------------------------------
+function listToGridPositions(
+  items: string[],
+  cols: number,
+  rows: number,
+): { x: number; y: number }[] {
+  const canvas = document.createElement('canvas');
+  canvas.width = cols;
+  canvas.height = rows;
+  const ctx = canvas.getContext('2d')!;
+
+  ctx.fillStyle = '#000';
+  ctx.fillRect(0, 0, cols, rows);
+
+  ctx.fillStyle = '#fff';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+
+  const size = items.length <= 3 ? 8 : items.length <= 5 ? 6 : 5;
+  ctx.font = `bold ${size}px 'Press Start 2P', ui-monospace, monospace`;
+
+  const yStep = rows / (items.length + 1);
+  for (let i = 0; i < items.length; i++) {
+    ctx.fillText(items[i], cols / 2, yStep * (i + 1));
+  }
+
+  return sampleCanvasPixels(ctx, cols, rows);
+}
+
+// ---------------------------------------------------------------------------
+// Helper: sample bright pixels from a 2D canvas context
+// ---------------------------------------------------------------------------
+function sampleCanvasPixels(
+  ctx: CanvasRenderingContext2D,
+  cols: number,
+  rows: number,
+): { x: number; y: number }[] {
+  const imageData = ctx.getImageData(0, 0, cols, rows);
+  const data = imageData.data;
+  const positions: { x: number; y: number }[] = [];
+
+  for (let row = 0; row < rows; row++) {
+    for (let col = 0; col < cols; col++) {
+      const idx = (row * cols + col) * 4;
+      const r = data[idx];
+      const g = data[idx + 1];
+      const b = data[idx + 2];
+      if (r + g + b > 10) {
+        positions.push({ x: col, y: row });
+      }
+    }
+  }
+
+  return positions;
 }

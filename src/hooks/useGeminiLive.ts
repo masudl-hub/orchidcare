@@ -31,6 +31,11 @@ export function useGeminiLive() {
   const connectingRef = useRef(false);
   const connectedRef = useRef(false);
   const greetingSentRef = useRef(false);
+  const userDisconnectedRef = useRef(false);
+  const reconnectAttemptsRef = useRef(0);
+  const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const connectOptionsRef = useRef<{ toolsUrl?: string; extraAuth?: Record<string, unknown>; onReconnectNeeded?: () => Promise<string | null>; vadConfig?: { silenceDurationMs?: number; endOfSpeechSensitivity?: 'low' | 'high' } } | undefined>(undefined);
+  const attemptReconnectRef = useRef<() => void>(() => {});
 
   const playback = useAudioPlayback();
   const capture = useAudioCapture();
@@ -196,12 +201,15 @@ export function useGeminiLive() {
   // ---------------------------------------------------------------------------
   // connect — orchestrates playback, capture, and SDK session setup
   // ---------------------------------------------------------------------------
-  const connect = useCallback(async (token: string, sessionId: string, initData: string, options?: { toolsUrl?: string; extraAuth?: Record<string, unknown> }) => {
+  const connect = useCallback(async (token: string, sessionId: string, initData: string, options?: { toolsUrl?: string; extraAuth?: Record<string, unknown>; onReconnectNeeded?: () => Promise<string | null>; vadConfig?: { silenceDurationMs?: number; endOfSpeechSensitivity?: 'low' | 'high' } }) => {
     // Re-entrancy guard
     if (connectingRef.current || sessionRef.current) {
       log('connect() skipped — already connecting or connected');
       return;
     }
+    userDisconnectedRef.current = false;
+    reconnectAttemptsRef.current = 0;
+    connectOptionsRef.current = options;
     connectingRef.current = true;
     greetingSentRef.current = false;
 
@@ -219,28 +227,33 @@ export function useGeminiLive() {
       playback.startPlayback();
       log('Playback context started');
 
-      // 2. Start microphone capture (own 16 kHz context)
-      log('Requesting microphone access (16kHz)...');
-      try {
-        await capture.startCapture();
-        log('Microphone access GRANTED');
-      } catch (micErr) {
-        const detail = micErr instanceof Error ? `${micErr.name}: ${micErr.message}` : String(micErr);
-        log(`Microphone access FAILED: ${detail}`);
-        setErrorDetail(`Mic error: ${detail}`);
-        setStatus('error');
-        connectingRef.current = false;
-        return;
-      }
-
-      // 3. Connect to Gemini Live via SDK (ephemeral token as apiKey)
+      // 2. Create SDK client (synchronous — do this before the parallel await)
       log('Creating GoogleGenAI client with ephemeral token...');
       const ai = new GoogleGenAI({ apiKey: token, httpOptions: { apiVersion: 'v1alpha' } });
 
-      log(`Calling ai.live.connect() — model=${GEMINI_MODEL}`);
-      const session = await ai.live.connect({
+      // 3. Mic + camera permission + WebSocket — all in parallel.
+      //    Camera is non-fatal: if denied, call continues audio-only.
+      log(`Starting mic, camera permission, and WebSocket in parallel — model=${GEMINI_MODEL}`);
+      let micErr: unknown = null;
+      const sessionPromise = ai.live.connect({
         model: GEMINI_MODEL,
-        config: { responseModalities: [Modality.AUDIO] },
+        config: {
+          responseModalities: [Modality.AUDIO],
+          ...(options?.vadConfig ? {
+            realtimeInputConfig: {
+              voiceActivityDetection: {
+                ...(options.vadConfig.silenceDurationMs != null && {
+                  silenceDurationMs: options.vadConfig.silenceDurationMs,
+                }),
+                ...(options.vadConfig.endOfSpeechSensitivity && {
+                  endOfSpeechSensitivity: options.vadConfig.endOfSpeechSensitivity === 'low'
+                    ? 'END_SENSITIVITY_LOW'
+                    : 'END_SENSITIVITY_HIGH',
+                }),
+              },
+            },
+          } : {}),
+        },
         callbacks: {
           onopen: () => {
             log('SDK: session OPENED');
@@ -268,9 +281,15 @@ export function useGeminiLive() {
           onclose: (e: CloseEvent) => {
             log(`SDK CLOSED: code=${e.code}, reason="${e.reason}", wasClean=${e.wasClean}, url=${(e.target as WebSocket)?.url || 'n/a'}`);
             sessionRef.current = null;
-            if (connectedRef.current) {
+            if (userDisconnectedRef.current) {
+              // User-initiated disconnect — clean end
               connectedRef.current = false;
               setStatus('ended');
+            } else if (connectedRef.current) {
+              // Unexpected disconnect while connected — attempt reconnect
+              connectedRef.current = false;
+              capture.onAudioData.current = null;
+              attemptReconnectRef.current();
             } else {
               setErrorDetail(`Connection closed (code=${e.code}, reason="${e.reason || 'none'}")`);
               setStatus('error');
@@ -278,6 +297,30 @@ export function useGeminiLive() {
           },
         },
       });
+
+      // Run mic, camera permission probe, and WebSocket in parallel.
+      // Capture mic errors separately so we can surface them specifically.
+      const [session] = await Promise.all([
+        sessionPromise,
+        capture.startCapture().then(
+          () => { log('Microphone access GRANTED'); },
+          (err: unknown) => { micErr = err; },
+        ),
+        video.requestPermission().then(
+          () => { log('Camera permission GRANTED'); },
+          () => { log('Camera permission denied — video toggle will be unavailable'); },
+        ),
+      ]);
+
+      // Mic is required — bail if it failed
+      if (micErr) {
+        const detail = micErr instanceof Error ? `${(micErr as Error).name}: ${(micErr as Error).message}` : String(micErr);
+        log(`Microphone access FAILED: ${detail}`);
+        setErrorDetail(`Mic error: ${detail}`);
+        setStatus('error');
+        connectingRef.current = false;
+        return;
+      }
 
       sessionRef.current = session;
       connectedRef.current = true;
@@ -326,7 +369,57 @@ export function useGeminiLive() {
     } finally {
       connectingRef.current = false;
     }
-  }, [log, playback.startPlayback, capture.startCapture, capture.onAudioData]);
+  }, [log, playback.startPlayback, capture.startCapture, capture.onAudioData, video.requestPermission]);
+
+  // ---------------------------------------------------------------------------
+  // attemptReconnect — exponential backoff reconnect (1s, 2s, 4s), max 3 tries
+  // ---------------------------------------------------------------------------
+  const attemptReconnect = useCallback(async () => {
+    const opts = connectOptionsRef.current;
+    if (!opts?.onReconnectNeeded) {
+      log('No reconnect callback provided — cannot reconnect');
+      setStatus('error');
+      return;
+    }
+
+    const attempt = reconnectAttemptsRef.current;
+    if (attempt >= 3) {
+      log(`Reconnect failed after ${attempt} attempts`);
+      setStatus('error');
+      return;
+    }
+
+    reconnectAttemptsRef.current = attempt + 1;
+    const backoffMs = 1000 * Math.pow(2, attempt); // 1s, 2s, 4s
+    log(`Reconnect attempt ${attempt + 1}/3 in ${backoffMs}ms...`);
+    setStatus('reconnecting');
+
+    reconnectTimerRef.current = setTimeout(async () => {
+      try {
+        const newToken = await opts.onReconnectNeeded!();
+        if (!newToken) {
+          log('Reconnect callback returned null — giving up');
+          setStatus('error');
+          return;
+        }
+        // Reset connection state so connect() doesn't skip
+        connectingRef.current = false;
+        connectedRef.current = false;
+        sessionRef.current = null;
+        // Reconnect using same session/initData but new token
+        await connect(newToken, sessionIdRef.current, initDataRef.current, opts);
+      } catch (err) {
+        const detail = err instanceof Error ? err.message : String(err);
+        log(`Reconnect attempt ${attempt + 1} failed: ${detail}`);
+        attemptReconnectRef.current(); // try next attempt
+      }
+    }, backoffMs);
+  }, [connect, log]);
+
+  // Keep the ref in sync so onclose can call the latest version
+  useEffect(() => {
+    attemptReconnectRef.current = attemptReconnect;
+  }, [attemptReconnect]);
 
   // ---------------------------------------------------------------------------
   // toggleVideo — starts/stops camera and wires frames to SDK session
@@ -356,9 +449,32 @@ export function useGeminiLive() {
   }, [video.isActive, video.startCapture, video.stopCapture, video.onVideoFrame, log]);
 
   // ---------------------------------------------------------------------------
+  // toggleFacingMode — flips between front and rear camera
+  // ---------------------------------------------------------------------------
+  const toggleFacingMode = useCallback(async () => {
+    if (!video.isActive) return;
+    log('Flipping camera...');
+    try {
+      await video.toggleFacingMode();
+      // onVideoFrame ref persists across the flip — no re-wiring needed
+      log(`Camera flipped to ${video.facingMode === 'environment' ? 'user' : 'environment'}`);
+    } catch (err) {
+      const detail = err instanceof Error ? err.message : String(err);
+      log(`Camera flip failed: ${detail}`);
+    }
+  }, [video.isActive, video.toggleFacingMode, video.facingMode, log]);
+
+  // ---------------------------------------------------------------------------
   // disconnect — tears down SDK session, video, capture, and playback
   // ---------------------------------------------------------------------------
   const disconnect = useCallback(() => {
+    userDisconnectedRef.current = true;
+    // Cancel any pending reconnect
+    if (reconnectTimerRef.current) {
+      clearTimeout(reconnectTimerRef.current);
+      reconnectTimerRef.current = null;
+    }
+
     // Only transition to 'ended' if we actually had a live session.
     // This prevents StrictMode's unmount→remount from falsely ending
     // the overlay before the connection is even established.
@@ -393,7 +509,12 @@ export function useGeminiLive() {
 
   // Cleanup on unmount
   useEffect(() => {
-    return () => { disconnect(); };
+    return () => {
+      if (reconnectTimerRef.current) {
+        clearTimeout(reconnectTimerRef.current);
+      }
+      disconnect();
+    };
   }, [disconnect]);
 
   // ---------------------------------------------------------------------------
@@ -406,6 +527,7 @@ export function useGeminiLive() {
     isMuted: capture.isMuted,
     isVideoActive: video.isActive,
     videoStream: video.videoStream,
+    lastVideoFrame: video.lastFrameDataUrl,
     isToolExecuting,
     executingToolName,
     outputAudioLevel: playback.outputAudioLevel,
@@ -419,5 +541,7 @@ export function useGeminiLive() {
     disconnect,
     toggleMic: capture.toggleMic,
     toggleVideo,
+    facingMode: video.facingMode,
+    toggleFacingMode,
   };
 }

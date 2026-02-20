@@ -3,13 +3,15 @@ import React from 'react';
 interface CallControlsProps {
   isMuted: boolean;
   isVideoActive: boolean;
+  facingMode: 'environment' | 'user';
   onToggleMic: () => void;
   onToggleVideo: () => void;
+  onToggleFacingMode: () => void;
   onEndCall: () => void;
   disabled: boolean;
 }
 
-export function CallControls({ isMuted, isVideoActive, onToggleMic, onToggleVideo, onEndCall, disabled }: CallControlsProps) {
+export function CallControls({ isMuted, isVideoActive, facingMode, onToggleMic, onToggleVideo, onToggleFacingMode, onEndCall, disabled }: CallControlsProps) {
   return (
     <div style={{
       display: 'flex',
@@ -109,6 +111,35 @@ export function CallControls({ isMuted, isVideoActive, onToggleMic, onToggleVide
           </svg>
         )}
       </button>
+
+      {/* Camera flip — only when video is active */}
+      {isVideoActive && (
+        <button
+          onClick={onToggleFacingMode}
+          disabled={disabled}
+          style={{
+            width: '40px',
+            height: '40px',
+            backgroundColor: 'transparent',
+            border: '1px solid rgba(255,255,255,0.25)',
+            borderRadius: '0',
+            cursor: disabled ? 'default' : 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            opacity: disabled ? 0.3 : 0.7,
+            transition: 'all 150ms',
+          }}
+          aria-label="Flip camera"
+        >
+          {/* Flip/rotate icon — two curved arrows */}
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="square">
+            <path d="M1 4v6h6" />
+            <path d="M23 20v-6h-6" />
+            <path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15" />
+          </svg>
+        </button>
+      )}
     </div>
   );
 }

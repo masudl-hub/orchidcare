@@ -60,7 +60,22 @@ function LiveCallPageInner() {
         if (!tokenData?.token) throw new Error('No ephemeral token received');
 
         // Connect to Gemini Live
-        gemini.connect(tokenData.token, createData.sessionId, initData);
+        gemini.connect(tokenData.token, createData.sessionId, initData, {
+          onReconnectNeeded: async () => {
+            try {
+              const tokenRes = await fetch(`${SUPABASE_URL}/functions/v1/call-session/token`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ sessionId: createData.sessionId, initData }),
+              });
+              const tokenData2 = await tokenRes.json();
+              if (!tokenRes.ok || !tokenData2?.token) return null;
+              return tokenData2.token;
+            } catch {
+              return null;
+            }
+          },
+        });
       } catch (err) {
         console.error('[LiveCall] Init error:', err);
         setError(err instanceof Error ? err.message : 'Failed to start call');
@@ -170,8 +185,10 @@ function LiveCallPageInner() {
       onFormationComplete={() => gemini.setCurrentFormation(null)}
       annotations={gemini.currentAnnotations}
       onAnnotationsComplete={() => gemini.setCurrentAnnotations(null)}
+      facingMode={gemini.facingMode}
       onToggleMic={gemini.toggleMic}
       onToggleVideo={gemini.toggleVideo}
+      onToggleFacingMode={gemini.toggleFacingMode}
       onEndCall={handleEndCall}
     />
   );

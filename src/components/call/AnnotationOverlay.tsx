@@ -2,12 +2,14 @@ import React, { useState, useEffect } from 'react';
 import type { AnnotationSet, AnnotationMarker, GridRegion, ArrowDirection } from '@/hooks/call/types';
 
 // ---------------------------------------------------------------------------
-// Grid positions — center of each cell in a 3x3 grid (percentage)
+// Grid positions — center of each cell in a 5x5 grid (percentage)
 // ---------------------------------------------------------------------------
 const GRID: Record<GridRegion, { x: number; y: number }> = {
-  TL: { x: 16.67, y: 16.67 }, TC: { x: 50, y: 16.67 }, TR: { x: 83.33, y: 16.67 },
-  ML: { x: 16.67, y: 50 },    MC: { x: 50, y: 50 },    MR: { x: 83.33, y: 50 },
-  BL: { x: 16.67, y: 83.33 }, BC: { x: 50, y: 83.33 }, BR: { x: 83.33, y: 83.33 },
+  T1: { x: 10, y: 10 }, T2: { x: 30, y: 10 }, T3: { x: 50, y: 10 }, T4: { x: 70, y: 10 }, T5: { x: 90, y: 10 },
+  U1: { x: 10, y: 30 }, U2: { x: 30, y: 30 }, U3: { x: 50, y: 30 }, U4: { x: 70, y: 30 }, U5: { x: 90, y: 30 },
+  M1: { x: 10, y: 50 }, M2: { x: 30, y: 50 }, M3: { x: 50, y: 50 }, M4: { x: 70, y: 50 }, M5: { x: 90, y: 50 },
+  L1: { x: 10, y: 70 }, L2: { x: 30, y: 70 }, L3: { x: 50, y: 70 }, L4: { x: 70, y: 70 }, L5: { x: 90, y: 70 },
+  B1: { x: 10, y: 90 }, B2: { x: 30, y: 90 }, B3: { x: 50, y: 90 }, B4: { x: 70, y: 90 }, B5: { x: 90, y: 90 },
 };
 
 const ROTATIONS: Record<ArrowDirection, number> = {
@@ -111,13 +113,16 @@ export function AnnotationOverlay({ annotations, onComplete }: AnnotationOverlay
     const holdMs = (annotations.hold ?? 8) * 1000;
     if (holdMs === 0) return; // indefinite
 
+    let fadeTimer: ReturnType<typeof setTimeout>;
     const holdTimer = setTimeout(() => {
       setClearing(true);
-      const fadeTimer = setTimeout(() => onComplete?.(), 300);
-      return () => clearTimeout(fadeTimer);
+      fadeTimer = setTimeout(() => onComplete?.(), 300);
     }, holdMs);
 
-    return () => clearTimeout(holdTimer);
+    return () => {
+      clearTimeout(holdTimer);
+      clearTimeout(fadeTimer);
+    };
   }, [annotations, onComplete]);
 
   return (
@@ -129,7 +134,7 @@ export function AnnotationOverlay({ annotations, onComplete }: AnnotationOverlay
       overflow: 'hidden',
     }}>
       {annotations.markers.map((marker, i) => {
-        const pos = GRID[marker.region] || GRID.MC;
+        const pos = GRID[marker.region] || GRID.M3;
         return (
           <div
             key={`${marker.region}-${marker.type}-${i}`}

@@ -22,8 +22,10 @@ interface CallScreenProps {
   onFormationComplete?: () => void;
   annotations?: AnnotationSet | null;
   onAnnotationsComplete?: () => void;
+  facingMode: 'environment' | 'user';
   onToggleMic: () => void;
   onToggleVideo: () => void;
+  onToggleFacingMode: () => void;
   onEndCall: () => void;
 }
 
@@ -42,8 +44,10 @@ export function CallScreen({
   onFormationComplete,
   annotations,
   onAnnotationsComplete,
+  facingMode,
   onToggleMic,
   onToggleVideo,
+  onToggleFacingMode,
   onEndCall,
 }: CallScreenProps) {
   // Attach video stream to the preview element.
@@ -210,8 +214,10 @@ export function CallScreen({
         <CallControls
           isMuted={isMuted}
           isVideoActive={isVideoActive}
+          facingMode={facingMode}
           onToggleMic={onToggleMic}
           onToggleVideo={onToggleVideo}
+          onToggleFacingMode={onToggleFacingMode}
           onEndCall={onEndCall}
           disabled={status !== 'connected'}
         />

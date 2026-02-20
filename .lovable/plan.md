@@ -1,53 +1,32 @@
 
+# Fix: Make De-pixelation Start Instantly
 
-# Fix: Landing Page Black Rectangle + Video Call Toolbar
+## Problem
 
-## Issue 1: Black Rectangle Before De-pixelation
+The de-pixelation animation in `orchid-hero.tsx` cannot start until the full-resolution orchid PNG finishes downloading from the network. The entire animation is gated on `img.onload` (line 96). On cold loads or slower connections, there's a dead period where the canvas slot is blank (opacity 0) while the browser fetches the image.
 
-**Root cause**: In `orchid-hero.tsx` lines 85-90, a dark placeholder (`#0a0a0a`) is painted on the canvas immediately in `useEffect`, before the orchid image has loaded. This creates a visible black rectangle sitting in the layout while the image downloads. Once the image loads, the first de-pixelation frame overwrites it -- but there's a noticeable flash of black in between.
+## Solution
 
-**Fix**: Instead of painting a dark fill, keep the canvas invisible (opacity 0) until the first de-pixelation frame is actually drawn. Add a state like `canvasReady` that flips to `true` right after `drawAtResolution(PIXEL_STEPS[0])` is called in the `img.onload` handler. Apply `opacity: 0` to the canvas until `canvasReady` is true. Remove the `ctx.fillStyle` / `ctx.fillRect` placeholder entirely.
+Inline a tiny base64-encoded version of the orchid (approximately 3-4px wide) directly in the source code. This lets the first blocky frame render **synchronously on mount** with zero network dependency. The full-res image loads in parallel and seamlessly takes over for the remaining steps.
+
+## Technical Details
 
 ### Changes to `src/components/landing/orchid-hero.tsx`:
-- Add `canvasReady` state, default `false` (or `true` if `fromApp`)
-- Remove lines 85-91 (the dark placeholder fill)
-- In `img.onload`, after `drawAtResolution(PIXEL_STEPS[0])`, set `canvasReady = true`
-- On the `<canvas>` element, add `opacity: canvasReady ? 1 : 0` so nothing shows until the first pixelated orchid frame is rendered
 
----
+1. **Add a base64 constant** at the top of the file: a ~3x5px downsampled orchid PNG encoded as a data URI. At that resolution it's roughly 100-200 bytes of base64 text. This will be generated once from the source asset.
 
-## Issue 2: Video Call Toolbar Redesign
+2. **Restructure the `useEffect`** into two parallel tracks:
+   - **Immediate (synchronous on mount)**: Create an `Image` from the base64 data URI. Since data URIs load synchronously, call `drawAtResolution(PIXEL_STEPS[0])` immediately and set `canvasReady = true`. The user sees the blocky orchid shape on the very first paint.
+   - **Async (network)**: Start loading the full-res PNG in parallel. When it arrives, swap `imgRef.current` to the real image and continue the de-pixelation steps from the current position.
 
-**Current problem**: `CallControls` renders all 5 buttons (mic, end, video, flip, capture) in one row. When video is active, the extra buttons push the row past screen margins.
+3. **No change to `drawAtResolution`**: It already accepts any `Image` and downsamples it. Drawing a 3px source at 3px output looks identical to drawing a 180px source at 3px output -- the early blocky steps are visually indistinguishable regardless of source resolution.
 
-**Fix**: Split the controls so the bottom bar only has 3 core buttons, and flip/capture float as small buttons in the top-right when video is on.
+4. **Timing**: Start the step timer immediately using the placeholder. The first few steps (3px, 4px, 6px, 8px) will all look nearly identical from the tiny source -- by the time the animation reaches the steps where resolution matters (~12px+), the real image will have loaded and taken over.
 
-### Changes to `src/components/call/CallControls.tsx`:
-- Remove the flip camera button (lines 117-143)
-- Remove the capture snapshot button (lines 146-171)
-- Remove `facingMode`, `onToggleFacingMode`, `onCaptureSnapshot` from props
-- Keep only: mic toggle, end call, video toggle
+### Generating the placeholder
 
-### Changes to `src/components/call/CallScreen.tsx`:
-- Add a top-right button group (absolute positioned, `top: 16px`, `right: 16px`, `z-index: 20`) that renders only when `isVideoActive`:
-  - Flip camera button (36x36px, subtle border)
-  - Capture button (36x36px, subtle border)
-  - Stacked vertically with 8px gap
-- Position this group above/beside the pixel canvas (which already sits top-right in video mode)
-- Remove `facingMode` and `onCaptureSnapshot` from the `CallControls` usage since those buttons move to the overlay
-- Adjust pixel canvas top-right positioning to leave room: e.g. `top: 100px` so the small buttons sit above it
+Use any image tool to resize the orchid PNG to 3px wide (maintaining aspect ratio), export as PNG, and base64-encode. Paste the result as a constant like:
 
-### Visual layout in video mode:
-
-```text
-+----------------------------------+
-|                    [flip]         |
-|                    [capture]      |
-|                    [pixel canvas] |
-|         [video feed]              |
-|                                   |
-|        "orchid is speaking..."    |
-|       [mic]  [end]  [video] 00:42 |
-+----------------------------------+
 ```
-
+const ORCHID_PLACEHOLDER = "data:image/png;base64,iVBORw0KGgo...";
+```

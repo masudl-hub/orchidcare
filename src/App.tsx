@@ -21,6 +21,7 @@ import DemoPage from "./pages/DemoPage";
 import PvpPage from "./pages/PvpPage";
 import NamerPage from "./pages/NamerPage";
 import DogerPage from "./pages/DogerPage";
+import Privacy from "./pages/Privacy";
 
 const queryClient = new QueryClient();
 
@@ -58,6 +59,7 @@ const App = () => (
             <Route path="/pvp" element={<PvpPage />} />
             <Route path="/namer" element={<NamerPage />} />
             <Route path="/doger" element={<DogerPage />} />
+            <Route path="/privacy" element={<Privacy />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>

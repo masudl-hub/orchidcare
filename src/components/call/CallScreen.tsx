@@ -27,6 +27,7 @@ interface CallScreenProps {
   onToggleVideo: () => void;
   onToggleFacingMode: () => void;
   onEndCall: () => void;
+  onCaptureSnapshot?: () => void;
 }
 
 export function CallScreen({
@@ -49,6 +50,7 @@ export function CallScreen({
   onToggleVideo,
   onToggleFacingMode,
   onEndCall,
+  onCaptureSnapshot,
 }: CallScreenProps) {
   // Attach video stream to the preview element.
   // Depend on isVideoActive too so the effect re-runs when the <video> mounts.
@@ -83,7 +85,8 @@ export function CallScreen({
             log_care_event: 'logging care...',
             save_user_insight: 'remembering...',
             update_profile: 'updating profile...',
-            update_notification_preferences: 'updating preferences...',
+            capture_plant_snapshot: 'capturing snapshot...',
+            compare_plant_snapshots: 'comparing snapshots...',
           };
           return toolLabels[executingToolName] || 'orchid is thinking...';
         }
@@ -219,6 +222,7 @@ export function CallScreen({
           onToggleVideo={onToggleVideo}
           onToggleFacingMode={onToggleFacingMode}
           onEndCall={onEndCall}
+          onCaptureSnapshot={isVideoActive ? onCaptureSnapshot : undefined}
           disabled={status !== 'connected'}
         />
         <span style={{

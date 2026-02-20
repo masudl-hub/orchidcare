@@ -190,6 +190,7 @@ function LiveCallPageInner() {
       onToggleVideo={gemini.toggleVideo}
       onToggleFacingMode={gemini.toggleFacingMode}
       onEndCall={handleEndCall}
+      onCaptureSnapshot={gemini.captureSnapshot}
     />
   );
 }

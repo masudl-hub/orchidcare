@@ -111,6 +111,16 @@ export function useGeminiLive() {
         const serverResponses = await Promise.all(
           serverCalls.map(async (fc) => {
             try {
+              // For capture_plant_snapshot, inject the latest video frame
+              let toolArgs = fc.args as Record<string, unknown>;
+              if (fc.name === 'capture_plant_snapshot' && video.lastFrameDataUrl) {
+                const base64 = video.lastFrameDataUrl.split(',')[1];
+                if (base64) {
+                  toolArgs = { ...toolArgs, image_base64: base64 };
+                  log('capture_plant_snapshot: injected video frame');
+                }
+              }
+
               const res = await fetch(toolsUrlRef.current, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -118,7 +128,7 @@ export function useGeminiLive() {
                   sessionId: sessionIdRef.current,
                   initData: initDataRef.current,
                   toolName: fc.name,
-                  toolArgs: fc.args,
+                  toolArgs,
                   toolCallId: fc.id,
                   ...extraAuthRef.current,
                 }),
@@ -467,6 +477,18 @@ export function useGeminiLive() {
   }, [video.isActive, video.toggleFacingMode, video.facingMode, log]);
 
   // ---------------------------------------------------------------------------
+  // captureSnapshot — sends a text prompt to the agent to capture a snapshot
+  // ---------------------------------------------------------------------------
+  const captureSnapshot = useCallback(() => {
+    if (!sessionRef.current || !video.isActive) return;
+    log('User tapped capture snapshot button');
+    sessionRef.current.sendClientContent({
+      turns: [{ role: 'user', parts: [{ text: 'Please capture a snapshot of the plant I\'m showing you right now. Save it to my visual memory.' }] }],
+      turnComplete: true,
+    });
+  }, [video.isActive, log]);
+
+  // ---------------------------------------------------------------------------
   // disconnect — tears down SDK session, video, capture, and playback
   // ---------------------------------------------------------------------------
   const disconnect = useCallback(() => {
@@ -545,5 +567,6 @@ export function useGeminiLive() {
     toggleVideo,
     facingMode: video.facingMode,
     toggleFacingMode,
+    captureSnapshot,
   };
 }

@@ -158,6 +158,7 @@ export function DemoVoiceOverlay({
         onToggleVideo={gemini.toggleVideo}
         onToggleFacingMode={gemini.toggleFacingMode}
         onEndCall={handleEndCall}
+        onCaptureSnapshot={gemini.captureSnapshot}
       />
 
       {/* Voice turns remaining — demo-specific overlay */}

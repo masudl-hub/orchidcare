@@ -1,115 +1,79 @@
 
 
-# Fix Guide Timeout + Retry + Botanical Pixels Aesthetic
+# Post-Audit Cleanup — Implementation Plan
 
 ## Overview
 
-Three changes across two files: fix the guide generation timeout with fire-and-forget Telegram delivery, add retry logic for flaky image generation, and update the image style to "Botanical Pixels" -- illustrated plants on white backgrounds with Press Start 2P / monospace typography and grid layouts.
+The audit identified 7 tasks across frontend and backend. All 7 are still valid and can be tackled in Lovable. I've verified every file and line reference — they're accurate. Here's the breakdown grouped into two batches.
 
-## Changes
+## Batch 1: Critical Fixes (Tasks 1-3)
 
-### File: `supabase/functions/orchid-agent/index.ts`
+These are quick, surgical fixes with no risk of side effects.
 
-#### A. Add `sendPhotoToTelegram` helper
+### Task 1: Fix annotation grid mismatch (5x5)
+**4 files, ~15 line changes total**
 
-New function that POSTs a photo (from a signed URL or base64 upload) to the Telegram Bot API `sendPhoto` endpoint. Used to deliver images directly to the user's chat without routing back through telegram-bot.
+The voice call annotation tool tells the AI model to use 3x3 region names (TL, MC, BR) but the client expects 5x5 names (T1, M3, B5). Every annotation lands at center. Fix by updating tool declarations and system prompt examples in:
+- `supabase/functions/call-session/index.ts`
+- `supabase/functions/dev-call-proxy/index.ts`
+- `supabase/functions/demo-agent/index.ts`
+- `supabase/functions/_shared/context.ts`
 
-#### B. Thread `telegramChatId` + `TELEGRAM_BOT_TOKEN` into `callImageGenerationAgent`
+### Task 2: Fix WebSocket leak on mic failure
+**1 file, 1 line added**
 
-Accept optional `telegramChatId` and `telegramBotToken` parameters. When both are present (Telegram-originated request), each image is sent directly to Telegram as soon as it's generated and uploaded, rather than accumulating in `mediaToSend`.
+In `src/hooks/useGeminiLive.ts` line 316-322: when mic permission fails, the WebSocket session opened in parallel is never closed. Add `try { session.close(); } catch {}` before setting error state.
 
-#### C. Fire-and-forget for Telegram guide requests
+### Task 3: Redirect /plants to /dashboard/collection
+**1 file, replace contents**
 
-At the call site (~line 2938), when `channel === "telegram"` and we have a `telegramChatId` from the request payload:
-- Pass them to `callImageGenerationAgent`
-- The function sends images directly to Telegram as each one completes
-- Returns `images: []` so `mediaToSend` stays empty (images already delivered)
-- The text reply goes back normally through the response chain
+`src/pages/Plants.tsx` is a visible TODO stub. Replace with a simple `<Navigate to="/dashboard/collection" replace />`. Already wrapped in ProtectedRoute.
 
-#### D. Retry logic in `generateStep`
+## Batch 2: Medium Priority (Tasks 4-7)
 
-Wrap the image generation fetch in a loop: max 2 attempts, 2-second backoff between them. On both failing, return null (same as today's single-failure behavior). Since steps run in parallel, this adds at most 2s to a single failing step.
+### Task 4: Fix dead "Try Demo" buttons
+**2 files**
 
-```text
-for (let attempt = 1; attempt <= 2; attempt++) {
-  try {
-    const response = await fetch(/* image gen */);
-    if (response.ok) { /* process and return */ }
-  } catch (err) { /* log */ }
-  if (attempt < 2) await new Promise(r => setTimeout(r, 2000));
-}
-return null;
-```
+`src/pages/Proposal.tsx` and `src/pages/Index.tsx` both have `setDemoOpen(true)` onClick handlers that do nothing (the overlay component was removed). Replace with `navigate('/demo')` and remove dead `demoOpen` state.
 
-#### E. Update image style prompts -- "Botanical Pixels"
+### Task 5: Clean up console.logs
+**5 files**
 
-Replace ALL style directives in `buildDetailedStepPrompt` and the `stepPrompt` template. The current "watercolor botanical, warm cream background" becomes:
+Wrap verbose debug logging in `if (import.meta.env.DEV)` guards across: `useSettings.ts`, `Dashboard.tsx`, `Settings.tsx`, `PixelCanvas.tsx`, `DemoVoiceOverlay.tsx`. Skip `useGeminiLive.ts` (intentionally visible for Telegram Mini App debugging).
 
-```text
-VISUAL STYLE — "Botanical Pixels":
-- Clean WHITE background for maximum legibility
-- Illustrated botanical plants and foliage (detailed, lush, naturalistic illustrations -- NOT pixel art for the plants themselves)
-- Typography: "Press Start 2P" style pixel font for step titles/headers, monospace for labels and annotations
-- Layout: grid-based, structured information design with clear visual hierarchy
-- Annotations: use thin dark lines and small monospace labels, well-placed arrows
-- Color palette: rich botanical greens and earth tones for plants, black text, subtle gray grid lines
-- Think illustrated botanical field guide meets retro game UI -- beautiful plant drawings with pixel-font headers
-- NO watercolor washes, NO cream/beige backgrounds
-- Keep all text highly legible -- avoid placing text over busy illustration areas
-```
+### Task 6: Deduplicate call-session and dev-call-proxy
+**3 new shared files, 2 files refactored**
 
-This applies to:
-- Propagation steps (lines ~1177, 1190, 1204, 1217)
-- Repotting steps (lines ~1238, 1250, 1263)
-- Generic steps (lines ~1283, 1295, 1307)
-- The main `stepPrompt` template (lines ~1323-1328)
+Extract identical code into:
+- `_shared/deepThink.ts` — `callDeepThink` function
+- `_shared/voiceTools.ts` — tool declarations array (with 5x5 grid from Task 1)
+- `_shared/toolExecutor.ts` — `executeTool` function
 
-### File: `supabase/functions/telegram-bot/index.ts`
+Note: `demo-agent/index.ts` also has its own `callDeepThink` copy. The audit task only covers call-session and dev-call-proxy, but we could optionally include demo-agent too.
 
-#### F. Pass `telegramChatId` in `callAgent` payload
+### Task 7: Remove Twilio dead code
+**2 files**
 
-Add the user's Telegram chat ID to the payload sent to orchid-agent:
+Remove all 8 `TWILIO DISABLED` blocks from `orchid-agent/index.ts` (~500 lines of dead code), simplify channel detection to just `"telegram"`, and clean up `phone_number`/`whatsapp_number` from `proactive-agent/index.ts` interface and query (confirmed at lines 24-25 and 268).
 
-```text
-payload.telegramChatId = String(chatId);
-```
+## Execution Order
 
-This requires threading `chatId` into `callAgent` as a new optional parameter, and passing it from all call sites (~lines 635, 710, 769, 816, 860, 911).
+Tasks 1-3 first (critical, independent of each other). Then 4-7 in any order, except Task 6 should follow Task 1 (it extracts the already-updated 5x5 tool declarations).
 
-#### G. Increase timeout from 55s to 150s
+## What Can't Be Done Here
 
-Change line 219: `setTimeout(() => controller.abort(), 150000)` and update the error message on line 277-278 to reflect the new limit.
-
-Even with fire-and-forget for guides, multi-tool flows (research + shopping) can exceed 55s. The user sees typing indicators throughout so a longer timeout has no UX cost.
-
-## Architecture Flow (Telegram Guide)
-
-```text
-User: "how do I propagate my pothos?"
-  -> telegram-bot passes telegramChatId in payload, 150s timeout
-     -> orchid-agent generates 3 images in parallel
-     -> Image 1 done -> upload to storage -> sendPhoto to Telegram
-     -> Image 2 done -> upload to storage -> sendPhoto to Telegram  
-     -> Image 3 done -> upload to storage -> sendPhoto to Telegram
-     -> Returns text reply: "Here's your propagation guide!"
-  <- telegram-bot sends text reply (no media -- already delivered)
-```
+Everything is doable. The only consideration is Task 6 (deduplication) touches large files and needs careful testing — voice calls should be verified after deployment. All other tasks are low-risk.
 
 ## Summary
 
-| Change | Detail |
-|--------|--------|
-| `sendPhotoToTelegram` helper | New function in orchid-agent |
-| Thread `telegramChatId` | From telegram-bot payload through to `callImageGenerationAgent` |
-| Fire-and-forget delivery | Images sent to Telegram as each generates; text reply returns immediately |
-| Retry logic | 1 retry per step, 2s backoff |
-| Image style | White background, illustrated plants, Press Start 2P headers, monospace labels, grid layout |
-| Timeout | 55s to 150s in telegram-bot |
+| Task | Priority | Files | Risk | Est. Lines Changed |
+|------|----------|-------|------|--------------------|
+| 1. Grid mismatch | Critical | 4 | Low | ~15 |
+| 2. WebSocket leak | Critical | 1 | Low | ~1 |
+| 3. Plants redirect | Critical | 1 | Low | ~5 |
+| 4. Dead demo buttons | Medium | 2 | Low | ~10 |
+| 5. Console.log cleanup | Medium | 5 | Low | ~20 |
+| 6. Deduplication | Medium | 5 | Medium | ~600 (moved) |
+| 7. Twilio removal | Medium | 2 | Low | ~500 (deleted) |
 
-## Files Changed
-
-| File | Changes |
-|------|---------|
-| `supabase/functions/orchid-agent/index.ts` | (1) `sendPhotoToTelegram` helper. (2) Accept `telegramChatId`/`telegramBotToken` in request and thread to image gen. (3) Fire-and-forget Telegram delivery in `generateStep`. (4) Retry loop. (5) Botanical Pixels style in all step prompts. |
-| `supabase/functions/telegram-bot/index.ts` | (1) Thread `chatId` into `callAgent` and pass as `telegramChatId` in payload. (2) Timeout 55s to 150s. |
-
+I'd recommend we start with Batch 1 (Tasks 1-3) in one go, then move to Batch 2.

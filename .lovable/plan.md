@@ -1,85 +1,53 @@
 
 
-# Cache Store Results + Backfill Coordinates
+# Port Shopping Improvements to demo-agent (Simplified)
 
 ## Overview
 
-Two changes to `supabase/functions/orchid-agent/index.ts`:
-1. Fire-and-forget lat/lng backfill after `find_stores` when profile is missing coordinates
-2. Cache full store results in `generated_content` (already profile-gated via RLS) and add a `get_cached_stores` tool for fast follow-ups
+Port the Maps Grounding fix and system prompt guidance from orchid-agent. Skip all caching machinery -- the demo's 3-turn conversation window already serves as implicit context for follow-up "show me more" queries.
 
-No database migrations needed. No changes to `research.ts`.
+## Changes (single file: `supabase/functions/demo-agent/index.ts`)
 
-## Security Note
+### 1. Fix Maps Grounding -- Pass GEMINI_API_KEY
 
-The `generated_content` table already has RLS policies that restrict access to each user's own data (`profile_id` must match `auth.uid()` via the `profiles` table). All inserts from the edge function use the service role and always set `profile_id: profile.id`, so store results are private per-user by design.
+`callMapsShoppingAgent` now uses the `@google/genai` SDK directly and needs a real Gemini key, not the Lovable gateway key.
 
-## Changes (single file)
+- Thread `GEMINI_API_KEY` (from `Deno.env.get`) into `executeDemoTool` and `handleChat`
+- In the `find_stores` handler (~line 855), pass `GEMINI_API_KEY` instead of `apiKey`
+- In the voice-tools `find_stores` handler (~line 1663), same fix
 
-### `supabase/functions/orchid-agent/index.ts`
+### 2. Update System Prompt with Follow-up Guidance
 
-**A. Backfill coordinates (non-blocking)**
-
-After the `find_stores` tool executes successfully, check if the profile lacks `latitude`/`longitude`. If so, fire-and-forget a geocode + update:
+Add to `SYSTEM_PROMPT`:
 
 ```
-if (!profile.latitude && profile.location) {
-  geocodeLocation(profile.location).then(coords => {
-    if (coords) {
-      supabase.from("profiles").update({
-        latitude: coords.lat,
-        longitude: coords.lng
-      }).eq("id", profile.id);
-    }
-  }).catch(() => {});
-}
+FOLLOW-UP STORE QUERIES:
+When the user asks for "more stores," "other options," or "what else" for the same product:
+- Look at your conversation history -- you already shared store results in a prior turn
+- Present DIFFERENT stores you haven't mentioned yet
+- Only call find_stores again if the PRODUCT or LOCATION has actually changed
 ```
 
-**B. Cache store results after find_stores**
+This leverages the existing 3-turn history window. No new tools, no client-side storage, no extra payload.
 
-After a successful `find_stores` call with results, insert into `generated_content`:
+### 3. No Caching, No Backfill
 
-```
-supabase.from("generated_content").insert({
-  profile_id: profile.id,
-  content_type: "store_search",
-  content: {
-    stores: toolResult.data.stores,
-    searchedFor: toolResult.data.searchedFor,
-    location: toolResult.data.location,
-    timestamp: new Date().toISOString()
-  },
-  task_description: `Store search: ${args.product_query} near ${profile.location}`
-}).then(() => {}).catch(() => {});
-```
+- No `get_cached_stores` tool (no DB, no profile)
+- No coordinate backfill (no profile to update)
+- No localStorage/IndexedDB integration
 
-**C. Add `get_cached_stores` tool definition**
+## Why This Is Sufficient for Demo
 
-Add to the tools array:
-- Name: `get_cached_stores`
-- Parameters: `product_query` (string)
-- Description: Retrieve recently cached store search results (less than 24h old) for follow-up questions
+- Demo sessions are capped at 5 text turns -- the conversation window covers the full session
+- The LLM already sees prior assistant messages containing store names, addresses, and details
+- System prompt guidance is enough to steer it toward referencing prior results instead of re-searching
+- Zero added complexity
 
-**D. Add `get_cached_stores` handler**
+## Summary
 
-Query `generated_content` where:
-- `profile_id = profile.id`
-- `content_type = 'store_search'`
-- `created_at > now() - 24 hours`
-- `content->searchedFor` matches the product query (fuzzy)
-
-Return the full cached store list so the LLM can pick different stores to highlight.
-
-**E. Update system prompt**
-
-Add instruction block telling the orchestrator:
-- When user asks for "more stores" / "other options" / "what else" for the same product, call `get_cached_stores` first
-- Only call `find_stores` again if the product or location has changed
-- Present different stores from the cached list, not the same ones already shared
-
-## Files changed
-
-| File | Change |
-|------|--------|
-| `supabase/functions/orchid-agent/index.ts` | Backfill logic, caching logic, new tool definition + handler, system prompt update |
+| Change | Detail |
+|--------|--------|
+| Thread `GEMINI_API_KEY` | Pass to `find_stores` handler in both chat and voice paths |
+| System prompt | Add follow-up store query guidance |
+| Skipped | `get_cached_stores` tool, coordinate backfill, client-side caching |
 

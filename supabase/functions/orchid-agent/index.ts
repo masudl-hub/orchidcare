@@ -5,7 +5,7 @@ import { resize } from "https://deno.land/x/deno_image@0.0.4/mod.ts";
 import { decode as base64Decode } from "https://deno.land/std@0.208.0/encoding/base64.ts";
 
 // Shared modules
-import { resolvePlants, savePlant, modifyPlant, deletePlant, createReminder, deleteReminder, logCareEvent, saveUserInsight, updateNotificationPreferences, updateProfile, checkAgentPermission, capturePlantSnapshot, TOOL_CAPABILITY_MAP } from "../_shared/tools.ts";
+import { resolvePlants, savePlant, modifyPlant, deletePlant, createReminder, deleteReminder, logCareEvent, saveUserInsight, updateNotificationPreferences, updateProfile, checkAgentPermission, capturePlantSnapshot, comparePlantSnapshots, TOOL_CAPABILITY_MAP } from "../_shared/tools.ts";
 import { callResearchAgent, callMapsShoppingAgent, verifyStoreInventory, parseDistance, geocodeLocation } from "../_shared/research.ts";
 import { loadHierarchicalContext, buildEnrichedSystemPrompt, formatTimeUntil, formatTimeSince, formatTimeAgo, formatInsightKey } from "../_shared/context.ts";
 import type { HierarchicalContext, PlantResolutionResult, StoreRecommendation, StoreSearchResult, StoreVerification } from "../_shared/types.ts";
@@ -833,6 +833,34 @@ The snapshot includes a detailed visual description that you'll see in future co
           },
         },
         required: ["plant_identifier", "description"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "compare_plant_snapshots",
+      description: `Compare how a plant looks now vs. previous snapshots. Fetches stored visual descriptions and generates a temporal comparison showing growth, health changes, or regression.
+
+Use when:
+- User asks "how has my plant changed?" or "is it getting better?"
+- User wants to see their plant's history or progress
+- After a diagnosis, to compare with previous health state
+- User asks "what did my plant look like before?"`,
+      parameters: {
+        type: "object",
+        properties: {
+          plant_identifier: {
+            type: "string",
+            description: "Name/nickname of the plant to compare snapshots for",
+          },
+          comparison_type: {
+            type: "string",
+            enum: ["latest", "all"],
+            description: "latest = compare last 2 snapshots, all = summarize full timeline. Default: latest",
+          },
+        },
+        required: ["plant_identifier"],
       },
     },
   },
@@ -2760,6 +2788,14 @@ ${proactiveContext.events.map((e: any) => `- ${e.message_hint}`).join("\n")}
                     LOVABLE_API_KEY,
                   );
                   
+                  // Check for previous snapshots before capturing (temporal awareness)
+                  const { data: prevSnaps } = await supabase
+                    .from("plant_snapshots")
+                    .select("description, health_notes, created_at")
+                    .eq("plant_id", plant.id)
+                    .order("created_at", { ascending: false })
+                    .limit(1);
+
                   await capturePlantSnapshot(
                     supabase,
                     profile?.id,
@@ -2772,6 +2808,19 @@ ${proactiveContext.events.map((e: any) => `- ${e.message_hint}`).join("\n")}
                     uploadedPhotoPath || mediaUrl0,
                   );
                   console.log(`[VisualMemory] Auto-captured snapshot for ${plant.nickname || plant.name}`);
+
+                  // Inject temporal context so the agent can mention changes
+                  if (prevSnaps && prevSnaps.length > 0) {
+                    const prev = prevSnaps[0];
+                    const daysSince = Math.round((Date.now() - new Date(prev.created_at).getTime()) / (1000 * 60 * 60 * 24));
+                    toolResult.data._temporal_context = {
+                      previousDescription: prev.description,
+                      previousHealthNotes: prev.health_notes,
+                      daysSinceLastSnapshot: daysSince,
+                      plantName: plant.nickname || plant.name,
+                      hint: `You last saw this plant ${daysSince} day(s) ago. Previous description: "${prev.description}". Compare with what you see now and mention any notable changes.`,
+                    };
+                  }
                 }
               }
             }
@@ -2844,6 +2893,14 @@ ${proactiveContext.events.map((e: any) => `- ${e.message_hint}`).join("\n")}
                     "diagnosis",
                     LOVABLE_API_KEY,
                   );
+
+                  // Check for previous snapshots (temporal awareness)
+                  const { data: prevSnaps } = await supabase
+                    .from("plant_snapshots")
+                    .select("description, health_notes, created_at")
+                    .eq("plant_id", diagnosePlantId)
+                    .order("created_at", { ascending: false })
+                    .limit(1);
                   
                   await capturePlantSnapshot(
                     supabase,
@@ -2858,6 +2915,19 @@ ${proactiveContext.events.map((e: any) => `- ${e.message_hint}`).join("\n")}
                     uploadedPhotoPath || mediaUrl0,
                   );
                   console.log(`[VisualMemory] Auto-captured diagnosis snapshot for ${diagPlant.data.nickname || diagPlant.data.name}`);
+
+                  // Inject temporal context for the agent
+                  if (prevSnaps && prevSnaps.length > 0) {
+                    const prev = prevSnaps[0];
+                    const daysSince = Math.round((Date.now() - new Date(prev.created_at).getTime()) / (1000 * 60 * 60 * 24));
+                    toolResult.data._temporal_context = {
+                      previousDescription: prev.description,
+                      previousHealthNotes: prev.health_notes,
+                      daysSinceLastSnapshot: daysSince,
+                      plantName: diagPlant.data.nickname || diagPlant.data.name,
+                      hint: `You last saw this plant ${daysSince} day(s) ago. Previous: "${prev.description}"${prev.health_notes ? ` Health then: "${prev.health_notes}"` : ""}. Compare with current diagnosis and mention whether the plant has improved, worsened, or changed.`,
+                    };
+                  }
                 }
               }
             }
@@ -3142,6 +3212,26 @@ ${proactiveContext.events.map((e: any) => `- ${e.message_hint}`).join("\n")}
                 toolResult.snapshot.id,
                 functionName,
                 { plant: toolResult.plantName, context: args.context },
+              );
+            }
+          } else if (functionName === "compare_plant_snapshots") {
+            toolResult = await comparePlantSnapshots(
+              supabase,
+              profile?.id,
+              args.plant_identifier,
+              args.comparison_type || "latest",
+              LOVABLE_API_KEY,
+            );
+            if (toolResult.success) {
+              await logAgentOperation(
+                supabase,
+                profile?.id,
+                correlationId,
+                "read",
+                "plant_snapshots",
+                null,
+                functionName,
+                { plant: toolResult.plantName, snapshotCount: toolResult.snapshotCount },
               );
             }
           }

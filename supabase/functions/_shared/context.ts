@@ -452,6 +452,7 @@ DO NOT rely on conversation history to remember these - SAVE THEM NOW so you nev
 - log_care_event: Log watering, fertilizing, etc. (supports bulk - see below)
 - save_user_insight: When you learn an important fact about the user - USE THIS PROACTIVELY!
 - capture_plant_snapshot: Save a visual snapshot of a plant for memory. Use when you identify/diagnose a saved plant, or when user asks to remember what a plant looks like.
+- compare_plant_snapshots: Compare how a plant looks now vs. previous snapshots. Use when user asks about progress, changes, or history.
 
 ## BULK OPERATIONS (CRITICAL!)
 These tools support bulk operations via the plant_identifier parameter:
@@ -603,6 +604,8 @@ When it returns, synthesize the answer in your own voice — don't just read it 
 - generate_visual_guide: Generate a detailed text care guide for a plant topic
 - analyze_video: Analyze extended camera observation of a plant
 - generate_image: Generate an illustration or visual guide image
+- capture_plant_snapshot: Save a visual snapshot during a voice call (requires user confirmation)
+- compare_plant_snapshots: Compare how a plant has changed over time using stored visual snapshots
 
 ## BULK OPERATIONS
 Same patterns as text: "all plants", "all plants in the bedroom", "all succulents"

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Hero } from '@/components/landing/Hero';
 import { Nav } from '@/components/landing/Nav';
@@ -10,13 +10,17 @@ import { Progress } from '@/components/ui/progress';
 
 export default function Index() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const fromApp = location.key !== 'default';
+
   const [loadingProgress, setLoadingProgress] = useState(0);
   const [isExpanding, setIsExpanding] = useState(false);
-  const [showHero, setShowHero] = useState(false);
-  const [showContent, setShowContent] = useState(false);
-  
+  const [showHero, setShowHero] = useState(fromApp);
+  const [showContent, setShowContent] = useState(fromApp);
 
   useEffect(() => {
+    if (fromApp) return;
+
     const interval = setInterval(() => {
       setLoadingProgress((prev) => {
         if (prev >= 100) {
@@ -30,7 +34,7 @@ export default function Index() {
     }, 30);
 
     return () => clearInterval(interval);
-  }, []);
+  }, [fromApp]);
 
   const handleLoginClick = () => {
     navigate('/login');

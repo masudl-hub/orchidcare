@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
+import { BackButton } from "@/components/ui/back-button";
 import { QROrchid } from "./qr-orchid";
 import { IdentifyFeature } from "./identify-feature";
 import { DiagnosisFeature } from "./diagnosis-feature";
@@ -241,17 +242,7 @@ export function StartPage({ visible, onClose }: StartPageProps) {
       />
 
       {/* Back button — stays fixed */}
-      <button
-        onClick={onClose}
-        className="absolute top-8 left-8 md:left-16 text-white/40 hover:text-white/80 transition-colors duration-300 cursor-pointer z-30"
-        style={{
-          fontFamily: "ui-monospace, monospace",
-          fontSize: "14px",
-          letterSpacing: "normal",
-        }}
-      >
-        &larr; back
-      </button>
+      <BackButton onClick={onClose} />
 
       {/* Scrollable content with snap */}
       <div

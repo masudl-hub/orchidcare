@@ -1,6 +1,6 @@
 import { PlantCarousel, plants } from "./plant-carousel";
 import { useState, useCallback, useRef, useEffect } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useIsTouch, useIsMobile } from "@/hooks/use-mobile";
 import { TelegramFallback } from "./telegram-fallback";
 
@@ -32,10 +32,13 @@ interface OrchidHeroProps {
 
 export function OrchidHero({ onStartClick, onLoginClick, onDemoClick }: OrchidHeroProps) {
   const navigate = useNavigate();
+  const location = useLocation();
+  const fromApp = location.key !== 'default';
+
   const [activeIndex, setActiveIndex] = useState(PURPLE_ORCHID_INDEX);
-  const [phase, setPhase] = useState<Phase>("depixelating");
-  const [canvasFading, setCanvasFading] = useState(false);
-  const [loadingProgress, setLoadingProgress] = useState(0);
+  const [phase, setPhase] = useState<Phase>(fromApp ? "ready" : "depixelating");
+  const [canvasFading, setCanvasFading] = useState(fromApp);
+  const [loadingProgress, setLoadingProgress] = useState(fromApp ? 100 : 0);
   const scrollCooldown = useRef(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const imgRef = useRef<HTMLImageElement | null>(null);
@@ -74,6 +77,18 @@ export function OrchidHero({ onStartClick, onLoginClick, onDemoClick }: OrchidHe
   }, []);
 
   useEffect(() => {
+    if (fromApp) return;
+
+    // Draw dark placeholder immediately so the canvas is never blank on a white background
+    const canvas = canvasRef.current;
+    if (canvas) {
+      const ctx = canvas.getContext("2d");
+      if (ctx) {
+        ctx.fillStyle = "#0a0a0a";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+      }
+    }
+
     // Skip straight to revealed state if image fails
     const skipToReady = () => {
       setLoadingProgress(100);
@@ -134,7 +149,7 @@ export function OrchidHero({ onStartClick, onLoginClick, onDemoClick }: OrchidHe
       scheduleNext();
     };
     img.src = purpleOrchidSrc;
-  }, [drawAtResolution]);
+  }, [drawAtResolution, fromApp]);
 
   // --- Wheel handler ---
   // Must be attached via ref with { passive: false } so preventDefault() works.

@@ -1,6 +1,5 @@
-import { useNavigate } from 'react-router-dom';
-import { ArrowLeft } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { BackButton } from '@/components/ui/back-button';
 import { SystemProtocols } from '@/components/dashboard/SystemProtocols';
 import { useSystemSettings, useUpdateQuietHours, useTogglePreference, useToggleAgentPermission, useInitializeSettings } from '@/hooks/useSettings';
 import { useAuth } from '@/contexts/AuthContext';
@@ -139,7 +138,6 @@ function TelegramConnectionCard() {
 }
 
 export default function Settings() {
-  const navigate = useNavigate();
   const { data: settings, isLoading, needsInitialization } = useSystemSettings();
   const updateQuietHours = useUpdateQuietHours();
   const togglePreference = useTogglePreference();
@@ -282,16 +280,7 @@ export default function Settings() {
   return (
     <div className="min-h-screen bg-[#ECE8E0] p-4 relative overflow-hidden">
       {/* Back button */}
-      <motion.button
-        initial={{ opacity: 0, x: -20 }}
-        animate={{ opacity: 1, x: 0 }}
-        transition={{ duration: 0.5 }}
-        onClick={() => navigate('/dashboard')}
-        className="absolute top-8 left-8 font-mono text-sm uppercase tracking-widest text-black hover:text-stone-600 transition-colors flex items-center gap-2"
-      >
-        <ArrowLeft size={16} />
-        Back
-      </motion.button>
+      <BackButton theme="light" />
 
       <div className="max-w-2xl mx-auto pt-24">
         {/* Header */}

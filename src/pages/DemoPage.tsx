@@ -1,5 +1,6 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { BackButton } from '@/components/ui/back-button';
 import { motion, AnimatePresence } from 'framer-motion';
 import { PixelCanvas } from '@/lib/pixel-canvas/PixelCanvas';
 import type { Formation } from '@/lib/pixel-canvas/types';
@@ -446,25 +447,7 @@ export default function DemoPage() {
       }}
     >
       {/* Back button */}
-      <button
-        onClick={() => navigate('/')}
-        className="hover:text-white/80 transition-colors duration-300"
-        style={{
-          position: 'absolute',
-          top: 'max(16px, env(safe-area-inset-top))',
-          left: 16,
-          zIndex: 30,
-          fontFamily: 'ui-monospace, monospace',
-          fontSize: '14px',
-          color: 'rgba(255,255,255,0.4)',
-          background: 'transparent',
-          border: 'none',
-          cursor: 'pointer',
-          padding: '8px',
-        }}
-      >
-        &larr; back
-      </button>
+      <BackButton />
 
       {/* Top centering spacer — centers everything before first send,
           collapses so canvas sits at top after */}

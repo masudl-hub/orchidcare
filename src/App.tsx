@@ -18,6 +18,9 @@ import OrchidPage from "./pages/OrchidPage";
 import LiveCallPage from "./pages/LiveCallPage";
 import DevCallPage from "./pages/DevCallPage";
 import DemoPage from "./pages/DemoPage";
+import PvpPage from "./pages/PvpPage";
+import NamerPage from "./pages/NamerPage";
+import DogerPage from "./pages/DogerPage";
 
 const queryClient = new QueryClient();
 
@@ -52,6 +55,9 @@ const App = () => (
             <Route path="/dev/call" element={<DevCallPage />} />
             <Route path="/demo" element={<DemoPage />} />
             <Route path="/get-demo" element={<DemoPage />} />
+            <Route path="/pvp" element={<PvpPage />} />
+            <Route path="/namer" element={<NamerPage />} />
+            <Route path="/doger" element={<DogerPage />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>

@@ -1,13 +1,14 @@
 import { ImageWithFallback } from "@/components/figma/ImageWithFallback";
 
 export const plants = [
-  { src: "/plant_assets_art/T_Fiddle_Leaf_Fig/Fiddle_Leaf_Fig_transparent.png", alt: "Fiddle leaf fig", route: "/shop-pots" },
-  { src: "/botanical-pixels/e839b599ec5b833edce20318959f88177cdd67b0.png", alt: "Monstera", route: "/care-monstera" },
-  { src: "/plant_assets_art/Anthurium/Anthurium_transparent.png", alt: "Anthurium", route: "/identify" },
-  { src: "/plant_assets_art/T_phalaenopsis_orchid/phalaenopsis_orchid_transparent.png", alt: "Purple orchid", route: "/proposal", label: "/549 proposal" },
-  { src: "/botanical-pixels/76447a421e3450c5e037b1d46de5c2a6b6bcdc32.png", alt: "String of pearls", route: "/propagate" },
-  { src: "/botanical-pixels/aab905513b7dffeced59c17a52d7a39d6e40f77b.png", alt: "Atomizer", route: "/shop-tools" },
-  { src: "/botanical-pixels/93dae5631bdd5ebffbdd38f9b27ffb732cef3e4c.png", alt: "Pruning shears", route: "/pruning-101" },
+  { src: "/plant_assets_art/T_phalaenopsis_orchid/phalaenopsis_orchid_transparent.png", alt: "Purple orchid", route: "/", label: "meet orchid", action: "start" },
+  { src: "/plant_assets_art/Snake_plant_2/Snake_plant_transparent.png", alt: "Snake plant", route: "/proposal", label: "why this, now" },
+  { src: "/tools_art/watering_can/watering_can_transparent.png", alt: "Watering can", route: "/get-demo", label: "try it out", scale: 1.4 },
+  { src: "/plant_assets_art/jewel_orchid_in_terrarium/jewel_orchid_in_terrarium_transparent.png", alt: "Jewel orchid in terrarium", route: "/login", label: "welcome back" },
+  { src: "/tools_art/gardening_apron/gardening_apron_transparent.png", alt: "Gardening apron", route: "/pvp", label: "plants vs pests" },
+  { src: "/plant_assets_art/T_Monstera_Albo/Monstera_Albo_transparent.png", alt: "Monstera Albo", route: "/namer", label: "name your plant" },
+  { src: "/tools_art/gardening_gloves/gardening_gloves_transparent.png", alt: "Gardening gloves", route: "/doger", label: "plants do move" },
+  { src: "/botanical-pixels/93dae5631bdd5ebffbdd38f9b27ffb732cef3e4c.png", alt: "Pruning shears", route: "/begin", label: "start growing" },
 ];
 
 const DEFAULT_WIDTH = 180;
@@ -38,7 +39,7 @@ export function PlantCarousel({ activeIndex, width = DEFAULT_WIDTH, height = DEF
 
         const absOffset = Math.abs(offset);
         const opacity = offset === 0 ? 1 : absOffset === 1 ? 0.2 : 0;
-        const scale = offset === 0 ? 1 : 0.6;
+        const itemScale = (offset === 0 ? 1 : 0.6) * ((plant as any).scale ?? 1);
         const translateY = offset * (height * 0.65);
         const isVisible = absOffset <= 1;
 
@@ -48,7 +49,7 @@ export function PlantCarousel({ activeIndex, width = DEFAULT_WIDTH, height = DEF
             className="absolute inset-0 flex items-center justify-center transition-all duration-500 ease-out"
             style={{
               opacity,
-              transform: `translateY(${translateY}px) scale(${scale})`,
+              transform: `translateY(${translateY}px) scale(${itemScale})`,
               pointerEvents: offset === 0 ? "auto" : "none",
               visibility: isVisible ? "visible" : "hidden",
             }}

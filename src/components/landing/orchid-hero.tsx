@@ -7,8 +7,8 @@ import { TelegramFallback } from "./telegram-fallback";
 const purpleOrchidSrc =
   "/plant_assets_art/T_phalaenopsis_orchid/phalaenopsis_orchid_transparent.png";
 
-// The purple orchid is at index 3 in the plants array
-const PURPLE_ORCHID_INDEX = 3;
+// The purple orchid is at index 0 in the plants array
+const PURPLE_ORCHID_INDEX = 0;
 
 // Desktop canvas dimensions
 const CANVAS_WIDTH_LG = 180;
@@ -39,7 +39,8 @@ export function OrchidHero({ onStartClick, onLoginClick, onDemoClick }: OrchidHe
   const [phase, setPhase] = useState<Phase>(fromApp ? "ready" : "depixelating");
   const [canvasFading, setCanvasFading] = useState(fromApp);
   const [loadingProgress, setLoadingProgress] = useState(fromApp ? 100 : 0);
-  const scrollCooldown = useRef(false);
+  const scrollAccum = useRef(0);
+  const lastStepTime = useRef(0);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const imgRef = useRef<HTMLImageElement | null>(null);
 
@@ -158,23 +159,28 @@ export function OrchidHero({ onStartClick, onLoginClick, onDemoClick }: OrchidHe
 
   const handleWheel = useCallback(
     (e: WheelEvent) => {
-      e.preventDefault(); // Always block page scroll on the hero
-
+      e.preventDefault();
       if (phase !== "ready") return;
-      if (scrollCooldown.current) return;
 
-      const threshold = 30;
-      if (Math.abs(e.deltaY) < threshold) return;
+      // Normalise across pixel / line / page delta modes
+      const raw = e.deltaMode === 1 ? e.deltaY * 20
+                : e.deltaMode === 2 ? e.deltaY * 400
+                : e.deltaY;
 
-      scrollCooldown.current = true;
-      setTimeout(() => {
-        scrollCooldown.current = false;
-      }, 500);
+      scrollAccum.current += raw;
 
-      if (e.deltaY > 0) {
-        setActiveIndex((i) => (i + 1) % plants.length);
-      } else {
-        setActiveIndex((i) => (i - 1 + plants.length) % plants.length);
+      const THRESHOLD = 140;    // px of accumulated delta per step
+      const MIN_INTERVAL = 250; // ms minimum between steps
+
+      const now = Date.now();
+      if (
+        Math.abs(scrollAccum.current) >= THRESHOLD &&
+        now - lastStepTime.current >= MIN_INTERVAL
+      ) {
+        const dir = scrollAccum.current > 0 ? 1 : -1;
+        scrollAccum.current = 0; // reset so bursts don't queue multiple steps
+        lastStepTime.current = now;
+        setActiveIndex((i) => (i + dir + plants.length) % plants.length);
       }
     },
     [phase]
@@ -187,28 +193,36 @@ export function OrchidHero({ onStartClick, onLoginClick, onDemoClick }: OrchidHe
     return () => el.removeEventListener("wheel", handleWheel);
   }, [handleWheel]);
 
-  // --- Orchid click handler (mobile only — opens Telegram deep link) ---
-  const handleOrchidClick = useCallback(() => {
+  // --- Carousel click handler — navigates to the active plant's route ---
+  const handleCarouselClick = useCallback(() => {
     if (phase !== "ready") return;
-    if (!isTouch) return;
 
-    const start = Date.now();
-    const handleVisibility = () => {
-      if (document.hidden) {
-        clearTimeout(timer);
-        document.removeEventListener("visibilitychange", handleVisibility);
-      }
-    };
-    document.addEventListener("visibilitychange", handleVisibility);
-    window.location.href = DEEP_LINK;
+    const plant = plants[activeIndex] as any;
 
-    const timer = setTimeout(() => {
-      document.removeEventListener("visibilitychange", handleVisibility);
-      if (!document.hidden && Date.now() - start >= 1800) {
-        setShowFallback(true);
+    if (plant.action === "start") {
+      if (isTouch) {
+        // Mobile: try Telegram deep link, fall back to web signup
+        const start = Date.now();
+        const handleVisibility = () => {
+          if (document.hidden) {
+            clearTimeout(timer);
+            document.removeEventListener("visibilitychange", handleVisibility);
+          }
+        };
+        document.addEventListener("visibilitychange", handleVisibility);
+        window.location.href = DEEP_LINK;
+        const timer = setTimeout(() => {
+          document.removeEventListener("visibilitychange", handleVisibility);
+          if (!document.hidden && Date.now() - start >= 1800) setShowFallback(true);
+        }, 2000);
+      } else {
+        onStartClick?.();
       }
-    }, 2000);
-  }, [phase, isTouch]);
+      return;
+    }
+
+    navigate(plant.route);
+  }, [phase, activeIndex, isTouch, navigate, onStartClick]);
 
   const isRevealing = phase === "revealing" || phase === "ready";
 
@@ -283,8 +297,6 @@ export function OrchidHero({ onStartClick, onLoginClick, onDemoClick }: OrchidHe
           {/* Carousel / Canvas slot */}
           <div
             className="inline-flex items-end mx-[-12px] sm:mx-[-20px] md:mx-[-30px] lg:mx-[-40px] mb-[-2px] md:mb-[-4px] relative z-10"
-            onClick={handleOrchidClick}
-            style={{ cursor: phase === "ready" && isTouch ? "pointer" : "default" }}
           >
             {/* Annotation callout — anchored top-left of carousel, extends left */}
             <div
@@ -295,7 +307,7 @@ export function OrchidHero({ onStartClick, onLoginClick, onDemoClick }: OrchidHe
                 top: 8,
                 right: "100%",
                 marginRight: -6,
-                opacity: 0, // TODO: restore when routes are ready
+                opacity: isRevealing && (plants[activeIndex] as any)?.label ? 1 : 0,
                 transition: isRevealing
                   ? "opacity 300ms ease-out 350ms, transform 700ms ease-out 350ms"
                   : "opacity 300ms ease-out, transform 700ms ease-out",
@@ -321,32 +333,53 @@ export function OrchidHero({ onStartClick, onLoginClick, onDemoClick }: OrchidHe
                 </svg>
                 {/* Route labels — left-aligned above the line, one at a time */}
                 <div className="absolute" style={{ left: 0, top: -6 }}>
-                  {plants.map((plant, i) => (
-                    <Link
-                      to={plant.route}
-                      key={plant.route}
-                      className="absolute left-0 top-0 pointer-events-auto cursor-pointer hover:underline"
-                      style={{
-                        display: i === activeIndex ? "inline-block" : "none",
-                        whiteSpace: "nowrap",
-                        fontFamily: "ui-monospace, monospace",
-                        fontSize: "13px",
-                        lineHeight: "1.2",
-                        letterSpacing: "normal",
-                      }}
-                    >
-                      {(plant as any).label ?? plant.route}
-                    </Link>
-                  ))}
+                  {plants.map((plant, i) => {
+                    const p = plant as any;
+                    if (!p.label) return null;
+                    const labelStyle = {
+                      display: i === activeIndex ? "inline-block" : "none",
+                      whiteSpace: "nowrap" as const,
+                      fontFamily: "ui-monospace, monospace",
+                      fontSize: "13px",
+                      lineHeight: "1.2",
+                      letterSpacing: "normal",
+                    };
+                    if (p.action === "start") {
+                      return (
+                        <button
+                          key={i}
+                          onClick={onStartClick}
+                          className="absolute left-0 top-0 pointer-events-auto cursor-pointer hover:underline"
+                          style={{ ...labelStyle, background: "none", border: "none", padding: 0, color: "inherit" }}
+                        >
+                          {p.label}
+                        </button>
+                      );
+                    }
+                    return (
+                      <Link
+                        to={p.route}
+                        key={p.route}
+                        className="absolute left-0 top-0 pointer-events-auto cursor-pointer hover:underline"
+                        style={labelStyle}
+                      >
+                        {p.label}
+                      </Link>
+                    );
+                  })}
                 </div>
               </div>
             </div>
 
             {/* Real carousel — always rendered for pre-loading, but invisible until canvas fades */}
-            <div style={{
-              opacity: canvasFading ? 1 : 0,
-              transition: "opacity 500ms ease-out",
-            }}>
+            <div
+              style={{
+                opacity: canvasFading ? 1 : 0,
+                transition: "opacity 500ms ease-out",
+                cursor: phase === "ready" ? "pointer" : "default",
+              }}
+              onClick={handleCarouselClick}
+            >
               <PlantCarousel activeIndex={activeIndex} width={canvasW} height={canvasH} />
             </div>
 
@@ -362,7 +395,9 @@ export function OrchidHero({ onStartClick, onLoginClick, onDemoClick }: OrchidHe
                 width: canvasW,
                 height: canvasH,
                 imageRendering: "pixelated",
+                cursor: phase === "ready" ? "pointer" : "default",
               }}
+              onClick={handleCarouselClick}
             />
 
           </div>

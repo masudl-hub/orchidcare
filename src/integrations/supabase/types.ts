@@ -542,7 +542,9 @@ export type Database = {
           display_name: string | null
           experience_level: string | null
           id: string
+          latitude: number | null
           location: string | null
+          longitude: number | null
           notification_frequency: string | null
           personality: Database["public"]["Enums"]["doctor_personality"] | null
           pets: string[] | null
@@ -560,7 +562,9 @@ export type Database = {
           display_name?: string | null
           experience_level?: string | null
           id?: string
+          latitude?: number | null
           location?: string | null
+          longitude?: number | null
           notification_frequency?: string | null
           personality?: Database["public"]["Enums"]["doctor_personality"] | null
           pets?: string[] | null
@@ -578,7 +582,9 @@ export type Database = {
           display_name?: string | null
           experience_level?: string | null
           id?: string
+          latitude?: number | null
           location?: string | null
+          longitude?: number | null
           notification_frequency?: string | null
           personality?: Database["public"]["Enums"]["doctor_personality"] | null
           pets?: string[] | null

@@ -597,9 +597,22 @@ export async function updateProfile(
       case "display_name":
         updateData.display_name = args.value;
         break;
-      case "location":
+      case "location": {
         updateData.location = args.value;
+        // Geocode the new location and store lat/lng for future use
+        try {
+          const { geocodeLocation } = await import("./research.ts");
+          const coords = await geocodeLocation(args.value);
+          if (coords) {
+            updateData.latitude = coords.lat;
+            updateData.longitude = coords.lng;
+            console.log(`[updateProfile] Geocoded "${args.value}" -> ${coords.lat}, ${coords.lng}`);
+          }
+        } catch (e) {
+          console.warn("[updateProfile] Geocoding failed, storing location without coordinates:", e);
+        }
         break;
+      }
       case "experience_level": {
         const validLevels = ["beginner", "intermediate", "expert"];
         const normalizedLevel = args.value.toLowerCase();

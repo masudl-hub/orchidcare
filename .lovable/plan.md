@@ -1,126 +1,85 @@
 
 
-# Fix the Shopping Pipeline: Direct Gemini Maps Grounding + Location Infrastructure
+# Cache Store Results + Backfill Coordinates
 
-## Problem
+## Overview
 
-The `find_stores` pipeline calls the Lovable AI Gateway (OpenAI-compatible) with `tools: [{ type: "google_maps" }]`. The gateway does not support Gemini's Maps Grounding, so `groundingMetadata` is always empty. The model hallucinates store data, Perplexity cleanup mostly fails, and the output is unreliable.
+Two changes to `supabase/functions/orchid-agent/index.ts`:
+1. Fire-and-forget lat/lng backfill after `find_stores` when profile is missing coordinates
+2. Cache full store results in `generated_content` (already profile-gated via RLS) and add a `get_cached_stores` tool for fast follow-ups
 
-## Solution Overview
+No database migrations needed. No changes to `research.ts`.
 
-1. Switch `callMapsShoppingAgent` to use the Gemini API directly via `@google/genai` SDK
-2. Add `latitude`/`longitude` columns to the `profiles` table for persistent geocoding
-3. Use a free geocoder (OpenStreetMap Nominatim) to resolve locations to coordinates -- no API key needed, fast, deterministic
-4. Extract real store data from Gemini's `groundingMetadata.groundingChunks` instead of parsing hallucinated JSON
+## Security Note
 
----
+The `generated_content` table already has RLS policies that restrict access to each user's own data (`profile_id` must match `auth.uid()` via the `profiles` table). All inserts from the edge function use the service role and always set `profile_id: profile.id`, so store results are private per-user by design.
 
-## Changes
+## Changes (single file)
 
-### 1. Database migration: Add lat/lng columns to `profiles`
+### `supabase/functions/orchid-agent/index.ts`
 
-```sql
-ALTER TABLE profiles
-  ADD COLUMN latitude numeric,
-  ADD COLUMN longitude numeric;
+**A. Backfill coordinates (non-blocking)**
+
+After the `find_stores` tool executes successfully, check if the profile lacks `latitude`/`longitude`. If so, fire-and-forget a geocode + update:
+
+```
+if (!profile.latitude && profile.location) {
+  geocodeLocation(profile.location).then(coords => {
+    if (coords) {
+      supabase.from("profiles").update({
+        latitude: coords.lat,
+        longitude: coords.lng
+      }).eq("id", profile.id);
+    }
+  }).catch(() => {});
+}
 ```
 
-These are nullable so existing profiles are unaffected. They get populated when a user sets or updates their location (via the agent or the app).
+**B. Cache store results after find_stores**
 
-### 2. New helper: `geocodeLocation` in `supabase/functions/_shared/research.ts`
+After a successful `find_stores` call with results, insert into `generated_content`:
 
-A simple function that calls the OpenStreetMap Nominatim API (free, no key required):
-
-```text
-async function geocodeLocation(locationStr: string): Promise<{ lat: number; lng: number } | null>
-  - GET https://nominatim.openstreetmap.org/search?q={locationStr}&format=json&limit=1
-  - Parse lat/lon from the first result
-  - Return { lat, lng } or null
-  - Set User-Agent header (required by Nominatim TOS)
+```
+supabase.from("generated_content").insert({
+  profile_id: profile.id,
+  content_type: "store_search",
+  content: {
+    stores: toolResult.data.stores,
+    searchedFor: toolResult.data.searchedFor,
+    location: toolResult.data.location,
+    timestamp: new Date().toISOString()
+  },
+  task_description: `Store search: ${args.product_query} near ${profile.location}`
+}).then(() => {}).catch(() => {});
 ```
 
-Why Nominatim over Gemini:
-- 100-300ms vs 1-2s latency
-- Zero cost vs token usage
-- Deterministic -- no hallucination risk for coordinates
-- No API key needed
+**C. Add `get_cached_stores` tool definition**
 
-### 3. Rewrite `callMapsShoppingAgent` in `supabase/functions/_shared/research.ts`
+Add to the tools array:
+- Name: `get_cached_stores`
+- Parameters: `product_query` (string)
+- Description: Retrieve recently cached store search results (less than 24h old) for follow-up questions
 
-**Function signature change:**
-```text
-Before: (productQuery, storeType, userLocation, LOVABLE_API_KEY, PERPLEXITY_API_KEY?)
-After:  (productQuery, storeType, userLocation, GEMINI_API_KEY, PERPLEXITY_API_KEY?, latLng?: {lat, lng})
-```
+**D. Add `get_cached_stores` handler**
 
-**Core logic:**
+Query `generated_content` where:
+- `profile_id = profile.id`
+- `content_type = 'store_search'`
+- `created_at > now() - 24 hours`
+- `content->searchedFor` matches the product query (fuzzy)
 
-a. **Resolve coordinates**: If `latLng` is provided (from DB), use it. Otherwise call `geocodeLocation(userLocation)`.
+Return the full cached store list so the LLM can pick different stores to highlight.
 
-b. **Call Gemini directly** using the `@google/genai` SDK:
-```text
-import { GoogleGenAI } from "npm:@google/genai";
-const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
-const response = await ai.models.generateContent({
-  model: "gemini-2.5-flash",
-  contents: prompt,
-  config: {
-    tools: [{ googleMaps: {} }],
-    temperature: 0.3
-  }
-});
-```
+**E. Update system prompt**
 
-c. **Extract grounding chunks** from `response.candidates[0].groundingMetadata.groundingChunks`. Each chunk contains:
-   - `maps.title` -- verified store name
-   - `maps.uri` -- Google Maps link
-   - `maps.placeId` -- unique place identifier
+Add instruction block telling the orchestrator:
+- When user asks for "more stores" / "other options" / "what else" for the same product, call `get_cached_stores` first
+- Only call `find_stores` again if the product or location has changed
+- Present different stores from the cached list, not the same ones already shared
 
-d. **Build store list** primarily from grounding chunks (verified data), supplemented by the model's text response for reasoning and product likelihood.
-
-e. **Skip Perplexity address verification** for grounded stores (they already have verified Maps data). Only use Perplexity for inventory verification.
-
-### 4. Update orchestrator in `supabase/functions/orchid-agent/index.ts`
-
-- Where `callMapsShoppingAgent` is called (~line 3127), pass `GEMINI_API_KEY` instead of `LOVABLE_API_KEY`
-- Pass the user's stored `latitude`/`longitude` from their profile (already fetched during context loading)
-- When the agent sets a user's location, also geocode and store lat/lng in the profile
-
-### 5. Update types in `supabase/functions/_shared/types.ts`
-
-Add/update fields on `StoreRecommendation`:
-```text
-placeId?: string      -- already exists, will now be reliably populated
-mapsUri?: string      -- already exists, will now be reliably populated  
-addressVerified: boolean -- true when from Maps grounding
-```
-
-No new types needed since these fields already exist in the interface.
-
-### 6. Quality gate for final output
-
-After extracting grounding data:
-- Prioritize stores with `placeId` (verified by Maps)
-- Include Maps URI so the orchestrator can share clickable navigation links in responses
-- Only fall back to Perplexity address lookup for non-grounded results (rare with proper grounding)
-- Sort by distance (parsed from model text or estimated from coordinates)
-
----
-
-## What stays the same
-
-- `verify_store_inventory` -- continues using Perplexity for product availability checks
-- `callResearchAgent` -- continues using Perplexity for general research
-- `verifyStoreAddress` -- remains as a fallback, will rarely be needed
-- Orchestrator tool definitions and conversation flow -- unchanged
-- All other Lovable AI Gateway usage in the project -- unchanged (only shopping moves to direct Gemini)
-
-## File summary
+## Files changed
 
 | File | Change |
 |------|--------|
-| `profiles` table | Add `latitude` and `longitude` columns |
-| `supabase/functions/_shared/research.ts` | Add `geocodeLocation`, rewrite `callMapsShoppingAgent` to use direct Gemini API |
-| `supabase/functions/_shared/types.ts` | No changes needed (fields already exist) |
-| `supabase/functions/orchid-agent/index.ts` | Pass `GEMINI_API_KEY` and lat/lng to shopping agent; store lat/lng on location updates |
+| `supabase/functions/orchid-agent/index.ts` | Backfill logic, caching logic, new tool definition + handler, system prompt update |
 

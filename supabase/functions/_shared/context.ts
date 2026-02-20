@@ -188,11 +188,34 @@ ${context.summaries
   .join("\n")}`;
 }
 
-function buildPlantsContext(userPlants: any[]): string {
+function buildPlantsContext(userPlants: any[], plantSnapshots?: any[]): string {
   if (!userPlants?.length) return "## SAVED PLANTS\nNo plants saved yet.";
 
+  // Index snapshots by plant_id for quick lookup
+  const snapshotsByPlant: Record<string, any[]> = {};
+  if (plantSnapshots?.length) {
+    for (const snap of plantSnapshots) {
+      if (!snapshotsByPlant[snap.plant_id]) snapshotsByPlant[snap.plant_id] = [];
+      snapshotsByPlant[snap.plant_id].push(snap);
+    }
+  }
+
   return `## SAVED PLANTS
-${userPlants.map((p) => `- ${p.nickname || p.name}${p.species ? ` (${p.species})` : ""}${p.location_in_home ? ` - ${p.location_in_home}` : ""}`).join("\n")}`;
+${userPlants.map((p) => {
+    let line = `- ${p.nickname || p.name}${p.species ? ` (${p.species})` : ""}${p.location_in_home ? ` - ${p.location_in_home}` : ""}`;
+    
+    const snaps = snapshotsByPlant[p.id];
+    if (snaps?.length) {
+      // Show most recent description
+      const latest = snaps[0]; // Already sorted by created_at DESC
+      const timeAgo = formatTimeAgo(new Date(latest.created_at));
+      line += `\n  Visual: ${latest.description}`;
+      if (latest.health_notes) line += `\n  Health: ${latest.health_notes}`;
+      line += `\n  Last seen: ${timeAgo} | ${snaps.length} snapshot${snaps.length !== 1 ? "s" : ""} total`;
+    }
+    
+    return line;
+  }).join("\n")}`;
 }
 
 function buildRemindersSection(context: HierarchicalContext): string {
@@ -267,12 +290,13 @@ export function buildEnrichedSystemPrompt(
   context: HierarchicalContext,
   userPlants: any[],
   profile: any,
+  plantSnapshots?: any[],
 ): string {
   const userIdentitySection = buildUserIdentitySection(profile);
   const commPrefsSection = buildCommPrefsSection(context);
   const insightsSection = buildInsightsSection(context);
   const summariesSection = buildSummariesSection(context);
-  const plantsContext = buildPlantsContext(userPlants);
+  const plantsContext = buildPlantsContext(userPlants, plantSnapshots);
   const remindersSection = buildRemindersSection(context);
   const { locationContext, locationSection } = buildLocationContext(profile);
 
@@ -427,6 +451,7 @@ DO NOT rely on conversation history to remember these - SAVE THEM NOW so you nev
 - create_reminder: Set care reminders (supports bulk - see below)
 - log_care_event: Log watering, fertilizing, etc. (supports bulk - see below)
 - save_user_insight: When you learn an important fact about the user - USE THIS PROACTIVELY!
+- capture_plant_snapshot: Save a visual snapshot of a plant for memory. Use when you identify/diagnose a saved plant, or when user asks to remember what a plant looks like.
 
 ## BULK OPERATIONS (CRITICAL!)
 These tools support bulk operations via the plant_identifier parameter:
@@ -474,12 +499,13 @@ export function buildVoiceSystemPrompt(
   context: HierarchicalContext,
   userPlants: any[],
   profile: any,
+  plantSnapshots?: any[],
 ): string {
   const userIdentitySection = buildUserIdentitySection(profile);
   const commPrefsSection = buildCommPrefsSection(context);
   const insightsSection = buildInsightsSection(context);
   const summariesSection = buildSummariesSection(context);
-  const plantsContext = buildPlantsContext(userPlants);
+  const plantsContext = buildPlantsContext(userPlants, plantSnapshots);
   const remindersSection = buildRemindersSection(context);
   const { locationContext, locationSection } = buildLocationContext(profile);
 

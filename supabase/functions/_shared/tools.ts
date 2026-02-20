@@ -668,6 +668,84 @@ export async function updateProfile(
   }
 }
 
+export async function capturePlantSnapshot(
+  supabase: any,
+  profileId: string,
+  args: {
+    plant_identifier: string;
+    description: string;
+    context?: string;
+    health_notes?: string;
+    image_base64?: string;
+    source?: string;
+  },
+  existingImagePath?: string,
+): Promise<{
+  success: boolean;
+  snapshot?: any;
+  plantName?: string;
+  error?: string;
+}> {
+  try {
+    // Resolve the plant
+    const resolution = await resolvePlants(supabase, profileId, args.plant_identifier);
+    if (resolution.plants.length === 0) {
+      return { success: false, error: `Couldn't find a plant matching "${args.plant_identifier}"` };
+    }
+
+    const plant = resolution.plants[0];
+    let imagePath = existingImagePath || "";
+
+    // If base64 image provided (voice call capture), upload to storage
+    if (args.image_base64 && !existingImagePath) {
+      const fileName = `snapshots/${profileId}/${plant.id}/${Date.now()}.jpg`;
+      const binaryData = Uint8Array.from(atob(args.image_base64), (c) => c.charCodeAt(0));
+      
+      const { error: uploadError } = await supabase.storage
+        .from("plant-photos")
+        .upload(fileName, binaryData, { contentType: "image/jpeg", upsert: false });
+
+      if (uploadError) {
+        console.error("[capturePlantSnapshot] Upload error:", uploadError);
+        return { success: false, error: `Failed to upload snapshot: ${uploadError.message}` };
+      }
+      imagePath = fileName;
+      console.log(`[capturePlantSnapshot] Uploaded snapshot to: ${fileName}`);
+    }
+
+    if (!imagePath) {
+      return { success: false, error: "No image available for snapshot" };
+    }
+
+    // Save the snapshot record
+    const { data: snapshot, error } = await supabase
+      .from("plant_snapshots")
+      .insert({
+        plant_id: plant.id,
+        profile_id: profileId,
+        image_path: imagePath,
+        description: args.description,
+        context: args.context || "identification",
+        source: args.source || "telegram_photo",
+        health_notes: args.health_notes || null,
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.error("[capturePlantSnapshot] Insert error:", error);
+      return { success: false, error: error.message };
+    }
+
+    const plantName = plant.nickname || plant.species || plant.name;
+    console.log(`[capturePlantSnapshot] Saved snapshot for ${plantName}: ${snapshot.id}`);
+    return { success: true, snapshot, plantName };
+  } catch (error) {
+    console.error("[capturePlantSnapshot] Exception:", error);
+    return { success: false, error: String(error) };
+  }
+}
+
 export async function checkAgentPermission(supabase: any, profileId: string, capability: string): Promise<boolean> {
   try {
     const { data, error } = await supabase

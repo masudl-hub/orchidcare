@@ -619,7 +619,7 @@ MANDATORY STYLE:
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          model: "google/gemini-2.5-flash-image-preview",
+          model: "google/gemini-3-pro-image-preview",
           messages: [{ role: "user", content: stylePrompt }],
           modalities: ["image", "text"],
           temperature: 1.0,
@@ -1642,7 +1642,6 @@ async function handleVoiceTools(
               { role: "system", content: taskPrompts[toolName] },
               { role: "user", content: prompt },
             ],
-            temperature: 0.3,
           }),
         },
       );

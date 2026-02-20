@@ -220,12 +220,13 @@ async function rewriteResearchForMessaging(
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash-lite", // Fast + cheap for formatting
+        model: "google/gemini-3-flash-preview",
+        thinking_config: { thinking_level: "minimal" },
         messages: [
           {
             role: "system",
             content: `You are a ${personality || "warm"} plant expert named Orchid texting a friend.
-            
+
 TASK: Rewrite this research into a friendly, conversational text message.
 
 RULES:
@@ -245,7 +246,6 @@ RULES:
           },
         ],
         max_tokens: 350,
-        temperature: 0.7,
       }),
     });
 
@@ -1033,7 +1033,6 @@ async function callUrlAnalysisAgent(
       fact_check: `Fact-check the plant care claims on this page. Note any outdated, incorrect, or misleading information based on current horticultural knowledge.`,
     };
 
-    // Gemini 2.5 Flash has native url_context capability
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -1041,7 +1040,8 @@ async function callUrlAnalysisAgent(
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
+        model: "google/gemini-3-flash-preview",
+        thinking_config: { thinking_level: "low" },
         messages: [
           {
             role: "system",
@@ -1072,7 +1072,6 @@ Return ONLY valid JSON with this structure:
             url_context: { urls: [url] },
           },
         ],
-        temperature: 0.3,
       }),
     });
 
@@ -1658,7 +1657,8 @@ async function extractInsightsFromText(
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash-lite",
+        model: "google/gemini-3-flash-preview",
+        thinking_config: { thinking_level: "low" },
         messages: [
           {
             role: "system",
@@ -1691,7 +1691,6 @@ CRITICAL: Only extract facts EXPLICITLY stated by the user. Do not infer or gues
           { role: "user", content: text },
         ],
         max_tokens: 300,
-        temperature: 0.2,
       }),
     });
 
@@ -1765,7 +1764,8 @@ async function maybeCompressHistory(supabase: any, profileId: string, LOVABLE_AP
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          model: "google/gemini-2.5-flash-lite",
+          model: "google/gemini-3-flash-preview",
+          thinking_config: { thinking_level: "low" },
           messages: [
             {
               role: "system",
@@ -1780,7 +1780,6 @@ Return JSON: {"summary": "2-3 sentence summary", "key_topics": ["topic1", "topic
             { role: "user", content: messagesText },
           ],
           max_tokens: 200,
-          temperature: 0.3,
         }),
       }),
       extractInsightsFromText(messagesText, LOVABLE_API_KEY),
@@ -2681,7 +2680,6 @@ ${proactiveContext.events.map((e: any) => `- ${e.message_hint}`).join("\n")}
         tools: allTools,
         tool_choice: "auto",
         max_tokens: 600,
-        temperature: 0.7,
       }),
     });
 
@@ -3497,7 +3495,6 @@ ${proactiveContext.events.map((e: any) => `- ${e.message_hint}`).join("\n")}
             // Allow more tool calls unless we've hit the limit
             ...(isLastIteration ? {} : { tools: allTools, tool_choice: "auto" }),
             max_tokens: 500,
-            temperature: 0.7,
           }),
         });
 

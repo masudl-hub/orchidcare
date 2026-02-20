@@ -544,7 +544,6 @@ async function executeTool(
         body: JSON.stringify({
           model: "google/gemini-3-flash-preview",
           messages: [{ role: "system", content: taskPrompts[toolName] }, { role: "user", content: prompt }],
-          temperature: 0.3,
         }),
       });
       const data = await resp.json();

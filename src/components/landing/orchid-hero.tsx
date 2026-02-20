@@ -106,13 +106,8 @@ export function OrchidHero({ onStartClick, onLoginClick, onDemoClick }: OrchidHe
   useEffect(() => {
     if (fromApp) return;
 
-    // --- Immediate: draw first frame from placeholder (zero network wait) ---
-    const placeholder = createPlaceholderImage();
-    imgRef.current = placeholder;
-    drawAtResolution(PIXEL_STEPS[0]);
-    setCanvasReady(true);
+    let cancelled = false;
 
-    // --- Animation timer: starts NOW, not after network load ---
     const totalDuration = 2500;
     const stepCount = PIXEL_STEPS.length;
 
@@ -129,7 +124,6 @@ export function OrchidHero({ onStartClick, onLoginClick, onDemoClick }: OrchidHe
     }
 
     let currentStep = 0;
-    let cancelled = false;
 
     const scheduleNext = () => {
       if (cancelled) return;
@@ -155,18 +149,31 @@ export function OrchidHero({ onStartClick, onLoginClick, onDemoClick }: OrchidHe
       }, stepDurations[currentStep]);
     };
 
-    scheduleNext();
+    // --- Placeholder: draw first frame instantly via data URI ---
+    const placeholder = createPlaceholderImage();
+    // Data URI images decode nearly instantly but still need onload
+    placeholder.onload = () => {
+      if (cancelled) return;
+      imgRef.current = placeholder;
+      drawAtResolution(PIXEL_STEPS[0]);
+      setCanvasReady(true);
+      scheduleNext();
+    };
+    // Safety: if already decoded (some browsers), fire manually
+    if (placeholder.complete && placeholder.naturalWidth > 0) {
+      imgRef.current = placeholder;
+      drawAtResolution(PIXEL_STEPS[0]);
+      setCanvasReady(true);
+      scheduleNext();
+    }
 
     // --- Async: load full-res image in parallel, swap when ready ---
     const fullImg = new Image();
     fullImg.crossOrigin = "anonymous";
     fullImg.onload = () => {
-      // Swap the source so remaining steps use full resolution
       imgRef.current = fullImg;
-      // Re-draw current step with the better source
       drawAtResolution(PIXEL_STEPS[Math.min(currentStep, stepCount - 1)]);
     };
-    // onerror is fine — the placeholder carries the animation to completion
     fullImg.src = purpleOrchidSrc;
 
     return () => { cancelled = true; };

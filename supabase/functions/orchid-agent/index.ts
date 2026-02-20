@@ -2045,93 +2045,8 @@ interface MediaInfo {
   mediaType: "image" | "video" | "audio" | "unknown";
 }
 
-/* TWILIO DISABLED — Telegram-only for now
-async function fetchTwilioMedia(mediaUrl: string, twilioAuth: string): Promise<MediaInfo | null> {
-  try {
-    console.log(`Fetching media from Twilio: ${mediaUrl}`);
 
-    const response = await fetch(mediaUrl, {
-      headers: {
-        Authorization: `Basic ${twilioAuth}`,
-      },
-    });
 
-    if (!response.ok) {
-      console.error("Failed to fetch media:", response.status);
-      return null;
-    }
-
-    const contentType = response.headers.get("content-type") || "application/octet-stream";
-    const arrayBuffer = await response.arrayBuffer();
-    const uint8Array = new Uint8Array(arrayBuffer);
-
-    let mediaType: "image" | "video" | "audio" | "unknown" = "unknown";
-    if (contentType.startsWith("image/")) mediaType = "image";
-    else if (contentType.startsWith("video/")) mediaType = "video";
-    else if (contentType.startsWith("audio/") || contentType.includes("ogg")) mediaType = "audio";
-
-    // Handle images with optional resizing
-    if (mediaType === "image") {
-      try {
-        const result = await resizeImageForVision(uint8Array, contentType);
-
-        if (MEDIA_CONFIG.RESIZE_MEDIA && result.wasResized) {
-          const savings = ((1 - result.resizedBytes / result.originalBytes) * 100).toFixed(1);
-          console.log(`[MediaProcessing] Image optimized: ${result.originalBytes} -> ${result.resizedBytes} bytes (${savings}% reduction)`);
-        } else {
-          console.log(`[MediaProcessing] Image processed: ${result.resizedBytes} bytes (no resize needed)`);
-        }
-
-        return {
-          base64: result.base64,
-          mimeType: result.mimeType,
-          mediaType: "image",
-        };
-      } catch (err) {
-        console.error("[MediaProcessing] Resize failed, using original:", err);
-        // Fallback to original if resize fails
-        let binary = "";
-        const chunkSize = 8192;
-        for (let i = 0; i < uint8Array.length; i += chunkSize) {
-          const chunk = uint8Array.subarray(i, i + chunkSize);
-          binary += String.fromCharCode.apply(null, Array.from(chunk));
-        }
-        const base64 = btoa(binary);
-        console.log(`Media fetched (fallback): ${contentType} (${mediaType}), ${base64.length} base64 chars`);
-        return { base64, mimeType: contentType, mediaType: "image" };
-      }
-    }
-
-    // Handle videos with size warning
-    if (mediaType === "video") {
-      const sizeInMB = arrayBuffer.byteLength / (1024 * 1024);
-      if (sizeInMB > MEDIA_CONFIG.VIDEO_MAX_SIZE_MB) {
-        console.warn(`[MediaProcessing] Large video: ${sizeInMB.toFixed(1)}MB (limit: ${MEDIA_CONFIG.VIDEO_MAX_SIZE_MB}MB)`);
-      }
-    }
-
-    // Default handling for video, audio, and unknown types
-    let binary = "";
-    const chunkSize = 8192;
-    for (let i = 0; i < uint8Array.length; i += chunkSize) {
-      const chunk = uint8Array.subarray(i, i + chunkSize);
-      binary += String.fromCharCode.apply(null, Array.from(chunk));
-    }
-    const base64 = btoa(binary);
-
-    console.log(`Media fetched: ${contentType} (${mediaType}), ${base64.length} base64 chars`);
-
-    return {
-      base64,
-      mimeType: contentType,
-      mediaType,
-    };
-  } catch (error) {
-    console.error("Error fetching media:", error);
-    return null;
-  }
-}
-TWILIO DISABLED */
 
 // ============================================================================
 // MAIN WEBHOOK HANDLER
@@ -2143,10 +2058,8 @@ serve(async (req: Request) => {
   }
 
   try {
-    /* TWILIO DISABLED — Telegram-only for now
-    const TWILIO_ACCOUNT_SID = Deno.env.get("TWILIO_ACCOUNT_SID");
-    const TWILIO_AUTH_TOKEN = Deno.env.get("TWILIO_AUTH_TOKEN");
-    TWILIO DISABLED */
+
+
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     const PERPLEXITY_API_KEY = Deno.env.get("PERPLEXITY_API_KEY");
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
@@ -2162,9 +2075,8 @@ serve(async (req: Request) => {
       return new Response("Configuration error", { status: 500, headers: corsHeaders });
     }
 
-    /* TWILIO DISABLED — Telegram-only for now
-    const hasTwilioAuth = TWILIO_ACCOUNT_SID && TWILIO_AUTH_TOKEN;
-    TWILIO DISABLED */
+
+
 
     // Generate correlation ID for this request (audit trail)
     const correlationId = generateCorrelationId();
@@ -2278,284 +2190,25 @@ serve(async (req: Request) => {
 
       console.log(`[${correlationId}] Proactive context: ${eventDescriptions}`);
     } else {
-      /* TWILIO DISABLED — Telegram-only for now
-      // ====================================================================
-      // NORMAL MODE: Incoming SMS/WhatsApp from Twilio
-      // ====================================================================
-      const formData = await req.formData();
-      fromNumber = formData.get("From") as string;
-      body = formData.get("Body") as string;
-      mediaUrl0 = formData.get("MediaUrl0") as string | null;
-      numMedia = parseInt((formData.get("NumMedia") as string) || "0", 10);
-      messageSid = formData.get("MessageSid") as string;
-
-      // Get or create profile
-      const cleanFromNumber = fromNumber.startsWith("whatsapp:") ? fromNumber.replace("whatsapp:", "") : fromNumber;
-
-      const { data: existingProfile } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("phone_number", cleanFromNumber)
-        .single();
-
-      if (!existingProfile) {
-        const { data: newProfile, error: profileError } = await supabase
-          .from("profiles")
-          .insert({ phone_number: cleanFromNumber, personality: "warm" })
-          .select()
-          .single();
-
-        if (profileError) {
-          console.error("Error creating profile:", profileError);
-        } else {
-          profile = newProfile;
-          console.log("Created new profile for:", cleanFromNumber);
-        }
-      } else {
-        profile = existingProfile;
-      }
-      TWILIO DISABLED */
-
-      // Twilio mode is disabled — return a no-op response for any non-internal requests
-      console.error(`[orchid-agent] Received non-internal request (Twilio disabled). Returning empty response.`);
+      // Non-internal requests are not supported (Telegram-only)
+      console.error(`[orchid-agent] Received non-internal request. Returning empty response.`);
       return new Response('<?xml version="1.0" encoding="UTF-8"?><Response></Response>', {
         headers: { ...corsHeaders, "Content-Type": "text/xml" },
       });
     }
 
-    const isWhatsApp = fromNumber.startsWith("whatsapp:");
-    const isTelegram = isInternalAgentCall && !isProactiveTrigger;
-    const cleanFromNumber = isWhatsApp ? fromNumber.replace("whatsapp:", "") : fromNumber;
-    const channel = isTelegram ? "telegram" : isWhatsApp ? "whatsapp" : "sms";
+    const channel = "telegram";
 
     console.log(
-      `[${correlationId}] ${isProactiveTrigger ? "🔔 Proactive" : isInternalAgentCall ? "📨 Internal" : "Incoming"} ${channel.toUpperCase()} for ${cleanFromNumber}`,
+      `[${correlationId}] ${isProactiveTrigger ? "🔔 Proactive" : "📨 Internal"} TELEGRAM for profile ${profile?.id}`,
     );
     if (numMedia > 0) console.log(`[${correlationId}] Media attached: ${mediaUrl0 || "internal base64"}`);
 
-    /* TWILIO DISABLED — Telegram-only for now
-    // ========================================================================
-    // SANDBOX JOIN DETECTION (Code-in-Web flow)
-    // When user joins the Twilio sandbox, generate a verification code and send it
-    // They'll enter this code on the web to link their account
-    // ========================================================================
-    if (!isProactiveTrigger && body) {
-      const isJoinMessage = body.toLowerCase().trim().startsWith("join ");
 
-      if (isJoinMessage && !profile) {
-        // New user joining sandbox - generate verification code
-        const code = Math.floor(100000 + Math.random() * 900000).toString();
-        console.log(`[${correlationId}] 🔗 New sandbox join - generating code ${code} for ${cleanFromNumber}`);
 
-        // Store code with phone number (no user_id yet - will be claimed on web)
-        const { error: insertError } = await supabase.from("linking_codes").insert({
-          phone_number: cleanFromNumber,
-          code,
-          expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
-        });
 
-        if (insertError) {
-          console.error(`[${correlationId}] Failed to create linking code:`, insertError);
-        }
 
-        // Send welcome message with code via Twilio REST API
-        const welcomeMessage = `Welcome to Orchid! 🌱
 
-Your verification code is: ${code}
-
-Enter this code on the website to complete your account setup and unlock personalized plant care advice.
-
-This code expires in 24 hours.`;
-
-        try {
-          const twilioWhatsAppNum = Deno.env.get("TWILIO_WHATSAPP_NUMBER") || "whatsapp:+14155238886";
-          const twilioSmsNum = Deno.env.get("TWILIO_SMS_NUMBER") || "";
-
-          const twilioResponse = await fetch(
-            `https://api.twilio.com/2010-04-01/Accounts/${TWILIO_ACCOUNT_SID}/Messages.json`,
-            {
-              method: "POST",
-              headers: {
-                Authorization: "Basic " + btoa(`${TWILIO_ACCOUNT_SID}:${TWILIO_AUTH_TOKEN}`),
-                "Content-Type": "application/x-www-form-urlencoded",
-              },
-              body: new URLSearchParams({
-                To: fromNumber,
-                From: isWhatsApp ? twilioWhatsAppNum : twilioSmsNum,
-                Body: welcomeMessage,
-              }).toString(),
-            },
-          );
-
-          if (!twilioResponse.ok) {
-            const errorText = await twilioResponse.text();
-            console.error(`[${correlationId}] Twilio send failed:`, errorText);
-          } else {
-            console.log(`[${correlationId}] ✅ Welcome code sent to ${cleanFromNumber}`);
-          }
-        } catch (e) {
-          console.error(`[${correlationId}] Error sending welcome:`, e);
-        }
-
-        // Return empty TwiML (we already sent the response via REST API)
-        return new Response('<?xml version="1.0" encoding="UTF-8"?><Response></Response>', {
-          headers: { ...corsHeaders, "Content-Type": "text/xml" },
-        });
-      }
-
-      // If user has already joined (has profile) and sends join again, just acknowledge
-      if (isJoinMessage && profile) {
-        console.log(`[${correlationId}] Returning user sent join message - already has profile`);
-        const alreadyLinkedTwiml = `<?xml version="1.0" encoding="UTF-8"?>
-<Response>
-  <Message>Welcome back! 🌿 You're already connected. How can I help with your plants today?</Message>
-</Response>`;
-        return new Response(alreadyLinkedTwiml, {
-          status: 200,
-          headers: { ...corsHeaders, "Content-Type": "text/xml" },
-        });
-      }
-    }
-    TWILIO DISABLED */
-
-    /* TWILIO DISABLED — Telegram-only for now
-    // ========================================================================
-    // LINKING CODE DETECTION (Legacy flow - user sends code to bot)
-    // Check if the message is a linking code (e.g., "LINK 123456" or just "123456")
-    // This connects a web account with a messaging identity
-    //
-    // TODO: When re-enabling, make linking code claim atomic. Replace the
-    // SELECT + separate UPDATE pattern with a single atomic UPDATE:
-    //   const { data: linkingData } = await supabase
-    //     .from("linking_codes")
-    //     .update({ used_at: new Date().toISOString() })
-    //     .eq("code", code)
-    //     .is("used_at", null)
-    //     .gt("expires_at", new Date().toISOString())
-    //     .select()
-    //     .maybeSingle();
-    // This prevents race conditions where two users claim the same code.
-    // ========================================================================
-    if (!isProactiveTrigger && body) {
-      const linkingCodeMatch = body.trim().match(/^(?:LINK\s*)?(\d{6})$/i);
-
-      if (linkingCodeMatch) {
-        const code = linkingCodeMatch[1];
-        console.log(`[${correlationId}] 🔗 Linking code detected: ${code}`);
-
-        // Look up the linking code (both old flow with user_id and new flow with phone_number)
-        const { data: linkingData, error: linkingLookupError } = await supabase
-          .from("linking_codes")
-          .select("*")
-          .eq("code", code)
-          .is("used_at", null)
-          .gt("expires_at", new Date().toISOString())
-          .maybeSingle();
-
-        if (linkingLookupError || !linkingData) {
-          console.log(`[${correlationId}] Invalid or expired linking code: ${code}`);
-
-          // Send error response via TwiML
-          const errorTwiml = `<?xml version="1.0" encoding="UTF-8"?>
-<Response>
-  <Message>Hmm, that code doesn't seem right or may have expired. 🤔 Check the code on your setup page and try again! If you're having trouble, visit viridisml.lovable.app to get a fresh code.</Message>
-</Response>`;
-
-          return new Response(errorTwiml, {
-            status: 200,
-            headers: { ...corsHeaders, "Content-Type": "text/xml" },
-          });
-        }
-
-        // Handle legacy flow (user_id set, user sends code to bot)
-        if (linkingData.user_id) {
-          console.log(`[${correlationId}] Valid linking code found for user_id: ${linkingData.user_id}`);
-
-          // Check if this phone already has a profile
-          if (profile) {
-            // Update existing profile with web account's user_id and preferences
-            const { error: updateError } = await supabase
-              .from("profiles")
-              .update({
-                user_id: linkingData.user_id,
-                personality: linkingData.personality || profile.personality,
-                location: linkingData.location || profile.location,
-              })
-              .eq("id", profile.id);
-
-            if (updateError) {
-              console.error(`[${correlationId}] Error updating profile:`, updateError);
-            } else {
-              console.log(`[${correlationId}] ✅ Linked existing profile ${profile.id} to user ${linkingData.user_id}`);
-            }
-          } else {
-            // Create new profile linked to the web account
-            const { data: newLinkedProfile, error: createError } = await supabase
-              .from("profiles")
-              .insert({
-                phone_number: cleanFromNumber,
-                user_id: linkingData.user_id,
-                personality: linkingData.personality || "warm",
-                location: linkingData.location,
-              })
-              .select()
-              .single();
-
-            if (createError) {
-              console.error(`[${correlationId}] Error creating linked profile:`, createError);
-            } else {
-              console.log(
-                `[${correlationId}] ✅ Created new linked profile ${newLinkedProfile.id} for user ${linkingData.user_id}`,
-              );
-              profile = newLinkedProfile;
-            }
-          }
-
-          // Mark code as used
-          await supabase.from("linking_codes").update({ used_at: new Date().toISOString() }).eq("id", linkingData.id);
-
-          // Get personality name for friendly response
-          const personalityNames: Record<string, string> = {
-            warm: "warm and encouraging",
-            expert: "detailed and scientific",
-            playful: "fun and laid-back",
-            philosophical: "thoughtful and mindful",
-          };
-          const personalityDesc = personalityNames[linkingData.personality || "warm"] || "friendly";
-
-          // Send success response
-          const successTwiml = `<?xml version="1.0" encoding="UTF-8"?>
-<Response>
-  <Message>🎉 You're all linked up! Your account is connected and I'll be ${personalityDesc} in our chats.
-
-How can I help with your plants today? Send a photo or ask me anything! 🌿</Message>
-</Response>`;
-
-          return new Response(successTwiml, {
-            status: 200,
-            headers: { ...corsHeaders, "Content-Type": "text/xml" },
-          });
-        }
-
-        // Handle new Code-in-Web flow (phone_number set, user verifies on web)
-        // This case shouldn't normally happen (user enters code on web, not in chat)
-        // But if they do, just acknowledge
-        if (linkingData.phone_number) {
-          console.log(`[${correlationId}] Code ${code} is for web verification - instructing user`);
-          const webVerifyTwiml = `<?xml version="1.0" encoding="UTF-8"?>
-<Response>
-  <Message>This code is for the website! 🖥️ Go back to your browser and enter ${code} there to complete setup.
-
-If you need a new code, just send "join language-somebody" again.</Message>
-</Response>`;
-          return new Response(webVerifyTwiml, {
-            status: 200,
-            headers: { ...corsHeaders, "Content-Type": "text/xml" },
-          });
-        }
-      }
-    }
-    TWILIO DISABLED */
 
     // Store incoming message (skip for proactive - no actual inbound message)
     let inboundMessage: any = null;
@@ -2645,12 +2298,8 @@ If you need a new code, just send "join language-somebody" again.</Message>
         mediaType: mediaType,
       };
     }
-    /* TWILIO DISABLED — Telegram-only for now
-    else if (hasMedia && hasTwilioAuth) {
-      const twilioAuth = btoa(`${TWILIO_ACCOUNT_SID}:${TWILIO_AUTH_TOKEN}`);
-      mediaInfo = await fetchTwilioMedia(mediaUrl0!, twilioAuth);
-    }
-    TWILIO DISABLED */
+
+
 
     // Best-effort upload of incoming plant photos to storage
     let uploadedPhotoPath: string | null = null;
@@ -3882,93 +3531,8 @@ ${proactiveContext.events.map((e: any) => `- ${e.message_hint}`).join("\n")}
       });
     }
 
-    /* TWILIO DISABLED — Telegram-only for now
-    // Send reply via Twilio API
-    if (hasTwilioAuth) {
-      const TWILIO_WHATSAPP_NUMBER = Deno.env.get("TWILIO_WHATSAPP_NUMBER") || "whatsapp:+14155238886";
-      const TWILIO_SMS_NUMBER = Deno.env.get("TWILIO_SMS_NUMBER");
 
-      const twilioUrl = `https://api.twilio.com/2010-04-01/Accounts/${TWILIO_ACCOUNT_SID}/Messages.json`;
-      const twilioAuth = btoa(`${TWILIO_ACCOUNT_SID}:${TWILIO_AUTH_TOKEN}`);
 
-      const fromTwilio = isWhatsApp ? TWILIO_WHATSAPP_NUMBER : TWILIO_SMS_NUMBER || "";
-
-      // Chunk the message for conversational delivery
-      const messageChunks = smartChunkMessage(aiReply);
-      console.log(`[MessageChunking] Splitting into ${messageChunks.length} chunk(s)`);
-
-      // Send each chunk sequentially
-      for (let i = 0; i < messageChunks.length; i++) {
-        const chunk = messageChunks[i];
-        console.log(`[MessageChunking] Sending chunk ${i + 1}/${messageChunks.length} (${chunk.length} chars)`);
-
-        const twilioBody = new URLSearchParams({
-          To: fromNumber,
-          From: fromTwilio,
-          Body: chunk,
-        });
-
-        try {
-          const twilioResponse = await fetch(twilioUrl, {
-            method: "POST",
-            headers: {
-              Authorization: `Basic ${twilioAuth}`,
-              "Content-Type": "application/x-www-form-urlencoded",
-            },
-            body: twilioBody.toString(),
-          });
-
-          if (twilioResponse.ok) {
-            const twilioData = await twilioResponse.json();
-            console.log(`Twilio chunk ${i + 1} sent:`, twilioData.sid);
-          } else {
-            const twilioError = await twilioResponse.text();
-            console.error("Twilio send error:", twilioResponse.status, twilioError);
-          }
-
-          // Small delay between chunks for natural conversation feel
-          if (i < messageChunks.length - 1) {
-            await new Promise((resolve) => setTimeout(resolve, 300));
-          }
-        } catch (twilioErr) {
-          console.error("Error sending via Twilio:", twilioErr);
-        }
-      }
-
-      // Send generated images if any (WhatsApp supports media messages)
-      if (mediaToSend.length > 0 && isWhatsApp) {
-        console.log(`Sending ${mediaToSend.length} generated images...`);
-
-        for (const media of mediaToSend) {
-          try {
-            const mediaBody = new URLSearchParams({
-              To: fromNumber,
-              From: fromTwilio,
-              Body: media.caption || "",
-              MediaUrl: media.url,
-            });
-
-            const mediaResponse = await fetch(twilioUrl, {
-              method: "POST",
-              headers: {
-                Authorization: `Basic ${twilioAuth}`,
-                "Content-Type": "application/x-www-form-urlencoded",
-              },
-              body: mediaBody.toString(),
-            });
-
-            if (mediaResponse.ok) {
-              console.log("Media sent successfully");
-            } else {
-              console.error("Media send error:", await mediaResponse.text());
-            }
-          } catch (mediaErr) {
-            console.error("Error sending media:", mediaErr);
-          }
-        }
-      }
-    }
-    TWILIO DISABLED */
 
     // Return empty TwiML (we're using the API to send)
     return new Response('<?xml version="1.0" encoding="UTF-8"?><Response></Response>', {

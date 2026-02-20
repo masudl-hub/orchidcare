@@ -21,8 +21,6 @@ interface ProactiveEvent {
 
 interface ProfileContext {
   id: string;
-  phone_number: string | null;
-  whatsapp_number: string | null;
   telegram_chat_id: number | null;
   personality: string;
   timezone: string;
@@ -265,7 +263,7 @@ serve(async (req: Request) => {
     // Get all profiles with extended onboarding data
     const { data: profiles } = await supabase
       .from('profiles')
-      .select('id, phone_number, whatsapp_number, telegram_chat_id, personality, timezone, location, notification_frequency, display_name, experience_level, primary_concerns');
+      .select('id, telegram_chat_id, personality, timezone, location, notification_frequency, display_name, experience_level, primary_concerns');
 
     if (!profiles || profiles.length === 0) {
       console.log('[ProactiveAgent] No profiles found in database');

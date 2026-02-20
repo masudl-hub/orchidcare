@@ -934,7 +934,7 @@ const generateAndDownloadPDF = async () => {
 // ═══════════════════════════════════════════════════════════════════════════
 
 export function OrchidProposal() {
-  const [demoOpen, setDemoOpen] = useState(false);
+  
   const [scrollProgress, setScrollProgress] = useState(0);
   const [currentSection, setCurrentSection] = useState(1);
   const scrollRef = useRef<HTMLDivElement>(null);

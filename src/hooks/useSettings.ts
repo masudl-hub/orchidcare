@@ -82,16 +82,18 @@ export function useSystemSettings() {
     profile && 
     (preferences.length === 0 || permissions.length === 0);
 
-  console.log('[useSystemSettings] Debug:', {
-    profileId: profile?.id,
-    prefsCount: preferences.length,
-    permsCount: permissions.length,
-    prefsLoading,
-    permsLoading,
-    needsInitialization,
-    preferences: preferences.map(p => ({ topic: p.topic, enabled: p.enabled })),
-    permissions: permissions.map(p => ({ capability: p.capability, enabled: p.enabled }))
-  });
+  if (import.meta.env.DEV) {
+    console.log('[useSystemSettings] Debug:', {
+      profileId: profile?.id,
+      prefsCount: preferences.length,
+      permsCount: permissions.length,
+      prefsLoading,
+      permsLoading,
+      needsInitialization,
+      preferences: preferences.map(p => ({ topic: p.topic, enabled: p.enabled })),
+      permissions: permissions.map(p => ({ capability: p.capability, enabled: p.enabled }))
+    });
+  }
 
   // Don't use useQuery - just compute directly from the fetched data
   // This ensures we always use the latest data from preferences and permissions
@@ -101,7 +103,7 @@ export function useSystemSettings() {
 
   if (needsInitialization) {
     // Return null to indicate settings need initialization
-    console.log('[useSystemSettings] Returning null - needs initialization');
+    if (import.meta.env.DEV) console.log('[useSystemSettings] Returning null - needs initialization');
     return { data: null, isLoading: false, needsInitialization: true };
   }
 

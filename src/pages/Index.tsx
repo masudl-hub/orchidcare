@@ -14,7 +14,7 @@ export default function Index() {
   const [isExpanding, setIsExpanding] = useState(false);
   const [showHero, setShowHero] = useState(false);
   const [showContent, setShowContent] = useState(false);
-  const [demoOpen, setDemoOpen] = useState(false);
+  
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -41,7 +41,7 @@ export default function Index() {
   };
 
   const handleDemoClick = () => {
-    setDemoOpen(true);
+    navigate('/demo');
   };
 
   return (

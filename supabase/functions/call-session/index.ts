@@ -127,10 +127,20 @@ async function validateAndGetProfile(
   return { user, profile };
 }
 
-// ---------------------------------------------------------------------------
-// Voice tool declarations (Gemini function-calling format)
-// ---------------------------------------------------------------------------
+// Voice tools, deep think, and tool executor imported from shared modules
+import { voiceToolDeclarations } from "../_shared/voiceTools.ts";
+import { callDeepThink } from "../_shared/deepThink.ts";
+import { executeTool } from "../_shared/toolExecutor.ts";
 
+/* Replaced inline declarations with shared imports above.
+   Original voiceToolDeclarations, callDeepThink, and executeTool
+   are now in _shared/voiceTools.ts, _shared/deepThink.ts, _shared/toolExecutor.ts */
+
+// Keeping a marker so line-replace can target the end of the removed block
+const _sharedImportsComplete = true; // eslint-disable-line
+void _sharedImportsComplete;
+
+/*--- BEGIN REMOVED INLINE CODE (now in _shared/) ---
 const voiceToolDeclarations = [
   {
     functionDeclarations: [

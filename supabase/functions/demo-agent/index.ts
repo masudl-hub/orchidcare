@@ -5,6 +5,7 @@ import {
   callMapsShoppingAgent,
   verifyStoreInventory,
 } from "../_shared/research.ts";
+import { callDeepThink } from "../_shared/deepThink.ts";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -681,60 +682,7 @@ MANDATORY STYLE:
   }
 }
 
-async function callDeepThink(
-  question: string,
-  context: string | undefined,
-  apiKey: string,
-): Promise<Record<string, unknown>> {
-  const startTime = Date.now();
-  console.log(`[DemoAgent] DeepThink: ${question.substring(0, 200)}`);
-
-  try {
-    const prompt = context
-      ? `${question}\n\nAdditional context: ${context}`
-      : question;
-
-    const response = await fetch(
-      "https://ai.gateway.lovable.dev/v1/chat/completions",
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: "google/gemini-3-flash-preview",
-          messages: [
-            {
-              role: "system",
-              content: `You are an expert botanist and plant pathologist. You reason carefully and thoroughly about plant care questions. Provide detailed, actionable advice. Be specific about symptoms, causes, and treatments. If multiple possibilities exist, list them in order of likelihood.
-
-Keep your response concise but thorough — aim for 3-5 sentences of clear, practical advice.`,
-            },
-            { role: "user", content: prompt },
-          ],
-          temperature: 1.0,
-        }),
-      },
-    );
-
-    if (!response.ok) {
-      const errText = await response.text();
-      console.error(`[DemoAgent] DeepThink API error: ${response.status}`, errText);
-      return { success: false, error: `Deep think failed: ${response.status}` };
-    }
-
-    const data = await response.json();
-    const answer = data.choices?.[0]?.message?.content || "";
-    const elapsed = Date.now() - startTime;
-    console.log(`[DemoAgent] DeepThink complete in ${elapsed}ms, ${answer.length} chars`);
-
-    return { success: true, answer, model: "gemini-3-flash", latencyMs: elapsed };
-  } catch (error) {
-    console.error("[DemoAgent] DeepThink error:", error);
-    return { success: false, error: String(error) };
-  }
-}
+// callDeepThink is now imported from ../_shared/deepThink.ts
 
 async function executeDemoTool(
   toolName: string,

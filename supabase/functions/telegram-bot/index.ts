@@ -18,6 +18,128 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 const bot = new Bot(TELEGRAM_BOT_TOKEN);
 
 // ============================================================================
+// ONBOARDING STATE (in-memory, per-invocation — fine for single-session flows)
+// ============================================================================
+
+const onboardingState = new Map<number, { step: string; pets?: string[] }>();
+
+// Onboarding question senders
+function sendNameQuestion(chatId: number, firstName: string) {
+  return bot.api.sendMessage(chatId, "🌱 *What should I call you?*", {
+    parse_mode: "Markdown",
+    reply_markup: {
+      inline_keyboard: [
+        [{ text: `Use "${firstName}"`, callback_data: "onboard:name:use" }],
+        [{ text: "Skip", callback_data: "onboard:skip:name" }],
+      ],
+    },
+  });
+}
+
+function sendPersonalityQuestion(chatId: number) {
+  return bot.api.sendMessage(chatId, "🎭 *How should I talk to you?*", {
+    parse_mode: "Markdown",
+    reply_markup: {
+      inline_keyboard: [
+        [
+          { text: "☀️ Warm", callback_data: "onboard:personality:warm" },
+          { text: "🎪 Playful", callback_data: "onboard:personality:playful" },
+        ],
+        [
+          { text: "🔬 Expert", callback_data: "onboard:personality:expert" },
+          { text: "🌿 Philosophical", callback_data: "onboard:personality:philosophical" },
+        ],
+        [{ text: "Skip", callback_data: "onboard:skip:personality" }],
+      ],
+    },
+  });
+}
+
+function sendExperienceQuestion(chatId: number) {
+  return bot.api.sendMessage(chatId, "🌿 *How experienced are you with plants?*", {
+    parse_mode: "Markdown",
+    reply_markup: {
+      inline_keyboard: [
+        [
+          { text: "🌱 Beginner", callback_data: "onboard:experience:beginner" },
+          { text: "🪴 Intermediate", callback_data: "onboard:experience:intermediate" },
+          { text: "🌳 Expert", callback_data: "onboard:experience:expert" },
+        ],
+        [{ text: "Skip", callback_data: "onboard:skip:experience" }],
+      ],
+    },
+  });
+}
+
+function buildPetsKeyboard(selected: string[]) {
+  const pets = ["Dog", "Cat", "Bird", "Fish", "Rabbit"];
+  const petEmojis: Record<string, string> = { Dog: "🐕", Cat: "🐈", Bird: "🐦", Fish: "🐟", Rabbit: "🐇" };
+  const buttons = pets.map((p) => {
+    const key = p.toLowerCase();
+    const check = selected.includes(key) ? " ✓" : "";
+    return { text: `${petEmojis[p]} ${p}${check}`, callback_data: `onboard:pets:${key}` };
+  });
+  return {
+    inline_keyboard: [
+      buttons.slice(0, 3),
+      buttons.slice(3),
+      [
+        { text: "✅ Done", callback_data: "onboard:pets:done" },
+        { text: "Skip", callback_data: "onboard:skip:pets" },
+      ],
+    ],
+  };
+}
+
+function sendPetsQuestion(chatId: number, selected: string[] = []) {
+  return bot.api.sendMessage(
+    chatId,
+    "🐾 *Do you have any pets?* _(for plant toxicity awareness)_\n\nTap to select — you can pick more than one.",
+    { parse_mode: "Markdown", reply_markup: buildPetsKeyboard(selected) },
+  );
+}
+
+function sendLocationQuestion(chatId: number) {
+  onboardingState.set(chatId, { step: "location" });
+  return bot.api.sendMessage(
+    chatId,
+    "📍 *Where are you located?*\n\nDrop your city, zip code, or country and I'll tailor seasonal advice. Or tap Skip.",
+    {
+      parse_mode: "Markdown",
+      reply_markup: {
+        inline_keyboard: [[{ text: "Skip", callback_data: "onboard:skip:location" }]],
+      },
+    },
+  );
+}
+
+function sendWrapUp(chatId: number) {
+  onboardingState.delete(chatId);
+  return bot.api.sendMessage(
+    chatId,
+    "✅ *You're all set!* Here's what I can do:\n\n" +
+      "📸 Send a photo to identify or diagnose a plant\n" +
+      "💬 Ask me anything about plant care\n" +
+      "🎙 /call — start a live voice conversation\n" +
+      "🌿 /myplants — view your saved plants\n" +
+      "👤 /profile — update your preferences anytime",
+    { parse_mode: "Markdown" },
+  );
+}
+
+function sendReturningWelcome(chatId: number, displayName?: string) {
+  const greeting = displayName ? `Welcome back, ${displayName}!` : "Welcome back!";
+  return bot.api.sendMessage(
+    chatId,
+    `🌸 *${greeting}*\n\nSend me a photo or ask anything about plants.\n\n` +
+      "/call — voice call\n" +
+      "/myplants — your plants\n" +
+      "/profile — update preferences",
+    { parse_mode: "Markdown" },
+  );
+}
+
+// ============================================================================
 // GLOBAL ERROR HANDLER
 // ============================================================================
 
@@ -440,9 +562,10 @@ function startTypingIndicator(chatId: number): () => void {
 bot.command("start", async (ctx) => {
   const chatId = ctx.chat.id;
   const username = ctx.from?.username;
-  const payload = ctx.match?.trim(); // deep link payload after /start
+  const firstName = ctx.from?.first_name || "there";
+  const payload = ctx.match?.trim();
 
-  console.log(`[TelegramBot] /start: chatId=${chatId}, username=${username || "none"}, payload="${payload || "none"}", from=${JSON.stringify({ id: ctx.from?.id, first_name: ctx.from?.first_name, language_code: ctx.from?.language_code })}`);
+  console.log(`[TelegramBot] /start: chatId=${chatId}, username=${username || "none"}, payload="${payload || "none"}"`);
   await ctx.api.sendChatAction(chatId, "typing");
 
   // If deep link payload is a linking code, handle account linking FIRST
@@ -455,7 +578,6 @@ bot.command("start", async (ctx) => {
         return;
       }
     }
-    // If code didn't match or expired, fall through to normal welcome
   }
 
   const profile = await getOrCreateProfile(chatId, username);
@@ -464,34 +586,43 @@ bot.command("start", async (ctx) => {
     return;
   }
 
+  // Detect new vs returning user: if created within last 60s, treat as new
+  const isNewUser = profile.created_at &&
+    (Date.now() - new Date(profile.created_at).getTime()) < 60_000;
+
+  if (!isNewUser) {
+    await sendReturningWelcome(chatId, profile.display_name);
+    return;
+  }
+
+  // New user onboarding
   await ctx.reply(
-    "Hi there! I'm Orchid, your plant care companion.\n\n" +
-      "Send me a photo of any plant and I'll identify it, diagnose problems, and help you keep it thriving.\n\n" +
-      "You can also just ask me anything about plants!\n\n" +
-      "Commands:\n" +
-      "/help - See what I can do\n" +
-      "/call - Start a live voice call with Orchid\n" +
-      "/myplants - View your saved plants\n" +
-      "/web - Access your web dashboard",
+    "Hey! I'm *Orchid* — your plant care companion. 🌸\n\n" +
+      "Send me a photo of any plant and I'll identify it, diagnose problems, and help you keep it thriving. " +
+      "You can also just talk to me about anything plant-related.\n\n" +
+      "_Let me get to know you a bit first. Everything below is optional — you can always update later with /profile._",
+    { parse_mode: "Markdown" },
   );
+
+  await sendNameQuestion(chatId, firstName);
 });
 
 bot.command("help", async (ctx) => {
   console.log(`[TelegramBot] /help: chatId=${ctx.chat.id}, username=${ctx.from?.username || "none"}`);
   await ctx.reply(
     "Here's what I can help with:\n\n" +
-      "- Send a photo to identify a plant or diagnose issues\n" +
-      "- Ask about watering, light, soil, or any care topic\n" +
-      '- Say "save [name]" to save a plant to your collection\n' +
-      "- Ask me to set reminders for watering, fertilizing, etc.\n" +
-      "- Request research on specific plant topics\n" +
-      "- Find local nurseries and garden stores\n\n" +
-      "- Say /call to start a live voice conversation\n\n" +
+      "📸 Send a photo to identify a plant or diagnose issues\n" +
+      "💬 Ask about watering, light, soil, or any care topic\n" +
+      '🌿 Say "save [name]" to save a plant to your collection\n' +
+      "⏰ Ask me to set reminders for watering, fertilizing, etc.\n" +
+      "🔍 Request research on specific plant topics\n" +
+      "🏪 Find local nurseries and garden stores\n\n" +
       "Commands:\n" +
-      "/call - Start a live voice call\n" +
-      "/myplants - View your saved plants\n" +
-      "/web - Access your web dashboard\n" +
-      "/help - Show this message",
+      "/call — Start a live voice call\n" +
+      "/myplants — View your saved plants\n" +
+      "/profile — Update your preferences\n" +
+      "/web — Access your web dashboard\n" +
+      "/help — Show this message",
   );
 });
 
@@ -602,6 +733,201 @@ bot.command("myplants", async (ctx) => {
 });
 
 // ============================================================================
+// /profile COMMAND
+// ============================================================================
+
+bot.command("profile", async (ctx) => {
+  const chatId = ctx.chat.id;
+  console.log(`[TelegramBot] /profile: chatId=${chatId}`);
+  await ctx.api.sendChatAction(chatId, "typing");
+
+  const profile = await getOrCreateProfile(chatId, ctx.from?.username);
+  if (!profile) {
+    await ctx.reply("Couldn't load your profile. Please try /start first.");
+    return;
+  }
+
+  const name = profile.display_name || "Not set";
+  const personality = profile.personality ? profile.personality.charAt(0).toUpperCase() + profile.personality.slice(1) : "Warm";
+  const experience = profile.experience_level ? profile.experience_level.charAt(0).toUpperCase() + profile.experience_level.slice(1) : "Beginner";
+  const pets = profile.pets && profile.pets.length > 0
+    ? profile.pets.map((p: string) => p.charAt(0).toUpperCase() + p.slice(1)).join(", ")
+    : "None";
+  const location = profile.location || "Not set";
+  const notifications = profile.notification_frequency
+    ? profile.notification_frequency.charAt(0).toUpperCase() + profile.notification_frequency.slice(1)
+    : "Daily";
+
+  await ctx.reply(
+    `👤 *Your Profile*\n\n` +
+      `*Name:* ${name}\n` +
+      `*Personality:* ${personality}\n` +
+      `*Experience:* ${experience}\n` +
+      `*Pets:* ${pets}\n` +
+      `*Location:* ${location}\n` +
+      `*Notifications:* ${notifications}`,
+    {
+      parse_mode: "Markdown",
+      reply_markup: {
+        inline_keyboard: [
+          [
+            { text: "✏️ Name", callback_data: "profile:edit:name" },
+            { text: "🎭 Personality", callback_data: "profile:edit:personality" },
+          ],
+          [
+            { text: "🌿 Experience", callback_data: "profile:edit:experience" },
+            { text: "🐾 Pets", callback_data: "profile:edit:pets" },
+          ],
+          [
+            { text: "📍 Location", callback_data: "profile:edit:location" },
+          ],
+        ],
+      },
+    },
+  );
+});
+
+// ============================================================================
+// CALLBACK QUERY HANDLER (onboarding + profile editing)
+// ============================================================================
+
+bot.on("callback_query:data", async (ctx) => {
+  const data = ctx.callbackQuery.data;
+  const chatId = ctx.chat!.id;
+  const username = ctx.from?.username;
+  const firstName = ctx.from?.first_name || "there";
+
+  console.log(`[TelegramBot] callback_query: chatId=${chatId}, data="${data}"`);
+  await ctx.answerCallbackQuery();
+
+  const profile = await getOrCreateProfile(chatId, username);
+  if (!profile) return;
+
+  const state = onboardingState.get(chatId);
+  const isProfileEdit = state?.step?.startsWith("profile:");
+
+  // Helper: confirm single edit and clean up
+  async function confirmEdit(field: string, value: string) {
+    onboardingState.delete(chatId);
+    await bot.api.sendMessage(chatId, `✅ *${field}* updated to: *${value}*`, { parse_mode: "Markdown" });
+  }
+
+  // ---- ONBOARD: Name ----
+  if (data === "onboard:name:use") {
+    await supabase.from("profiles").update({ display_name: firstName }).eq("id", profile.id);
+    if (isProfileEdit) { await confirmEdit("Name", firstName); return; }
+    await sendPersonalityQuestion(chatId);
+    return;
+  }
+  if (data === "onboard:skip:name") {
+    if (isProfileEdit) { onboardingState.delete(chatId); return; }
+    await sendPersonalityQuestion(chatId);
+    return;
+  }
+
+  // ---- ONBOARD: Personality ----
+  if (data.startsWith("onboard:personality:")) {
+    const value = data.split(":")[2];
+    await supabase.from("profiles").update({ personality: value }).eq("id", profile.id);
+    if (isProfileEdit) { await confirmEdit("Personality", value.charAt(0).toUpperCase() + value.slice(1)); return; }
+    await sendExperienceQuestion(chatId);
+    return;
+  }
+  if (data === "onboard:skip:personality") {
+    if (isProfileEdit) { onboardingState.delete(chatId); return; }
+    await sendExperienceQuestion(chatId);
+    return;
+  }
+
+  // ---- ONBOARD: Experience ----
+  if (data.startsWith("onboard:experience:")) {
+    const value = data.split(":")[2];
+    await supabase.from("profiles").update({ experience_level: value }).eq("id", profile.id);
+    if (isProfileEdit) { await confirmEdit("Experience", value.charAt(0).toUpperCase() + value.slice(1)); return; }
+    await sendPetsQuestion(chatId, []);
+    return;
+  }
+  if (data === "onboard:skip:experience") {
+    if (isProfileEdit) { onboardingState.delete(chatId); return; }
+    await sendPetsQuestion(chatId, []);
+    return;
+  }
+
+  // ---- ONBOARD: Pets (multi-select) ----
+  if (data.startsWith("onboard:pets:") && data !== "onboard:pets:done") {
+    const pet = data.split(":")[2];
+    const currentPets: string[] = profile.pets || [];
+    const updated = currentPets.includes(pet)
+      ? currentPets.filter((p: string) => p !== pet)
+      : [...currentPets, pet];
+    await supabase.from("profiles").update({ pets: updated }).eq("id", profile.id);
+    try {
+      await ctx.editMessageReplyMarkup({ reply_markup: buildPetsKeyboard(updated) });
+    } catch { /* message may not be editable */ }
+    return;
+  }
+  if (data === "onboard:pets:done" || data === "onboard:skip:pets") {
+    if (isProfileEdit) {
+      onboardingState.delete(chatId);
+      const updatedPets = profile.pets || [];
+      const display = updatedPets.length > 0
+        ? updatedPets.map((p: string) => p.charAt(0).toUpperCase() + p.slice(1)).join(", ")
+        : "None";
+      await bot.api.sendMessage(chatId, `✅ *Pets* updated to: *${display}*`, { parse_mode: "Markdown" });
+      return;
+    }
+    await sendLocationQuestion(chatId);
+    return;
+  }
+
+  // ---- ONBOARD: Location (skip) ----
+  if (data === "onboard:skip:location") {
+    if (isProfileEdit) { onboardingState.delete(chatId); return; }
+    await sendWrapUp(chatId);
+    return;
+  }
+
+  // ---- PROFILE EDIT shortcuts ----
+  if (data === "profile:edit:name") {
+    await sendNameQuestion(chatId, firstName);
+    // After name selection, show profile again (handled by onboard:name:use falling through)
+    // We reuse onboard handlers — they'll send the next onboarding step, but for profile edits
+    // we want to stop after one question. Use state to track this.
+    onboardingState.set(chatId, { step: "profile:name" });
+    return;
+  }
+  if (data === "profile:edit:personality") {
+    onboardingState.set(chatId, { step: "profile:personality" });
+    await sendPersonalityQuestion(chatId);
+    return;
+  }
+  if (data === "profile:edit:experience") {
+    onboardingState.set(chatId, { step: "profile:experience" });
+    await sendExperienceQuestion(chatId);
+    return;
+  }
+  if (data === "profile:edit:pets") {
+    onboardingState.set(chatId, { step: "profile:pets" });
+    await sendPetsQuestion(chatId, profile.pets || []);
+    return;
+  }
+  if (data === "profile:edit:location") {
+    onboardingState.set(chatId, { step: "profile:location" });
+    await bot.api.sendMessage(
+      chatId,
+      "📍 Type your city, zip code, or country:",
+      { reply_markup: { inline_keyboard: [[{ text: "Cancel", callback_data: "profile:cancel" }]] } },
+    );
+    return;
+  }
+  if (data === "profile:cancel") {
+    onboardingState.delete(chatId);
+    await bot.api.sendMessage(chatId, "No changes made.");
+    return;
+  }
+});
+
+// ============================================================================
 // MESSAGE HANDLER (text + photos)
 // ============================================================================
 
@@ -612,6 +938,24 @@ bot.on("message:text", async (ctx) => {
   const textPreview = text.length > 80 ? text.substring(0, 80) + "..." : text;
 
   console.log(`[TelegramBot] message:text: chatId=${chatId}, username=${ctx.from?.username || "none"}, length=${text.length}, text="${textPreview}"`);
+
+  // ---- Check onboarding/profile state for location text input ----
+  const state = onboardingState.get(chatId);
+  if (state && (state.step === "location" || state.step === "profile:location")) {
+    await ctx.api.sendChatAction(chatId, "typing");
+    const profile = await getOrCreateProfile(chatId, ctx.from?.username);
+    if (profile) {
+      await supabase.from("profiles").update({ location: text.trim() }).eq("id", profile.id);
+      if (state.step === "location") {
+        await sendWrapUp(chatId);
+      } else {
+        onboardingState.delete(chatId);
+        await ctx.reply(`📍 Location updated to: *${text.trim()}*`, { parse_mode: "Markdown" });
+      }
+    }
+    return;
+  }
+
   await ctx.api.sendChatAction(chatId, "typing");
 
   const profile = await getOrCreateProfile(chatId, ctx.from?.username);
@@ -631,7 +975,6 @@ bot.on("message:text", async (ctx) => {
       return;
     }
     console.log(`[TelegramBot] message:text: link code not valid, falling through to agent`);
-    // If code didn't match, fall through to agent (user might be talking about numbers)
   }
 
   // Call the agent with continuous typing indicator

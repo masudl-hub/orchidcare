@@ -242,7 +242,13 @@ RULES:
 - For photos: always return "identification" or "diagnosis"
 - For "how do I...": return "care_guide" or "visual_guide"
 - For "where can I buy...": ask for their zip code or city first (never ask for street address or anything more specific). Only call find_stores after you have their location. Return "store_list" once you have results.
-- When the user asks where to buy something, ask for their zip code or city first (never ask for street address or anything more specific). Only call find_stores after you have their location.`;
+- When the user asks where to buy something, ask for their zip code or city first (never ask for street address or anything more specific). Only call find_stores after you have their location.
+
+FOLLOW-UP STORE QUERIES:
+When the user asks for "more stores," "other options," or "what else" for the same product:
+- Look at your conversation history — you already shared store results in a prior turn
+- Present DIFFERENT stores you haven't mentioned yet
+- Only call find_stores again if the PRODUCT or LOCATION has actually changed`;
 
 // ---------------------------------------------------------------------------
 // Voice System Prompt
@@ -737,6 +743,7 @@ async function executeDemoTool(
   apiKey: string,
   perplexityKey: string | undefined,
   payload: DemoTokenPayload,
+  geminiApiKey?: string,
 ): Promise<{
   result: string;
   images?: { url: string; title: string }[];
@@ -856,7 +863,7 @@ async function executeDemoTool(
         product,
         "any",
         location,
-        apiKey,
+        geminiApiKey || apiKey,
         perplexityKey,
       );
 
@@ -994,6 +1001,7 @@ async function handleChat(
   LOVABLE_API_KEY: string,
   DEMO_HMAC_SECRET: string,
   PERPLEXITY_API_KEY: string | undefined,
+  GEMINI_API_KEY?: string,
 ): Promise<Response> {
   const body: DemoChatRequest = await req.json();
   const { messages, media, demoToken } = body;
@@ -1189,6 +1197,7 @@ async function handleChat(
               LOVABLE_API_KEY,
               PERPLEXITY_API_KEY,
               payload,
+              GEMINI_API_KEY,
             );
             console.log(`[DemoAgent] Tool ${fnName} done (${Date.now() - toolT0}ms)`);
 
@@ -1581,6 +1590,7 @@ async function handleVoiceTools(
   DEMO_HMAC_SECRET: string,
   LOVABLE_API_KEY: string,
   PERPLEXITY_API_KEY: string | undefined,
+  GEMINI_API_KEY?: string,
 ): Promise<Response> {
   const body = await req.json();
   const { toolName, toolArgs, demoToken } = body;
@@ -1664,7 +1674,7 @@ async function handleVoiceTools(
         args.product_query,
         args.store_type || "any",
         null,
-        LOVABLE_API_KEY,
+        GEMINI_API_KEY || LOVABLE_API_KEY,
         PERPLEXITY_API_KEY,
       );
       break;
@@ -1782,6 +1792,7 @@ serve(async (req: Request) => {
           LOVABLE_API_KEY,
           DEMO_HMAC_SECRET,
           PERPLEXITY_API_KEY,
+          GEMINI_API_KEY,
         );
 
       case "voice-token":
@@ -1799,6 +1810,7 @@ serve(async (req: Request) => {
           DEMO_HMAC_SECRET,
           LOVABLE_API_KEY,
           PERPLEXITY_API_KEY,
+          GEMINI_API_KEY,
         );
 
       default:
@@ -1809,6 +1821,7 @@ serve(async (req: Request) => {
           LOVABLE_API_KEY,
           DEMO_HMAC_SECRET,
           PERPLEXITY_API_KEY,
+          GEMINI_API_KEY,
         );
     }
   } catch (error) {

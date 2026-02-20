@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { GoogleGenAI, Modality } from '@google/genai';
+import { GoogleGenAI, Modality, EndSensitivity } from '@google/genai';
 import type { Session, LiveServerMessage } from '@google/genai';
 import { useAudioPlayback } from './call/useAudioPlayback';
 import { useAudioCapture } from './call/useAudioCapture';
@@ -241,14 +241,14 @@ export function useGeminiLive() {
           responseModalities: [Modality.AUDIO],
           ...(options?.vadConfig ? {
             realtimeInputConfig: {
-              voiceActivityDetection: {
+              automaticActivityDetection: {
                 ...(options.vadConfig.silenceDurationMs != null && {
                   silenceDurationMs: options.vadConfig.silenceDurationMs,
                 }),
                 ...(options.vadConfig.endOfSpeechSensitivity && {
                   endOfSpeechSensitivity: options.vadConfig.endOfSpeechSensitivity === 'low'
-                    ? 'END_SENSITIVITY_LOW'
-                    : 'END_SENSITIVITY_HIGH',
+                    ? EndSensitivity.END_SENSITIVITY_LOW
+                    : EndSensitivity.END_SENSITIVITY_HIGH,
                 }),
               },
             },

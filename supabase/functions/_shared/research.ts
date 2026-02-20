@@ -1,5 +1,6 @@
-// Shared external API tool implementations (Perplexity, Lovable/Maps)
+// Shared external API tool implementations (Perplexity, Gemini Maps Grounding)
 
+import { GoogleGenAI } from "npm:@google/genai";
 import type { StoreSearchResult, StoreVerification } from "./types.ts";
 
 // Helper to parse distance strings for sorting
@@ -7,6 +8,43 @@ export function parseDistance(distStr: string | undefined): number {
   if (!distStr) return 999;
   const match = distStr.match(/([\d.]+)/);
   return match ? parseFloat(match[1]) : 999;
+}
+
+// Geocode a location string (ZIP, city, address) to lat/lng using OpenStreetMap Nominatim
+export async function geocodeLocation(
+  locationStr: string,
+): Promise<{ lat: number; lng: number } | null> {
+  try {
+    console.log(`[Geocode] Resolving coordinates for: "${locationStr}"`);
+    const encoded = encodeURIComponent(locationStr);
+    const response = await fetch(
+      `https://nominatim.openstreetmap.org/search?q=${encoded}&format=json&limit=1`,
+      {
+        headers: {
+          "User-Agent": "OrchidCareApp/1.0 (plant-care-assistant)",
+        },
+      },
+    );
+
+    if (!response.ok) {
+      console.error(`[Geocode] Nominatim error: ${response.status}`);
+      return null;
+    }
+
+    const results = await response.json();
+    if (results.length === 0) {
+      console.log(`[Geocode] No results for "${locationStr}"`);
+      return null;
+    }
+
+    const lat = parseFloat(results[0].lat);
+    const lng = parseFloat(results[0].lon);
+    console.log(`[Geocode] Resolved "${locationStr}" -> ${lat}, ${lng}`);
+    return { lat, lng };
+  } catch (error) {
+    console.error("[Geocode] Error:", error);
+    return null;
+  }
 }
 
 export async function callResearchAgent(
@@ -121,8 +159,9 @@ export async function callMapsShoppingAgent(
   productQuery: string,
   storeType: string,
   userLocation: string | null,
-  LOVABLE_API_KEY: string,
+  GEMINI_API_KEY: string,
   PERPLEXITY_API_KEY?: string,
+  latLng?: { lat: number; lng: number },
 ): Promise<{ success: boolean; data?: StoreSearchResult; error?: string; promptForLocation?: boolean }> {
   try {
     // Check if user has location
@@ -137,165 +176,169 @@ export async function callMapsShoppingAgent(
 
     console.log(`[MapsAgent] Finding stores for "${productQuery}" near ${userLocation}`);
 
+    // Resolve coordinates: use provided lat/lng, or geocode the location string
+    let coordinates = latLng || null;
+    if (!coordinates) {
+      console.log("[MapsAgent] No cached coordinates, geocoding location...");
+      coordinates = await geocodeLocation(userLocation);
+    }
+
+    if (!coordinates) {
+      console.warn("[MapsAgent] Could not geocode location, proceeding without coordinates");
+    } else {
+      console.log(`[MapsAgent] Using coordinates: ${coordinates.lat}, ${coordinates.lng}`);
+    }
+
     const storeTypePriority =
       storeType === "any"
         ? "Prioritize: local nurseries and garden centers first, then hardware stores like Home Depot or Lowe's."
         : `Focus on: ${storeType === "nursery" ? "local plant nurseries" : storeType === "garden_center" ? "garden centers" : "hardware stores with garden sections"}`;
 
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
-        messages: [
-          {
-            role: "system",
-            content: `You are a plant shopping assistant with Google Maps access. Find stores selling plant supplies.
+    const prompt = `Find places near ${userLocation} where I can buy ${productQuery}.
 
 ${storeTypePriority}
 
-CRITICAL RULES:
-1. ONLY include address information that Google Maps grounding EXPLICITLY provides
-2. DO NOT fabricate or guess addresses from your training data
-3. If Maps only shows a business exists in an area but no exact address, set address to null
-4. Include the neighborhood/area name for each store
+For each store found, provide:
+- Full store name with location identifier (e.g., "Swansons Nursery - Ballard")
+- Store type (nursery, garden_center, hardware_store)
+- Distance and drive time if available
+- Why this store is a good choice for this product
+- Whether they likely carry the product`;
 
-REQUIREMENTS:
-- Find stores within 10 miles of the user's location
-- Return FULL store names with location identifiers (e.g., "Ace Hardware - Fremont", "Home Depot - Northgate")
-- Include distance and drive time from Maps grounding
-- Assess likelihood of stocking the requested product
-- RANK results by distance (closest first)
+    // Call Gemini directly with Maps grounding
+    const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
 
-Return ONLY valid JSON:
-{
-  "stores": [
-    {
-      "fullName": "Store Name - Location (e.g., 'Swansons Nursery - Ballard')",
-      "name": "Store Name",
-      "neighborhood": "Neighborhood or area (e.g., 'Ballard', 'Fremont')",
-      "type": "nursery|garden_center|hardware_store",
-      "distance": "1.2 miles (from Maps grounding)",
-      "driveTime": "5 min (from Maps grounding)",
-      "address": "ONLY include if Maps grounding provides the exact address, otherwise null",
-      "phone": "only if Maps provides",
-      "reasoning": "why this is a good choice for this product",
-      "likelyHasProduct": true/false,
-      "productNotes": "specific details about why they might carry it"
-    }
-  ],
-  "searchedFor": "the product queried",
-  "location": "the search location"
-}`,
-          },
-          {
-            role: "user",
-            content: `Find places near ${userLocation} where I can buy ${productQuery}`,
-          },
-        ],
-        tools: [
-          {
-            type: "google_maps",
-          },
-        ],
-        tool_config: {
-          google_maps: {
-            location_bias: {
-              place: userLocation,
-            },
-          },
-        },
-        temperature: 0.3,
-      }),
+    const config: Record<string, any> = {
+      tools: [{ googleMaps: {} }],
+      temperature: 0.3,
+    };
+
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: prompt,
+      config,
     });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error("[MapsAgent] API error:", response.status, errorText);
-      return { success: false, error: `Store search failed: ${response.status}` };
-    }
+    const textContent = response.text || "";
+    console.log(`[MapsAgent] Gemini response text (first 500):`, textContent.substring(0, 500));
 
-    const data = await response.json();
-    const content = data.choices?.[0]?.message?.content || "";
-
-    // Extract grounding metadata - this contains the REAL data from Maps
-    const groundingMetadata = data.groundingMetadata;
+    // Extract grounding metadata from the response
+    const candidate = response.candidates?.[0];
+    const groundingMetadata = candidate?.groundingMetadata;
     const groundingChunks = groundingMetadata?.groundingChunks || [];
-    const searchEntryPoint = groundingMetadata?.searchEntryPoint;
 
     console.log(`[MapsAgent] Grounding metadata present: ${!!groundingMetadata}`);
     console.log(`[MapsAgent] Grounding chunks: ${groundingChunks.length}`);
+
     if (groundingChunks.length > 0) {
       console.log(`[MapsAgent] Sample grounding chunk:`, JSON.stringify(groundingChunks[0], null, 2));
     }
 
-    // Parse JSON from model response
-    let result: StoreSearchResult;
-    try {
-      const jsonMatch = content.match(/\{[\s\S]*\}/);
-      result = JSON.parse(jsonMatch ? jsonMatch[0] : content);
-    } catch {
-      // Fallback
-      result = {
-        stores: [],
-        searchedFor: productQuery,
-        location: userLocation,
-        callAheadAdvice:
-          "Unable to find specific stores. Try searching online for 'nurseries near me' or check your local hardware store's garden section.",
-      };
+    // Build store results primarily from grounding chunks (verified Maps data)
+    const stores: StoreSearchResult["stores"] = [];
+
+    for (const chunk of groundingChunks) {
+      // Maps grounding chunks have a "maps" property with place data
+      const mapsData = (chunk as any).maps;
+      if (!mapsData) continue;
+
+      const storeName = mapsData.title || "Unknown Store";
+      const mapsUri = mapsData.uri || null;
+      const placeId = mapsData.placeId || null;
+
+      stores.push({
+        name: storeName,
+        fullName: storeName,
+        type: storeType === "any" ? "nursery" : storeType,
+        address: mapsData.address || undefined,
+        phone: mapsData.phoneNumber || undefined,
+        reasoning: `Found via Google Maps grounding near ${userLocation}`,
+        likelyHasProduct: true,
+        placeId: placeId || undefined,
+        mapsUri: mapsUri || undefined,
+        addressVerified: true,
+        neighborhood: mapsData.neighborhood || undefined,
+      });
     }
 
-    // Enhance stores with grounding data if available
-    if (result.stores && result.stores.length > 0 && groundingChunks.length > 0) {
-      console.log(
-        `[MapsAgent] Matching ${result.stores.length} stores with ${groundingChunks.length} grounding chunks`,
-      );
+    // If we got grounding chunks, try to enrich with details from the text response
+    if (stores.length > 0) {
+      console.log(`[MapsAgent] Built ${stores.length} stores from grounding chunks`);
 
-      for (const store of result.stores) {
-        // Try to match store with grounding chunk by name
-        const matchingChunk = groundingChunks.find((chunk: any) => {
-          const chunkTitle = (chunk.title || chunk.web?.title || "").toLowerCase();
-          const storeName = (store.name || store.fullName || "").toLowerCase();
-          return chunkTitle.includes(storeName) || storeName.includes(chunkTitle);
-        });
-
-        if (matchingChunk) {
-          console.log(`[MapsAgent] Found grounding match for ${store.name}:`, matchingChunk);
-          // Extract verified data from grounding
-          store.placeId = matchingChunk.placeId || matchingChunk.web?.placeId;
-          store.mapsUri = matchingChunk.uri || matchingChunk.web?.uri;
-          // Only use address from grounding if it looks like a real address
-          if (matchingChunk.address && matchingChunk.address.match(/^\d+/)) {
-            store.address = matchingChunk.address;
-            store.addressVerified = true;
+      // Try to parse supplemental info from the text response
+      try {
+        const jsonMatch = textContent.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          const parsed = JSON.parse(jsonMatch[0]);
+          if (parsed.stores && Array.isArray(parsed.stores)) {
+            // Enrich grounded stores with reasoning from parsed text
+            for (const groundedStore of stores) {
+              const textStore = parsed.stores.find((ts: any) => {
+                const tsName = (ts.name || ts.fullName || "").toLowerCase();
+                const gsName = groundedStore.name.toLowerCase();
+                return tsName.includes(gsName) || gsName.includes(tsName);
+              });
+              if (textStore) {
+                groundedStore.distance = textStore.distance || groundedStore.distance;
+                groundedStore.driveTime = textStore.driveTime || groundedStore.driveTime;
+                groundedStore.reasoning = textStore.reasoning || groundedStore.reasoning;
+                groundedStore.likelyHasProduct = textStore.likelyHasProduct ?? groundedStore.likelyHasProduct;
+                groundedStore.productNotes = textStore.productNotes || groundedStore.productNotes;
+                groundedStore.type = textStore.type || groundedStore.type;
+              }
+            }
           }
         }
-
-        // Mark address verification status
-        store.addressVerified = store.addressVerified || false;
+      } catch {
+        console.log("[MapsAgent] Could not parse supplemental text JSON (non-critical)");
+      }
+    } else {
+      // No grounding chunks -- fall back to parsing the text response
+      console.log("[MapsAgent] No grounding chunks, falling back to text parsing");
+      try {
+        const jsonMatch = textContent.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          const parsed = JSON.parse(jsonMatch[0]);
+          if (parsed.stores && Array.isArray(parsed.stores)) {
+            for (const s of parsed.stores) {
+              stores.push({
+                name: s.name || "Unknown",
+                fullName: s.fullName || s.name || "Unknown",
+                type: s.type || "nursery",
+                distance: s.distance,
+                driveTime: s.driveTime,
+                address: s.address || undefined,
+                phone: s.phone || undefined,
+                reasoning: s.reasoning || "Found in search results",
+                likelyHasProduct: s.likelyHasProduct ?? true,
+                productNotes: s.productNotes,
+                addressVerified: false,
+                neighborhood: s.neighborhood,
+              });
+            }
+          }
+        }
+      } catch {
+        console.log("[MapsAgent] Could not parse text response as JSON");
       }
     }
 
-    // For stores without verified addresses, use Perplexity to look them up
-    if (PERPLEXITY_API_KEY && result.stores) {
-      const unverifiedStores = result.stores.filter((s) => !s.addressVerified && s.name);
+    // For non-grounded stores without verified addresses, use Perplexity to look them up
+    if (PERPLEXITY_API_KEY && stores.length > 0) {
+      const unverifiedStores = stores.filter((s) => !s.addressVerified && s.name);
 
       if (unverifiedStores.length > 0) {
         console.log(`[MapsAgent] Verifying ${unverifiedStores.length} unverified store addresses via Perplexity`);
 
-        // Verify addresses in parallel (limit to 3 to avoid rate limits)
         const verifyPromises = unverifiedStores.slice(0, 3).map(async (store) => {
-          const cityMatch = userLocation.match(/(\d{5})|([A-Za-z\s]+,?\s*[A-Z]{2})/);
-          const city = cityMatch ? cityMatch[0] : userLocation;
+          const cityMatch = userLocation!.match(/(\d{5})|([A-Za-z\s]+,?\s*[A-Z]{2})/);
+          const city = cityMatch ? cityMatch[0] : userLocation!;
 
           const verified = await verifyStoreAddress(
             store.fullName || store.name,
             store.neighborhood || "",
             city,
-            PERPLEXITY_API_KEY,
+            PERPLEXITY_API_KEY!,
           );
 
           if (verified.verified && verified.address) {
@@ -311,27 +354,34 @@ Return ONLY valid JSON:
       }
     }
 
-    // Sort stores by distance (closest first)
-    if (result.stores && result.stores.length > 1) {
-      result.stores.sort((a, b) => parseDistance(a.distance) - parseDistance(b.distance));
-      console.log(`[MapsAgent] Sorted ${result.stores.length} stores by distance`);
+    // Sort stores: grounded first, then by distance
+    if (stores.length > 1) {
+      stores.sort((a, b) => {
+        // Grounded (verified) stores first
+        if (a.addressVerified && !b.addressVerified) return -1;
+        if (!a.addressVerified && b.addressVerified) return 1;
+        return parseDistance(a.distance) - parseDistance(b.distance);
+      });
+      console.log(`[MapsAgent] Sorted ${stores.length} stores`);
     }
 
     // Log final store data
     console.log(
       `[MapsAgent] Final stores:`,
-      result.stores?.map((s) => ({
+      stores.map((s) => ({
         name: s.fullName || s.name,
         address: s.address,
         verified: s.addressVerified,
         distance: s.distance,
+        placeId: s.placeId,
+        mapsUri: s.mapsUri,
       })),
     );
 
-    console.log(`[MapsAgent] Found ${result.stores?.length || 0} stores`);
+    console.log(`[MapsAgent] Found ${stores.length} stores`);
 
-    // Agentic handling: If no stores found, provide explicit guidance for fallback
-    if (!result.stores || result.stores.length === 0) {
+    // If no stores found, provide fallback guidance
+    if (stores.length === 0) {
       return {
         success: true,
         data: {
@@ -345,7 +395,14 @@ Return ONLY valid JSON:
       };
     }
 
-    return { success: true, data: result };
+    return {
+      success: true,
+      data: {
+        stores,
+        searchedFor: productQuery,
+        location: userLocation,
+      },
+    };
   } catch (error) {
     console.error("[MapsAgent] Error:", error);
     return { success: false, error: String(error) };

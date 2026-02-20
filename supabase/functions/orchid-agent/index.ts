@@ -3124,12 +3124,17 @@ ${proactiveContext.events.map((e: any) => `- ${e.message_hint}`).join("\n")}
           }
           // Maps and Store verification tools
           else if (functionName === "find_stores") {
+            const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY") || "";
+            const profileLatLng = (profile?.latitude && profile?.longitude)
+              ? { lat: Number(profile.latitude), lng: Number(profile.longitude) }
+              : undefined;
             toolResult = await callMapsShoppingAgent(
               args.product_query,
               args.store_type || "any",
               profile?.location || null,
-              LOVABLE_API_KEY,
+              GEMINI_API_KEY,
               PERPLEXITY_API_KEY,
+              profileLatLng,
             );
             await logAgentOperation(
               supabase,

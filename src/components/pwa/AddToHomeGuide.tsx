@@ -225,10 +225,10 @@ function chromeSteps(): Step[] {
       illustration: (
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10 }}>
           <div style={{ width: "100%", padding: "7px 10px", border: "1px solid rgba(255,255,255,0.12)", display: "flex", alignItems: "center", gap: 8, backgroundColor: "rgba(255,255,255,0.03)" }}>
-            <div style={{ flex: 1, height: 26, backgroundColor: "rgba(255,255,255,0.06)", display: "flex", alignItems: "center", paddingLeft: 10, fontSize: 9, color: "rgba(255,255,255,0.3)" }}>orchidaicare.lovable.app</div>
+            <div style={{ flex: 1, height: 26, backgroundColor: "rgba(255,255,255,0.06)", display: "flex", alignItems: "center", paddingLeft: 10, fontSize: 9, color: "rgba(255,255,255,0.3)" }}>orchid.masudlewis.com</div>
             <ShareIcon />
           </div>
-          <PulseArrow direction="up" />
+          <div style={{ display: "flex", justifyContent: "flex-end", width: "100%", paddingRight: 4 }}><PulseArrow direction="up" /></div>
         </div>
       ),
     },

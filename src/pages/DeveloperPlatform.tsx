@@ -12,6 +12,47 @@ const DECRYPT_SPEED = 3;
 type Tab = "dashboard" | "docs";
 
 // ── Decrypt text hook (matches proposal/start-page pattern) ─────────────────
+
+const ScrambleButton = ({ text, onClick }: { text: string, onClick: () => void }) => {
+    const [displayText, setDisplayText] = useState(text);
+
+    const handleClick = () => {
+        let iterations = 0;
+        const interval = setInterval(() => {
+            iterations++;
+            setDisplayText(text.split('').map((char) => {
+                if (char === ' ') return ' ';
+                return DENSITY_STEPS[Math.floor(Math.random() * (DENSITY_STEPS.length - 1))] || '█';
+            }).join(''));
+
+            if (iterations > 8) {
+                clearInterval(interval);
+                setDisplayText(text);
+                onClick();
+            }
+        }, 50);
+    };
+
+    return (
+        <button
+            onClick={handleClick}
+            className="cursor-pointer transition-colors duration-200 hover:text-white"
+            style={{
+                fontFamily: pressStart,
+                fontSize: '11px',
+                letterSpacing: '0.06em',
+                color: 'rgba(255,255,255,0.7)',
+                backgroundColor: 'transparent',
+                border: 'none',
+                padding: '6px 10px',
+                marginTop: '1px',
+            }}
+        >
+            {displayText}
+        </button>
+    );
+};
+
 function useDecryptText(text: string, visible: boolean, charDelay = 1.5) {
     const [decrypted, setDecrypted] = useState(text);
     const frameRef = useRef(0);
@@ -93,45 +134,60 @@ export default function DeveloperPlatform() {
             {/* Back button */}
             <BackButton onClick={() => navigate("/")} />
 
-            {/* Unified nav — top right: /dashboard /docs /use-orchid /home */}
+            {/* Unified nav — top wide */}
             <div
-                className="absolute z-50 flex gap-1"
+                className="absolute z-50 flex justify-between w-full px-4"
                 style={{
                     top: 'max(12px, env(safe-area-inset-top, 12px))',
-                    right: 16,
                 }}
             >
-                {([
-                    { label: "/dashboard", action: () => setActiveTab("dashboard"), active: activeTab === "dashboard" },
-                    { label: "/docs", action: () => setActiveTab("docs"), active: activeTab === "docs" },
-                    { label: "/use-orchid", action: () => navigate("/chat"), active: false },
-                    { label: "/home", action: () => navigate("/"), active: false },
-                ] as const).map((item) => (
-                    <button
-                        key={item.label}
-                        onClick={item.action}
-                        className="cursor-pointer transition-colors duration-200"
-                        style={{
-                            fontFamily: mono,
-                            fontSize: '11px',
-                            letterSpacing: '0.06em',
-                            color: item.active ? 'white' : 'rgba(255,255,255,0.3)',
-                            backgroundColor: 'transparent',
-                            border: 'none',
-                            borderBottom: item.active ? '1px solid white' : '1px solid transparent',
-                            padding: '6px 10px',
-                        }}
-                        onMouseEnter={(e) => { if (!item.active) e.currentTarget.style.color = 'rgba(255,255,255,0.7)'; }}
-                        onMouseLeave={(e) => { if (!item.active) e.currentTarget.style.color = 'rgba(255,255,255,0.3)'; }}
-                    >
-                        {item.label}
-                    </button>
-                ))}
+                <div className="flex items-center">
+                    <ScrambleButton text="ORCHID" onClick={() => navigate('/')} />
+                </div>
+
+                <div className="flex gap-1 items-center">
+                    {([
+                        { label: "/dashboard", action: () => navigate("/dashboard"), active: false },
+                        { label: "/docs", action: () => setActiveTab("docs"), active: activeTab === "docs" },
+                        { label: "|", action: undefined, active: false },
+                        { label: "/collection", action: () => navigate("/dashboard"), active: false },
+                        { label: "/chat", action: () => navigate("/chat"), active: false },
+                        { label: "/call", action: () => navigate("/call"), active: false },
+                    ] as const).map((item, i) => {
+                        if (item.label === '|') {
+                            return <div key={`divider-${i}`} style={{ width: 1, height: 20, backgroundColor: 'rgba(255,255,255,0.1)', alignSelf: 'center', margin: '0 4px' }} />;
+                        }
+                        const isAction = item.label === '/chat' || item.label === '/call';
+                        return (
+                            <button
+                                key={item.label}
+                                onClick={item.action}
+                                className="cursor-pointer transition-colors duration-200"
+                                style={{
+                                    fontFamily: mono,
+                                    fontSize: '11px',
+                                    letterSpacing: '0.06em',
+                                    color: isAction ? 'white' : (item.active ? 'white' : 'rgba(255,255,255,0.3)'),
+                                    fontWeight: isAction ? 'bold' : 'normal',
+                                    backgroundColor: isAction ? 'rgba(255,255,255,0.1)' : 'transparent',
+                                    border: isAction ? '1px solid rgba(255,255,255,0.5)' : 'none',
+                                    borderBottom: isAction ? '1px solid rgba(255,255,255,0.5)' : (item.active ? '1px solid white' : '1px solid transparent'),
+                                    padding: '6px 10px',
+                                    borderRadius: '0',
+                                }}
+                                onMouseEnter={(e) => { if (!item.active && !isAction) e.currentTarget.style.color = 'rgba(255,255,255,0.7)'; }}
+                                onMouseLeave={(e) => { if (!item.active && !isAction) e.currentTarget.style.color = 'rgba(255,255,255,0.3)'; }}
+                            >
+                                {item.label}
+                            </button>
+                        );
+                    })}
+                </div>
             </div>
 
             {/* Sticky header — title only */}
             <div
-                className="sticky top-0 z-30 border-b border-white/10"
+                className="sticky top-0 z-30"
                 style={{ backdropFilter: "blur(12px)", backgroundColor: "rgba(0,0,0,0.85)" }}
             >
                 <div className="max-w-[1100px] mx-auto px-8 md:px-16 py-5">

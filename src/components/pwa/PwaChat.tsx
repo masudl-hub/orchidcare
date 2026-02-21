@@ -7,6 +7,7 @@ import { DemoArtifactStack, type ArtifactEntry } from '@/components/demo/DemoArt
 import { ChatResponse } from '@/components/demo/artifacts/ChatResponse';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { WifiOff } from 'lucide-react';
 
 const mono = 'ui-monospace, monospace';
@@ -26,8 +27,11 @@ function getCanvasHeightPercent(): number {
 
 export function PwaChat() {
   const { profile } = useAuth();
+  const location = useLocation();
+  const navigate = useNavigate();
   const [messages, setMessages] = useState<PwaMessage[]>([]);
   const [artifacts, setArtifacts] = useState<ArtifactEntry[]>([]);
+  const [isHistoryLoaded, setIsHistoryLoaded] = useState(false);
   const [currentFormation, setCurrentFormation] = useState<Formation | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [hasSentMessage, setHasSentMessage] = useState(false);
@@ -97,9 +101,24 @@ export function PwaChat() {
         setArtifacts(historyArtifacts);
         artifactIdCounter.current = historyArtifacts.length;
       }
+      setIsHistoryLoaded(true);
     };
     loadHistory();
   }, [profile]);
+
+  // Handle auto-send from URL state (e.g. from Dashboard floating input)
+  useEffect(() => {
+    const state = location.state as { autoSendText?: string } | null;
+    if (isHistoryLoaded && state?.autoSendText) {
+      const text = state.autoSendText;
+      // Clear location state immediately
+      navigate(location.pathname, { replace: true, state: {} });
+      // Defer execution slightly to allow React cycle to finish loading history UI
+      setTimeout(() => {
+        sendMessageRef.current(text);
+      }, 50);
+    }
+  }, [isHistoryLoaded, location.state, location.pathname, navigate]);
 
   // Render artifact from type
   const renderArtifact = useCallback(

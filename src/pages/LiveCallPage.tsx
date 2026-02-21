@@ -2,6 +2,7 @@ import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { CallScreen } from '@/components/call/CallScreen';
 import { CallErrorBoundary } from '@/components/call/CallErrorBoundary';
 import { useGeminiLive } from '@/hooks/useGeminiLive';
+import { supabase } from '@/integrations/supabase/client';
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 
@@ -28,9 +29,17 @@ function LiveCallPageInner() {
     const init = async () => {
       try {
         const initData = getInitData();
+        let authToken: string | null = null;
+
         if (!initData) {
-          setError('This page is a Telegram Mini App. Open it from the /call command in @orchidcare_bot.');
-          return;
+          // Attempt Web/PWA Auth fallback
+          const { data: { session } } = await supabase.auth.getSession();
+          if (session?.access_token) {
+            authToken = session.access_token;
+          } else {
+            setError('This page is a Telegram Mini App. Open it from the /call command in @orchidcare_bot, or sign in to your Orchid account.');
+            return;
+          }
         }
 
         // Expand the Mini App
@@ -39,11 +48,16 @@ function LiveCallPageInner() {
         tg?.setHeaderColor?.('#000000');
         tg?.setBackgroundColor?.('#000000');
 
+        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+        if (authToken) {
+          headers['Authorization'] = `Bearer ${authToken}`;
+        }
+
         // Create session
         const createRes = await fetch(`${SUPABASE_URL}/functions/v1/call-session/create`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ initData }),
+          headers,
+          body: JSON.stringify({ initData: initData || undefined }),
         });
         const createData = await createRes.json();
         if (!createRes.ok) throw new Error(createData.error || 'Failed to create session');
@@ -52,21 +66,21 @@ function LiveCallPageInner() {
         // Get ephemeral token
         const tokenRes = await fetch(`${SUPABASE_URL}/functions/v1/call-session/token`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ sessionId: createData.sessionId, initData }),
+          headers,
+          body: JSON.stringify({ sessionId: createData.sessionId, initData: initData || undefined }),
         });
         const tokenData = await tokenRes.json();
         if (!tokenRes.ok) throw new Error(tokenData.error || 'Failed to get token');
         if (!tokenData?.token) throw new Error('No ephemeral token received');
 
         // Connect to Gemini Live
-        gemini.connect(tokenData.token, createData.sessionId, initData, {
+        gemini.connect(tokenData.token, createData.sessionId, initData || undefined, {
           onReconnectNeeded: async () => {
             try {
               const tokenRes = await fetch(`${SUPABASE_URL}/functions/v1/call-session/token`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ sessionId: createData.sessionId, initData }),
+                headers,
+                body: JSON.stringify({ sessionId: createData.sessionId, initData: initData || undefined }),
               });
               const tokenData2 = await tokenRes.json();
               if (!tokenRes.ok || !tokenData2?.token) return null;
@@ -100,12 +114,22 @@ function LiveCallPageInner() {
     gemini.disconnect();
     if (sessionId) {
       try {
+        const initData = getInitData();
+        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+
+        if (!initData) {
+          const { data: { session } } = await supabase.auth.getSession();
+          if (session?.access_token) {
+            headers['Authorization'] = `Bearer ${session.access_token}`;
+          }
+        }
+
         await fetch(`${SUPABASE_URL}/functions/v1/call-session/end`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers,
           body: JSON.stringify({
             sessionId,
-            initData: getInitData(),
+            initData: initData || undefined,
             durationSeconds: callDuration,
           }),
         });
@@ -230,9 +254,9 @@ function LiveCallPageInner() {
       onToggleMic={gemini.toggleMic}
       onToggleVideo={gemini.toggleVideo}
       onToggleFacingMode={gemini.toggleFacingMode}
-       onEndCall={handleEndCall}
-       onCaptureSnapshot={gemini.captureSnapshot}
-       onInterrupt={gemini.interruptModel}
+      onEndCall={handleEndCall}
+      onCaptureSnapshot={gemini.captureSnapshot}
+      onInterrupt={gemini.interruptModel}
     />
   );
 }

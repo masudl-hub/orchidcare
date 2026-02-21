@@ -5,6 +5,8 @@ import { PlantDetail } from '@/components/plants/PlantDetail';
 import { ProfileView } from './ProfileView';
 import { CollectionView } from './CollectionView';
 import { ActivityView } from './ActivityView';
+import { motion } from 'framer-motion';
+import { DemoInputBar } from '@/components/demo/DemoInputBar';
 
 const mono = "ui-monospace, monospace";
 const pressStart = '"Press Start 2P", cursive';
@@ -12,6 +14,46 @@ const DENSITY_STEPS = ["█", "▓", "▒", "░", ""];
 const DECRYPT_SPEED = 3;
 
 // ── Shared hooks ────────────────────────────────────────────────────────────
+
+const ScrambleButton = ({ text, onClick }: { text: string, onClick: () => void }) => {
+    const [displayText, setDisplayText] = useState(text);
+
+    const handleClick = () => {
+        let iterations = 0;
+        const interval = setInterval(() => {
+            iterations++;
+            setDisplayText(text.split('').map((char) => {
+                if (char === ' ') return ' ';
+                return DENSITY_STEPS[Math.floor(Math.random() * (DENSITY_STEPS.length - 1))] || '█';
+            }).join(''));
+
+            if (iterations > 8) {
+                clearInterval(interval);
+                setDisplayText(text);
+                onClick();
+            }
+        }, 50);
+    };
+
+    return (
+        <button
+            onClick={handleClick}
+            className="cursor-pointer transition-colors duration-200 hover:text-white"
+            style={{
+                fontFamily: pressStart,
+                fontSize: '11px',
+                letterSpacing: '0.06em',
+                color: 'rgba(255,255,255,0.7)',
+                backgroundColor: 'transparent',
+                border: 'none',
+                padding: '6px 10px',
+                marginTop: '1px',
+            }}
+        >
+            {displayText}
+        </button>
+    );
+};
 
 export function useDecryptText(text: string, visible: boolean, charDelay = 1.5) {
     const [decrypted, setDecrypted] = useState(text);
@@ -107,6 +149,7 @@ export default function DashboardShell() {
     const [selectedPlantId, setSelectedPlantId] = useState<string | null>(null);
     const [viewState, setViewState] = useState<'list' | 'detail'>('list');
     const [visible, setVisible] = useState(false);
+    const constraintsRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => { setActiveTab(getTab()); }, [location]);
     useEffect(() => { const t = setTimeout(() => setVisible(true), 100); return () => clearTimeout(t); }, []);
@@ -145,70 +188,81 @@ export default function DashboardShell() {
     ];
 
     const navLinks = [
-        { label: '/home', action: () => navigate('/') },
-        { label: '/chat', action: () => navigate('/chat') },
         { label: '/developer', action: () => navigate('/developer') },
+        { label: '/chat', action: () => navigate('/chat') },
+        { label: '/call', action: () => navigate('/call') },
     ];
 
     return (
-        <div className="fixed inset-0 bg-black text-white overflow-hidden" style={{ fontFamily: mono }}>
+        <div ref={constraintsRef} className="fixed inset-0 bg-black text-white overflow-hidden" style={{ fontFamily: mono }}>
             <GrainOverlay />
 
-            {/* Navigation — top right */}
+            {/* Navigation — top wide */}
             <div
-                className="absolute z-50 flex gap-1"
+                className="absolute z-50 flex justify-between w-full px-4"
                 style={{
                     top: 'max(12px, env(safe-area-inset-top, 12px))',
-                    right: 16,
                 }}
             >
-                {/* Dashboard tabs */}
-                {tabs.map((tab) => (
-                    <button
-                        key={tab.id}
-                        onClick={() => handleTabChange(tab.id)}
-                        className="cursor-pointer transition-colors duration-200"
-                        style={{
-                            fontFamily: mono,
-                            fontSize: '11px',
-                            letterSpacing: '0.06em',
-                            color: activeTab === tab.id ? 'white' : 'rgba(255,255,255,0.3)',
-                            backgroundColor: 'transparent',
-                            border: 'none',
-                            borderBottom: activeTab === tab.id ? '1px solid white' : '1px solid transparent',
-                            padding: '6px 10px',
-                        }}
-                        onMouseEnter={(e) => { if (activeTab !== tab.id) e.currentTarget.style.color = 'rgba(255,255,255,0.7)'; }}
-                        onMouseLeave={(e) => { if (activeTab !== tab.id) e.currentTarget.style.color = 'rgba(255,255,255,0.3)'; }}
-                    >
-                        {tab.label}
-                    </button>
-                ))}
+                <div className="flex items-center">
+                    <ScrambleButton text="ORCHID" onClick={() => navigate('/')} />
+                </div>
 
-                {/* Divider */}
-                <div style={{ width: 1, height: 20, backgroundColor: 'rgba(255,255,255,0.1)', alignSelf: 'center', margin: '0 4px' }} />
+                <div className="flex gap-1 items-center">
+                    {/* Dashboard tabs */}
+                    {tabs.map((tab) => (
+                        <button
+                            key={tab.id}
+                            onClick={() => handleTabChange(tab.id)}
+                            className="cursor-pointer transition-colors duration-200"
+                            style={{
+                                fontFamily: mono,
+                                fontSize: '11px',
+                                letterSpacing: '0.06em',
+                                color: activeTab === tab.id ? 'white' : 'rgba(255,255,255,0.3)',
+                                backgroundColor: 'transparent',
+                                border: 'none',
+                                borderBottom: activeTab === tab.id ? '1px solid white' : '1px solid transparent',
+                                padding: '6px 10px',
+                            }}
+                            onMouseEnter={(e) => { if (activeTab !== tab.id) e.currentTarget.style.color = 'rgba(255,255,255,0.7)'; }}
+                            onMouseLeave={(e) => { if (activeTab !== tab.id) e.currentTarget.style.color = 'rgba(255,255,255,0.3)'; }}
+                        >
+                            {tab.label}
+                        </button>
+                    ))}
 
-                {/* External nav */}
-                {navLinks.map((link) => (
-                    <button
-                        key={link.label}
-                        onClick={link.action}
-                        className="cursor-pointer transition-colors duration-200"
-                        style={{
-                            fontFamily: mono,
-                            fontSize: '11px',
-                            letterSpacing: '0.06em',
-                            color: 'rgba(255,255,255,0.3)',
-                            backgroundColor: 'transparent',
-                            border: 'none',
-                            padding: '6px 10px',
-                        }}
-                        onMouseEnter={(e) => { e.currentTarget.style.color = 'rgba(255,255,255,0.7)'; }}
-                        onMouseLeave={(e) => { e.currentTarget.style.color = 'rgba(255,255,255,0.3)'; }}
-                    >
-                        {link.label}
-                    </button>
-                ))}
+                    {/* Divider */}
+                    <div style={{ width: 1, height: 20, backgroundColor: 'rgba(255,255,255,0.1)', alignSelf: 'center', margin: '0 4px' }} />
+
+                    {/* External nav */}
+                    {navLinks.map((link) => {
+                        const isAction = link.label === '/chat' || link.label === '/call';
+                        return (
+                            <button
+                                key={link.label}
+                                onClick={link.action}
+                                className="cursor-pointer transition-colors duration-200"
+                                style={{
+                                    fontFamily: mono,
+                                    fontSize: '11px',
+                                    letterSpacing: '0.06em',
+                                    color: isAction ? 'white' : 'rgba(255,255,255,0.3)',
+                                    fontWeight: isAction ? 'bold' : 'normal',
+                                    backgroundColor: isAction ? 'rgba(255,255,255,0.1)' : 'transparent',
+                                    border: isAction ? '1px solid rgba(255,255,255,0.5)' : 'none',
+                                    borderBottom: isAction ? '1px solid rgba(255,255,255,0.5)' : '1px solid transparent',
+                                    padding: '6px 10px',
+                                    borderRadius: '0',
+                                }}
+                                onMouseEnter={(e) => { if (!isAction) e.currentTarget.style.color = 'rgba(255,255,255,0.7)'; }}
+                                onMouseLeave={(e) => { if (!isAction) e.currentTarget.style.color = 'rgba(255,255,255,0.3)'; }}
+                            >
+                                {link.label}
+                            </button>
+                        );
+                    })}
+                </div>
             </div>
 
             {/* Content area */}
@@ -246,6 +300,39 @@ export default function DashboardShell() {
                     {activeTab === 'profile' && <ProfileView />}
                 </div>
             </div>
+
+            {/* Floating Chat Input */}
+            <motion.div
+                drag
+                dragConstraints={constraintsRef}
+                dragElastic={0.05}
+                dragMomentum={false}
+                className="absolute z-50 flex justify-center w-full px-4 pointer-events-none"
+                style={{ bottom: 'max(24px, env(safe-area-inset-bottom, 24px))' }}
+                initial={{ y: 100, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                transition={{ delay: 0.5, duration: 0.5 }}
+            >
+                <div
+                    className="w-full max-w-[600px] pointer-events-auto cursor-grab active:cursor-grabbing shadow-2xl border border-white/10 overflow-hidden"
+                    style={{ backgroundColor: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(12px)', borderRadius: 0 }}
+                    onPointerDown={(e) => {
+                        // Prevents dragging if hitting inputs/buttons directly
+                        if ((e.target as HTMLElement).tagName === 'INPUT' || (e.target as HTMLElement).tagName === 'BUTTON') {
+                            e.stopPropagation();
+                        }
+                    }}
+                >
+                    <DemoInputBar
+                        onSend={(text) => {
+                            if (text.trim()) navigate('/chat', { state: { autoSendText: text } });
+                        }}
+                        onGoLive={() => navigate('/chat')}
+                        isLoading={false}
+                        disabled={false}
+                    />
+                </div>
+            </motion.div>
         </div>
     );
 }

@@ -21,11 +21,11 @@ const corsHeaders = {
 const MEDIA_CONFIG = {
   // Master toggle for all media resizing
   RESIZE_MEDIA: true,  // Set to false to disable all resizing
-  
+
   // Image settings (only apply when RESIZE_MEDIA = true)
   IMAGE_MAX_DIMENSION: 1536,  // Max pixels on longest edge
   IMAGE_QUALITY: 85,          // JPEG quality (1-100) - note: deno_image outputs JPEG
-  
+
   // Video settings
   VIDEO_MAX_SIZE_MB: 5,       // Warn if video exceeds this
 };
@@ -64,7 +64,7 @@ async function resizeImageForVision(
   originalMimeType: string
 ): Promise<ResizedImageResult> {
   const originalBytes = imageData.length;
-  
+
   // If resizing disabled, return original as base64
   if (!MEDIA_CONFIG.RESIZE_MEDIA) {
     const base64 = uint8ArrayToBase64(imageData);
@@ -77,10 +77,10 @@ async function resizeImageForVision(
       wasResized: false,
     };
   }
-  
+
   try {
     const maxDim = MEDIA_CONFIG.IMAGE_MAX_DIMENSION;
-    
+
     // Use deno_image to resize - it handles both JPG and PNG
     // It maintains aspect ratio by default and outputs JPEG
     const resizedData = await resize(imageData, {
@@ -88,17 +88,17 @@ async function resizeImageForVision(
       height: maxDim,
       aspectRatio: true, // Maintain aspect ratio
     });
-    
+
     const wasResized = resizedData.length < originalBytes;
     const base64 = uint8ArrayToBase64(resizedData);
-    
+
     if (wasResized) {
       const savings = ((1 - resizedData.length / originalBytes) * 100).toFixed(1);
       console.log(`[MediaProcessing] Image optimized: ${originalBytes} -> ${resizedData.length} bytes (${savings}% reduction)`);
     } else {
       console.log(`[MediaProcessing] Image already optimal size: ${originalBytes} bytes`);
     }
-    
+
     return {
       base64,
       mimeType: "image/jpeg", // deno_image outputs JPEG
@@ -2470,8 +2470,8 @@ serve(async (req: Request) => {
       const mimeType = internalMediaInfo.mimeType;
       const mediaType = mimeType.startsWith("image/") ? "image" as const
         : mimeType.startsWith("video/") ? "video" as const
-        : mimeType.startsWith("audio/") ? "audio" as const
-        : "unknown" as const;
+          : mimeType.startsWith("audio/") ? "audio" as const
+            : "unknown" as const;
       mediaInfo = {
         base64: internalMediaInfo.base64,
         mimeType: mimeType,
@@ -2695,7 +2695,7 @@ ${proactiveContext.events.map((e: any) => `- ${e.message_hint}`).join("\n")}
       }
     } else {
       const orchestratorData = await orchestratorResponse.json();
-      
+
       // Defensive check for malformed responses
       if (!orchestratorData?.choices || !Array.isArray(orchestratorData.choices) || orchestratorData.choices.length === 0) {
         console.error("[Orchestrator] Unexpected response format:", {
@@ -2722,750 +2722,302 @@ ${proactiveContext.events.map((e: any) => `- ${e.message_hint}`).join("\n")}
         aiReply = message?.content || "";
         let currentThoughtSignature = thoughtSignature;
 
-      // Bounded tool loop: max 3 iterations for multi-step workflows
-      const MAX_TOOL_ITERATIONS = 3;
-      let toolIteration = 0;
-      // toolsUsed is declared at handler scope (line 2683)
+        // Bounded tool loop: max 3 iterations for multi-step workflows
+        const MAX_TOOL_ITERATIONS = 3;
+        let toolIteration = 0;
+        // toolsUsed is declared at handler scope (line 2683)
 
-      while (currentToolCalls && currentToolCalls.length > 0 && toolIteration < MAX_TOOL_ITERATIONS) {
-        toolIteration++;
-        const toolCalls = currentToolCalls;
-        console.log(`[${correlationId}] Tool loop iteration ${toolIteration}/${MAX_TOOL_ITERATIONS}: Processing ${toolCalls.length} tool call(s)...`);
+        while (currentToolCalls && currentToolCalls.length > 0 && toolIteration < MAX_TOOL_ITERATIONS) {
+          toolIteration++;
+          const toolCalls = currentToolCalls;
+          console.log(`[${correlationId}] Tool loop iteration ${toolIteration}/${MAX_TOOL_ITERATIONS}: Processing ${toolCalls.length} tool call(s)...`);
 
-        const toolResults: { id: string; name: string; result: any }[] = [];
+          const toolResults: { id: string; name: string; result: any }[] = [];
 
-        for (const toolCall of toolCalls) {
-          const functionName = toolCall.function?.name;
-          let args: any = {};
-          try {
-            args = JSON.parse(toolCall.function?.arguments || "{}");
-          } catch (parseErr) {
-            console.error(
-              `[${correlationId}] Failed to parse tool arguments for ${functionName}:`,
-              toolCall.function?.arguments,
-              parseErr,
-            );
-            // Skip this tool call — don't execute with empty args
-            toolResults.push({
-              id: toolCall.id,
-              name: functionName,
-              result: {
-                success: false,
-                error: "I had trouble processing that request. Could you try rephrasing?",
-              },
-            });
-            continue;
-          }
-
-          console.log(`[${correlationId}] Executing tool: ${functionName}`, args);
-          toolsUsed.push(functionName);
-
-          // Check agent permission for this tool
-          const requiredCapability = TOOL_CAPABILITY_MAP[functionName];
-          if (requiredCapability && profile?.id) {
-            const hasPermission = await checkAgentPermission(supabase, profile.id, requiredCapability);
-            if (!hasPermission) {
-              console.log(`[${correlationId}] Permission denied for ${functionName} (requires: ${requiredCapability})`);
+          for (const toolCall of toolCalls) {
+            const functionName = toolCall.function?.name;
+            let args: any = {};
+            try {
+              args = JSON.parse(toolCall.function?.arguments || "{}");
+            } catch (parseErr) {
+              console.error(
+                `[${correlationId}] Failed to parse tool arguments for ${functionName}:`,
+                toolCall.function?.arguments,
+                parseErr,
+              );
+              // Skip this tool call — don't execute with empty args
               toolResults.push({
                 id: toolCall.id,
                 name: functionName,
                 result: {
                   success: false,
-                  error: `This action requires the "${requiredCapability}" permission which is currently disabled. You can enable it at viridisml.lovable.app/settings`,
-                  permissionDenied: true,
+                  error: "I had trouble processing that request. Could you try rephrasing?",
                 },
               });
-              continue; // Skip to next tool call
+              continue;
             }
-          }
 
-          let toolResult: any;
+            console.log(`[${correlationId}] Executing tool: ${functionName}`, args);
+            toolsUsed.push(functionName);
 
-          // Agent tools
-          if (functionName === "identify_plant") {
-            if (mediaInfo?.mediaType === "image") {
-            toolResult = await callVisionAgent(
-              "identify",
-              mediaInfo.base64,
-              args.user_context || body,
-              LOVABLE_API_KEY,
-            );
-
-            if (toolResult.success && toolResult.data) {
-              const { data: identification } = await supabase
-                .from("plant_identifications")
-                .insert({
-                  profile_id: profile?.id,
-                  photo_url: uploadedPhotoPath || mediaUrl0,
-                  species_guess: toolResult.data.species,
-                  confidence: toolResult.data.confidence,
-                  care_tips: toolResult.data.careSummary,
-                })
-                .select()
-                .single();
-
-              if (identification) {
-                await logAgentOperation(
-                  supabase,
-                  profile?.id,
-                  correlationId,
-                  "create",
-                  "plant_identifications",
-                  identification.id,
-                  functionName,
-                  { species: toolResult.data.species },
-                );
-              }
-
-              // Auto-capture plant snapshot for visual memory
-              // Try to match to an existing saved plant
-              if (uploadedPhotoPath || mediaUrl0) {
-                const species = toolResult.data.species || "Unknown";
-                const { data: matchedPlants } = await supabase
-                  .from("plants")
-                  .select("id, name, nickname, species")
-                  .eq("profile_id", profile?.id)
-                  .or(`name.ilike.%${species}%,species.ilike.%${species}%`)
-                  .limit(1);
-
-                if (matchedPlants && matchedPlants.length > 0) {
-                  const plant = matchedPlants[0];
-                  // Generate a visual description via a quick LLM call
-                  const descResult = await generateVisualDescription(
-                    mediaInfo.base64,
-                    species,
-                    "identification",
-                    LOVABLE_API_KEY,
-                  );
-                  
-                  // Check for previous snapshots before capturing (temporal awareness)
-                  const { data: prevSnaps } = await supabase
-                    .from("plant_snapshots")
-                    .select("description, health_notes, created_at")
-                    .eq("plant_id", plant.id)
-                    .order("created_at", { ascending: false })
-                    .limit(1);
-
-                  await capturePlantSnapshot(
-                    supabase,
-                    profile?.id,
-                    {
-                      plant_identifier: plant.nickname || plant.name,
-                      description: descResult || `${species} - identified from photo`,
-                      context: "identification",
-                      source: "telegram_photo",
-                    },
-                    uploadedPhotoPath || mediaUrl0,
-                  );
-                  console.log(`[VisualMemory] Auto-captured snapshot for ${plant.nickname || plant.name}`);
-
-                  // Inject temporal context so the agent can mention changes
-                  if (prevSnaps && prevSnaps.length > 0) {
-                    const prev = prevSnaps[0];
-                    const daysSince = Math.round((Date.now() - new Date(prev.created_at).getTime()) / (1000 * 60 * 60 * 24));
-                    toolResult.data._temporal_context = {
-                      previousDescription: prev.description,
-                      previousHealthNotes: prev.health_notes,
-                      daysSinceLastSnapshot: daysSince,
-                      plantName: plant.nickname || plant.name,
-                      hint: `You last saw this plant ${daysSince} day(s) ago. Previous description: "${prev.description}". Compare with what you see now and mention any notable changes.`,
-                    };
-                  }
-                }
-              }
-            }
-            } else {
-              toolResult = { success: false, error: "No photo attached. Please send a photo with your message so I can identify the plant." };
-            }
-          } else if (functionName === "diagnose_plant") {
-            if (mediaInfo?.mediaType === "image") {
-            toolResult = await callVisionAgent(
-              "diagnose",
-              mediaInfo.base64,
-              args.symptoms_described || body,
-              LOVABLE_API_KEY,
-            );
-
-            if (toolResult.success && toolResult.data) {
-              // Try to link to an existing plant if user mentioned one
-              let diagnosePlantId: string | null = null;
-              if (args.plant_identifier || args.plant_name) {
-                const plantRef = args.plant_identifier || args.plant_name;
-                const { data: matchedPlants } = await supabase
-                  .from("plants")
-                  .select("id")
-                  .eq("profile_id", profile?.id)
-                  .or(`name.ilike.%${plantRef}%,nickname.ilike.%${plantRef}%,species.ilike.%${plantRef}%`)
-                  .limit(1);
-                if (matchedPlants && matchedPlants.length > 0) {
-                  diagnosePlantId = matchedPlants[0].id;
-                }
-              }
-
-              const { data: diagnosis } = await supabase
-                .from("plant_identifications")
-                .insert({
-                  profile_id: profile?.id,
-                  plant_id: diagnosePlantId,
-                  photo_url: uploadedPhotoPath || mediaUrl0,
-                  diagnosis: toolResult.data.diagnosis,
-                  severity: toolResult.data.severity,
-                  treatment: toolResult.data.treatment,
-                })
-                .select()
-                .single();
-
-              if (diagnosis) {
-                await logAgentOperation(
-                  supabase,
-                  profile?.id,
-                  correlationId,
-                  "create",
-                  "plant_identifications",
-                  diagnosis.id,
-                  functionName,
-                  { diagnosis: toolResult.data.diagnosis, severity: toolResult.data.severity },
-                );
-              }
-
-              // Auto-capture snapshot for diagnosis visual memory
-              if ((uploadedPhotoPath || mediaUrl0) && diagnosePlantId) {
-                const diagPlant = await supabase
-                  .from("plants")
-                  .select("name, nickname, species")
-                  .eq("id", diagnosePlantId)
-                  .single();
-
-                if (diagPlant.data) {
-                  const descResult = await generateVisualDescription(
-                    mediaInfo.base64,
-                    diagPlant.data.species || diagPlant.data.name,
-                    "diagnosis",
-                    LOVABLE_API_KEY,
-                  );
-
-                  // Check for previous snapshots (temporal awareness)
-                  const { data: prevSnaps } = await supabase
-                    .from("plant_snapshots")
-                    .select("description, health_notes, created_at")
-                    .eq("plant_id", diagnosePlantId)
-                    .order("created_at", { ascending: false })
-                    .limit(1);
-                  
-                  await capturePlantSnapshot(
-                    supabase,
-                    profile?.id,
-                    {
-                      plant_identifier: diagPlant.data.nickname || diagPlant.data.name,
-                      description: descResult || `Diagnosis photo - ${toolResult.data.diagnosis}`,
-                      context: "diagnosis",
-                      source: "telegram_photo",
-                      health_notes: `${toolResult.data.diagnosis} (${toolResult.data.severity}). Treatment: ${toolResult.data.treatment || "none"}`,
-                    },
-                    uploadedPhotoPath || mediaUrl0,
-                  );
-                  console.log(`[VisualMemory] Auto-captured diagnosis snapshot for ${diagPlant.data.nickname || diagPlant.data.name}`);
-
-                  // Inject temporal context for the agent
-                  if (prevSnaps && prevSnaps.length > 0) {
-                    const prev = prevSnaps[0];
-                    const daysSince = Math.round((Date.now() - new Date(prev.created_at).getTime()) / (1000 * 60 * 60 * 24));
-                    toolResult.data._temporal_context = {
-                      previousDescription: prev.description,
-                      previousHealthNotes: prev.health_notes,
-                      daysSinceLastSnapshot: daysSince,
-                      plantName: diagPlant.data.nickname || diagPlant.data.name,
-                      hint: `You last saw this plant ${daysSince} day(s) ago. Previous: "${prev.description}"${prev.health_notes ? ` Health then: "${prev.health_notes}"` : ""}. Compare with current diagnosis and mention whether the plant has improved, worsened, or changed.`,
-                    };
-                  }
-                }
-              }
-            }
-            } else {
-              toolResult = { success: false, error: "No photo attached. Please send a photo with your message so I can diagnose the issue." };
-            }
-          } else if (functionName === "analyze_environment" && mediaInfo?.mediaType === "image") {
-            toolResult = await callVisionAgent(
-              "environment",
-              mediaInfo.base64,
-              args.plant_species || "",
-              LOVABLE_API_KEY,
-            );
-            await logAgentOperation(
-              supabase,
-              profile?.id,
-              correlationId,
-              "read",
-              "vision_analysis",
-              null,
-              functionName,
-              { type: "environment" },
-            );
-          } else if (functionName === "research") {
-            if (!PERPLEXITY_API_KEY) {
-              toolResult = { success: false, error: "Research not configured" };
-            } else {
-              toolResult = await callResearchAgent(args.query, PERPLEXITY_API_KEY);
-              await logAgentOperation(
-                supabase,
-                profile?.id,
-                correlationId,
-                "read",
-                "external_search",
-                null,
-                functionName,
-                { query: args.query },
-              );
-            }
-          }
-          // New multimedia tools
-          else if (functionName === "generate_visual_guide") {
-            // Thread telegramChatId for fire-and-forget delivery
-            const telegramChatId = (channel === "telegram" && profile?.telegram_chat_id)
-              ? String(profile.telegram_chat_id)
-              : undefined;
-            const telegramBotToken = telegramChatId
-              ? Deno.env.get("TELEGRAM_BOT_TOKEN") || undefined
-              : undefined;
-
-            toolResult = await callImageGenerationAgent(
-              supabase,
-              profile?.id,
-              args.task,
-              args.plant_species || null,
-              args.step_count || 3,
-              LOVABLE_API_KEY,
-              SUPABASE_URL!,
-              telegramChatId,
-              telegramBotToken,
-            );
-
-            // Add generated images to media queue for sending
-            if (toolResult.success && toolResult.images) {
-              for (const img of toolResult.images) {
-                mediaToSend.push({ url: img.imageUrl, caption: img.description });
-              }
-              await logAgentOperation(
-                supabase,
-                profile?.id,
-                correlationId,
-                "create",
-                "generated_content",
-                null,
-                functionName,
-                { task: args.task, imageCount: toolResult.images.length },
-              );
-            }
-          } else if (functionName === "analyze_video") {
-            if (mediaInfo?.mediaType === "video") {
-            toolResult = await callVideoAgent(
-              supabase,
-              profile?.id,
-              mediaInfo.base64,
-              mediaInfo.mimeType,
-              args.analysis_focus,
-              args.specific_question || null,
-              LOVABLE_API_KEY,
-            );
-            } else {
-              toolResult = { success: false, error: "No video attached. Please send a video with your message so I can analyze it." };
-            }
-          } else if (functionName === "transcribe_voice") {
-            // Usually auto-triggered, but can be called manually
-            if (voiceTranscript) {
-              toolResult = { success: true, data: voiceTranscript };
-            } else if (mediaInfo?.mediaType === "audio") {
-              toolResult = await callVoiceAgent(
-                supabase,
-                profile?.id,
-                mediaInfo.base64,
-                mediaInfo.mimeType,
-                args.context || null,
-                LOVABLE_API_KEY,
-              );
-            } else {
-              toolResult = { success: false, error: "No audio message to transcribe" };
-            }
-          }
-          // Function tools (DB operations) - with audit logging
-          else if (functionName === "save_plant") {
-            toolResult = await savePlant(supabase, profile?.id, args, uploadedPhotoPath || mediaUrl0 || undefined);
-            if (toolResult.success && toolResult.plant) {
-              await logAgentOperation(
-                supabase,
-                profile?.id,
-                correlationId,
-                "create",
-                "plants",
-                toolResult.plant.id,
-                functionName,
-                { species: args.species },
-              );
-            }
-          } else if (functionName === "modify_plant") {
-            toolResult = await modifyPlant(supabase, profile?.id, args);
-            if (toolResult.success) {
-              if (toolResult.plants) {
-                // Bulk operation
-                for (const plant of toolResult.plants) {
-                  await logAgentOperation(
-                    supabase,
-                    profile?.id,
-                    correlationId,
-                    "update",
-                    "plants",
-                    plant.id,
-                    functionName,
-                    { updates: args.updates, bulk: true },
-                  );
-                }
-              } else if (toolResult.plant) {
-                await logAgentOperation(
-                  supabase,
-                  profile?.id,
-                  correlationId,
-                  "update",
-                  "plants",
-                  toolResult.plant.id,
-                  functionName,
-                  { updates: args.updates },
-                );
-              }
-            }
-          } else if (functionName === "delete_plant") {
-            toolResult = await deletePlant(supabase, profile?.id, args);
-            if (toolResult.success) {
-              if (toolResult.deletedNames) {
-                // Bulk operation
-                for (const name of toolResult.deletedNames) {
-                  await logAgentOperation(
-                    supabase,
-                    profile?.id,
-                    correlationId,
-                    "delete",
-                    "plants",
-                    null,
-                    functionName,
-                    { deleted: name, bulk: true },
-                  );
-                }
-              } else {
-                await logAgentOperation(supabase, profile?.id, correlationId, "delete", "plants", null, functionName, {
-                  deleted: toolResult.deletedName,
+            // Check agent permission for this tool
+            const requiredCapability = TOOL_CAPABILITY_MAP[functionName];
+            if (requiredCapability && profile?.id) {
+              const hasPermission = await checkAgentPermission(supabase, profile.id, requiredCapability);
+              if (!hasPermission) {
+                console.log(`[${correlationId}] Permission denied for ${functionName} (requires: ${requiredCapability})`);
+                toolResults.push({
+                  id: toolCall.id,
+                  name: functionName,
+                  result: {
+                    success: false,
+                    error: `This action requires the "${requiredCapability}" permission which is currently disabled. You can enable it at viridisml.lovable.app/settings`,
+                    permissionDenied: true,
+                  },
                 });
+                continue; // Skip to next tool call
               }
             }
-          } else if (functionName === "create_reminder") {
-            toolResult = await createReminder(supabase, profile?.id, args);
-            if (toolResult.success) {
-              if (toolResult.reminders) {
-                // Log bulk operation - each reminder individually
-                for (const r of toolResult.reminders) {
-                  await logAgentOperation(
-                    supabase,
-                    profile?.id,
-                    correlationId,
-                    "create",
-                    "reminders",
-                    r.reminder.id,
-                    functionName,
-                    { type: args.reminder_type, plant: r.plantName, bulk: true },
-                  );
-                }
-              } else if (toolResult.reminder) {
-                await logAgentOperation(
-                  supabase,
-                  profile?.id,
-                  correlationId,
-                  "create",
-                  "reminders",
-                  toolResult.reminder.id,
-                  functionName,
-                  { type: args.reminder_type, plant: args.plant_identifier },
-                );
-              }
-            } else {
-              console.error(`[${correlationId}] Tool ${functionName} FAILED:`, toolResult.error);
-            }
-          } else if (functionName === "delete_reminder") {
-            toolResult = await deleteReminder(supabase, profile?.id, args);
-            if (toolResult.success) {
-              const auditId = generateCorrelationId();
-              await logAgentOperation(supabase, profile?.id, auditId, "delete", "reminders", null, "delete_reminder", { deletedCount: toolResult.deletedCount });
-            }
-          } else if (functionName === "log_care_event") {
-            toolResult = await logCareEvent(supabase, profile?.id, args);
-            if (toolResult.success) {
-              if (toolResult.events) {
-                // Bulk operation
-                for (const e of toolResult.events) {
-                  await logAgentOperation(
-                    supabase,
-                    profile?.id,
-                    correlationId,
-                    "create",
-                    "care_events",
-                    e.event.id,
-                    functionName,
-                    { type: args.event_type, plant: e.plantName, bulk: true },
-                  );
-                }
-              } else if (toolResult.event) {
-                await logAgentOperation(
-                  supabase,
-                  profile?.id,
-                  correlationId,
-                  "create",
-                  "care_events",
-                  toolResult.event.id,
-                  functionName,
-                  { type: args.event_type, plant: args.plant_identifier },
-                );
-              }
-            } else {
-              console.error(`[${correlationId}] Tool ${functionName} FAILED:`, toolResult.error);
-            }
-          } else if (functionName === "save_user_insight") {
-            toolResult = await saveUserInsight(supabase, profile?.id, args, inboundMessage?.id);
-            if (toolResult.success) {
-              await logAgentOperation(
-                supabase,
-                profile?.id,
-                correlationId,
-                "create",
-                "user_insights",
-                null,
-                functionName,
-                { key: args.insight_key },
-              );
-            }
-          } else if (functionName === "capture_plant_snapshot") {
-            toolResult = await capturePlantSnapshot(
-              supabase,
-              profile?.id,
-              {
-                plant_identifier: args.plant_identifier,
-                description: args.description,
-                context: args.context || "user_requested",
-                health_notes: args.health_notes,
-                source: "telegram_photo",
-                save_if_missing: args.save_if_missing,
-                species: args.species,
-                nickname: args.nickname,
-                location: args.location,
-              },
-              uploadedPhotoPath || mediaUrl0 || undefined,
-            );
-            if (toolResult.success && toolResult.snapshot) {
-              await logAgentOperation(
-                supabase,
-                profile?.id,
-                correlationId,
-                "create",
-                "plant_snapshots",
-                toolResult.snapshot.id,
-                functionName,
-                { plant: toolResult.plantName, context: args.context },
-              );
-            }
-          } else if (functionName === "compare_plant_snapshots") {
-            toolResult = await comparePlantSnapshots(
-              supabase,
-              profile?.id,
-              args.plant_identifier,
-              args.comparison_type || "latest",
-              LOVABLE_API_KEY,
-            );
-            if (toolResult.success) {
-              await logAgentOperation(
-                supabase,
-                profile?.id,
-                correlationId,
-                "read",
-                "plant_snapshots",
-                null,
-                functionName,
-                { plant: toolResult.plantName, snapshotCount: toolResult.snapshotCount },
-              );
-            }
-          } else if (functionName === "recall_media") {
-            const source = args.source;
-            const limit = Math.min(args.limit || 3, 5);
 
-            if (source === "plant_snapshots") {
-              if (!args.plant_identifier) {
-                toolResult = { success: false, error: "Need a plant name to look up snapshots" };
-              } else {
-                const resolution = await resolvePlants(supabase, profileId, args.plant_identifier);
-                if (resolution.plants.length === 0) {
-                  toolResult = { success: false, error: `No plant found matching "${args.plant_identifier}"` };
-                } else {
-                  const plant = resolution.plants[0];
-                  const { data: snapshots } = await supabase
-                    .from("plant_snapshots")
-                    .select("image_path, description, created_at, context")
-                    .eq("plant_id", plant.id)
-                    .eq("profile_id", profileId)
-                    .order("created_at", { ascending: false })
-                    .limit(limit);
-
-                  const images: { url: string; caption: string }[] = [];
-                  for (const snap of (snapshots || [])) {
-                    if (snap.image_path) {
-                      const { data: signed } = await supabase.storage
-                        .from("plant-photos")
-                        .createSignedUrl(snap.image_path, 3600);
-                      if (signed?.signedUrl) {
-                        const date = new Date(snap.created_at).toLocaleDateString();
-                        const caption = `${date}: ${snap.description || snap.context}`;
-                        images.push({ url: signed.signedUrl, caption });
-                        mediaToSend.push({ url: signed.signedUrl, caption });
-                      }
-                    }
-                  }
-                  toolResult = {
-                    success: true,
-                    retrieved: images.length,
-                    plantName: plant.nickname || plant.species || plant.name,
-                  };
-                  await logAgentOperation(
-                    supabase,
-                    profile?.id,
-                    correlationId,
-                    "read",
-                    "plant_snapshots",
-                    null,
-                    functionName,
-                    { plant: toolResult.plantName, retrieved: images.length },
-                  );
-                }
-              }
-            } else if (source === "generated_guides") {
-              const { data: guides } = await supabase
-                .from("generated_content")
-                .select("content, task_description, created_at")
-                .eq("profile_id", profileId)
-                .eq("content_type", "image_guide")
-                .order("created_at", { ascending: false })
-                .limit(1);
-
-              const images: { url: string; caption: string }[] = [];
-              for (const guide of (guides || [])) {
-                const steps = (guide.content as any)?.steps || [];
-                for (const step of steps.slice(0, limit)) {
-                  const path = step.storagePath;
-                  if (path) {
-                    const { data: signed } = await supabase.storage
-                      .from("generated-guides")
-                      .createSignedUrl(path, 3600);
-                    if (signed?.signedUrl) {
-                      const caption = step.description || `Step ${step.step}`;
-                      images.push({ url: signed.signedUrl, caption });
-                      mediaToSend.push({ url: signed.signedUrl, caption });
-                    }
-                  }
-                }
-              }
-              toolResult = {
-                success: true,
-                retrieved: images.length,
-                task: guides?.[0]?.task_description || "unknown",
-              };
-              await logAgentOperation(
-                supabase,
-                profile?.id,
-                correlationId,
-                "read",
-                "generated_content",
-                null,
-                functionName,
-                { retrieved: images.length },
-              );
-            } else {
-              toolResult = { success: false, error: "Invalid source. Use 'plant_snapshots' or 'generated_guides'" };
-            }
-          }
-          // Maps and Store verification tools
-          else if (functionName === "find_stores") {
-            const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY") || "";
-            const profileLatLng = (profile?.latitude && profile?.longitude)
-              ? { lat: Number(profile.latitude), lng: Number(profile.longitude) }
-              : undefined;
-            toolResult = await callMapsShoppingAgent(
-              args.product_query,
-              args.store_type || "any",
-              profile?.location || null,
-              GEMINI_API_KEY,
-              PERPLEXITY_API_KEY,
-              profileLatLng,
-            );
+            // Pre-log the operation so UI can show "thinking..." -> "researching..." instantly
             await logAgentOperation(
               supabase,
               profile?.id,
               correlationId,
-              "read",
-              "external_search",
+              "started",
+              functionName, // using tool name as table_name for these temporary events
               null,
               functionName,
-              { query: args.product_query },
+              { status: "running", args }
             );
 
-            // NON-BLOCKING: Backfill lat/lng if profile is missing coordinates
-            if (!profile?.latitude && profile?.location && profile?.id) {
-              geocodeLocation(profile.location).then(coords => {
-                if (coords) {
-                  supabase.from("profiles").update({
-                    latitude: coords.lat,
-                    longitude: coords.lng
-                  }).eq("id", profile.id).then(() => {
-                    console.log(`[${correlationId}] Backfilled coordinates for profile ${profile.id}`);
-                  });
-                }
-              }).catch(() => {});
-            }
+            let toolResult: any;
 
-            // NON-BLOCKING: Cache store results in generated_content for follow-up queries
-            if (toolResult.success && toolResult.data?.stores?.length > 0 && profile?.id) {
-              supabase.from("generated_content").insert({
-                profile_id: profile.id,
-                content_type: "store_search",
-                content: {
-                  stores: toolResult.data.stores,
-                  searchedFor: toolResult.data.searchedFor,
-                  location: toolResult.data.location,
-                  timestamp: new Date().toISOString()
-                },
-                task_description: `Store search: ${args.product_query} near ${profile.location}`
-              }).then(() => {
-                console.log(`[${correlationId}] Cached ${toolResult.data.stores.length} store results`);
-              }).catch(() => {});
-            }
-
-            // AGENTIC RETRY: If no stores found, automatically trigger research fallback
-            if (toolResult.success && toolResult.data?.stores?.length === 0 && PERPLEXITY_API_KEY) {
-              console.log(
-                `[${correlationId}] [AgenticRetry] find_stores returned 0 results, triggering online research fallback`,
-              );
-
-              const productName = args.product_query || "plant supplies";
-              const researchQuery = `Where to buy ${productName} online? Best online retailers, pricing, availability, and alternatives for ${productName}. Include Amazon, specialty plant stores, and manufacturer websites.`;
-
-              const researchResult = await callResearchAgent(researchQuery, PERPLEXITY_API_KEY);
-
-              if (researchResult.success && researchResult.data) {
-                console.log(`[${correlationId}] [AgenticRetry] Research fallback successful, sanitizing output...`);
-
-                // SANITIZE research output for messaging BEFORE storing
-                const sanitizedAlternatives = await rewriteResearchForMessaging(
-                  researchResult.data,
-                  `Where to buy ${productName}`,
-                  profile?.personality || "warm",
+            // Agent tools
+            if (functionName === "identify_plant") {
+              if (mediaInfo?.mediaType === "image") {
+                toolResult = await callVisionAgent(
+                  "identify",
+                  mediaInfo.base64,
+                  args.user_context || body,
                   LOVABLE_API_KEY,
                 );
 
-                toolResult.data.onlineAlternatives = sanitizedAlternatives;
-                toolResult.data.callAheadAdvice = `I found some online options for you.`;
+                if (toolResult.success && toolResult.data) {
+                  const { data: identification } = await supabase
+                    .from("plant_identifications")
+                    .insert({
+                      profile_id: profile?.id,
+                      photo_url: uploadedPhotoPath || mediaUrl0,
+                      species_guess: toolResult.data.species,
+                      confidence: toolResult.data.confidence,
+                      care_tips: toolResult.data.careSummary,
+                    })
+                    .select()
+                    .single();
 
+                  if (identification) {
+                    await logAgentOperation(
+                      supabase,
+                      profile?.id,
+                      correlationId,
+                      "create",
+                      "plant_identifications",
+                      identification.id,
+                      functionName,
+                      { species: toolResult.data.species },
+                    );
+                  }
+
+                  // Auto-capture plant snapshot for visual memory
+                  // Try to match to an existing saved plant
+                  if (uploadedPhotoPath || mediaUrl0) {
+                    const species = toolResult.data.species || "Unknown";
+                    const { data: matchedPlants } = await supabase
+                      .from("plants")
+                      .select("id, name, nickname, species")
+                      .eq("profile_id", profile?.id)
+                      .or(`name.ilike.%${species}%,species.ilike.%${species}%`)
+                      .limit(1);
+
+                    if (matchedPlants && matchedPlants.length > 0) {
+                      const plant = matchedPlants[0];
+                      // Generate a visual description via a quick LLM call
+                      const descResult = await generateVisualDescription(
+                        mediaInfo.base64,
+                        species,
+                        "identification",
+                        LOVABLE_API_KEY,
+                      );
+
+                      // Check for previous snapshots before capturing (temporal awareness)
+                      const { data: prevSnaps } = await supabase
+                        .from("plant_snapshots")
+                        .select("description, health_notes, created_at")
+                        .eq("plant_id", plant.id)
+                        .order("created_at", { ascending: false })
+                        .limit(1);
+
+                      await capturePlantSnapshot(
+                        supabase,
+                        profile?.id,
+                        {
+                          plant_identifier: plant.nickname || plant.name,
+                          description: descResult || `${species} - identified from photo`,
+                          context: "identification",
+                          source: "telegram_photo",
+                        },
+                        uploadedPhotoPath || mediaUrl0,
+                      );
+                      console.log(`[VisualMemory] Auto-captured snapshot for ${plant.nickname || plant.name}`);
+
+                      // Inject temporal context so the agent can mention changes
+                      if (prevSnaps && prevSnaps.length > 0) {
+                        const prev = prevSnaps[0];
+                        const daysSince = Math.round((Date.now() - new Date(prev.created_at).getTime()) / (1000 * 60 * 60 * 24));
+                        toolResult.data._temporal_context = {
+                          previousDescription: prev.description,
+                          previousHealthNotes: prev.health_notes,
+                          daysSinceLastSnapshot: daysSince,
+                          plantName: plant.nickname || plant.name,
+                          hint: `You last saw this plant ${daysSince} day(s) ago. Previous description: "${prev.description}". Compare with what you see now and mention any notable changes.`,
+                        };
+                      }
+                    }
+                  }
+                }
+              } else {
+                toolResult = { success: false, error: "No photo attached. Please send a photo with your message so I can identify the plant." };
+              }
+            } else if (functionName === "diagnose_plant") {
+              if (mediaInfo?.mediaType === "image") {
+                toolResult = await callVisionAgent(
+                  "diagnose",
+                  mediaInfo.base64,
+                  args.symptoms_described || body,
+                  LOVABLE_API_KEY,
+                );
+
+                if (toolResult.success && toolResult.data) {
+                  // Try to link to an existing plant if user mentioned one
+                  let diagnosePlantId: string | null = null;
+                  if (args.plant_identifier || args.plant_name) {
+                    const plantRef = args.plant_identifier || args.plant_name;
+                    const { data: matchedPlants } = await supabase
+                      .from("plants")
+                      .select("id")
+                      .eq("profile_id", profile?.id)
+                      .or(`name.ilike.%${plantRef}%,nickname.ilike.%${plantRef}%,species.ilike.%${plantRef}%`)
+                      .limit(1);
+                    if (matchedPlants && matchedPlants.length > 0) {
+                      diagnosePlantId = matchedPlants[0].id;
+                    }
+                  }
+
+                  const { data: diagnosis } = await supabase
+                    .from("plant_identifications")
+                    .insert({
+                      profile_id: profile?.id,
+                      plant_id: diagnosePlantId,
+                      photo_url: uploadedPhotoPath || mediaUrl0,
+                      diagnosis: toolResult.data.diagnosis,
+                      severity: toolResult.data.severity,
+                      treatment: toolResult.data.treatment,
+                    })
+                    .select()
+                    .single();
+
+                  if (diagnosis) {
+                    await logAgentOperation(
+                      supabase,
+                      profile?.id,
+                      correlationId,
+                      "create",
+                      "plant_identifications",
+                      diagnosis.id,
+                      functionName,
+                      { diagnosis: toolResult.data.diagnosis, severity: toolResult.data.severity },
+                    );
+                  }
+
+                  // Auto-capture snapshot for diagnosis visual memory
+                  if ((uploadedPhotoPath || mediaUrl0) && diagnosePlantId) {
+                    const diagPlant = await supabase
+                      .from("plants")
+                      .select("name, nickname, species")
+                      .eq("id", diagnosePlantId)
+                      .single();
+
+                    if (diagPlant.data) {
+                      const descResult = await generateVisualDescription(
+                        mediaInfo.base64,
+                        diagPlant.data.species || diagPlant.data.name,
+                        "diagnosis",
+                        LOVABLE_API_KEY,
+                      );
+
+                      // Check for previous snapshots (temporal awareness)
+                      const { data: prevSnaps } = await supabase
+                        .from("plant_snapshots")
+                        .select("description, health_notes, created_at")
+                        .eq("plant_id", diagnosePlantId)
+                        .order("created_at", { ascending: false })
+                        .limit(1);
+
+                      await capturePlantSnapshot(
+                        supabase,
+                        profile?.id,
+                        {
+                          plant_identifier: diagPlant.data.nickname || diagPlant.data.name,
+                          description: descResult || `Diagnosis photo - ${toolResult.data.diagnosis}`,
+                          context: "diagnosis",
+                          source: "telegram_photo",
+                          health_notes: `${toolResult.data.diagnosis} (${toolResult.data.severity}). Treatment: ${toolResult.data.treatment || "none"}`,
+                        },
+                        uploadedPhotoPath || mediaUrl0,
+                      );
+                      console.log(`[VisualMemory] Auto-captured diagnosis snapshot for ${diagPlant.data.nickname || diagPlant.data.name}`);
+
+                      // Inject temporal context for the agent
+                      if (prevSnaps && prevSnaps.length > 0) {
+                        const prev = prevSnaps[0];
+                        const daysSince = Math.round((Date.now() - new Date(prev.created_at).getTime()) / (1000 * 60 * 60 * 24));
+                        toolResult.data._temporal_context = {
+                          previousDescription: prev.description,
+                          previousHealthNotes: prev.health_notes,
+                          daysSinceLastSnapshot: daysSince,
+                          plantName: diagPlant.data.nickname || diagPlant.data.name,
+                          hint: `You last saw this plant ${daysSince} day(s) ago. Previous: "${prev.description}"${prev.health_notes ? ` Health then: "${prev.health_notes}"` : ""}. Compare with current diagnosis and mention whether the plant has improved, worsened, or changed.`,
+                        };
+                      }
+                    }
+                  }
+                }
+              } else {
+                toolResult = { success: false, error: "No photo attached. Please send a photo with your message so I can diagnose the issue." };
+              }
+            } else if (functionName === "analyze_environment" && mediaInfo?.mediaType === "image") {
+              toolResult = await callVisionAgent(
+                "environment",
+                mediaInfo.base64,
+                args.plant_species || "",
+                LOVABLE_API_KEY,
+              );
+              await logAgentOperation(
+                supabase,
+                profile?.id,
+                correlationId,
+                "read",
+                "vision_analysis",
+                null,
+                functionName,
+                { type: "environment" },
+              );
+            } else if (functionName === "research") {
+              if (!PERPLEXITY_API_KEY) {
+                toolResult = { success: false, error: "Research not configured" };
+              } else {
+                toolResult = await callResearchAgent(args.query, PERPLEXITY_API_KEY);
                 await logAgentOperation(
                   supabase,
                   profile?.id,
@@ -3473,20 +3025,391 @@ ${proactiveContext.events.map((e: any) => `- ${e.message_hint}`).join("\n")}
                   "read",
                   "external_search",
                   null,
-                  "research_fallback",
-                  { query: researchQuery, triggered_by: "empty_find_stores" },
+                  functionName,
+                  { query: args.query },
                 );
               }
             }
-          } else if (functionName === "verify_store_inventory") {
-            if (!PERPLEXITY_API_KEY) {
-              toolResult = { success: false, error: "Store verification not configured" };
-            } else {
-              toolResult = await verifyStoreInventory(
-                args.store_name,
-                args.product,
-                args.location || profile?.location || null,
+            // New multimedia tools
+            else if (functionName === "generate_visual_guide") {
+              // Thread telegramChatId for fire-and-forget delivery
+              const telegramChatId = (channel === "telegram" && profile?.telegram_chat_id)
+                ? String(profile.telegram_chat_id)
+                : undefined;
+              const telegramBotToken = telegramChatId
+                ? Deno.env.get("TELEGRAM_BOT_TOKEN") || undefined
+                : undefined;
+
+              toolResult = await callImageGenerationAgent(
+                supabase,
+                profile?.id,
+                args.task,
+                args.plant_species || null,
+                args.step_count || 3,
+                LOVABLE_API_KEY,
+                SUPABASE_URL!,
+                telegramChatId,
+                telegramBotToken,
+              );
+
+              // Add generated images to media queue for sending
+              if (toolResult.success && toolResult.images) {
+                for (const img of toolResult.images) {
+                  mediaToSend.push({ url: img.imageUrl, caption: img.description });
+                }
+                await logAgentOperation(
+                  supabase,
+                  profile?.id,
+                  correlationId,
+                  "create",
+                  "generated_content",
+                  null,
+                  functionName,
+                  { task: args.task, imageCount: toolResult.images.length },
+                );
+              }
+            } else if (functionName === "analyze_video") {
+              if (mediaInfo?.mediaType === "video") {
+                toolResult = await callVideoAgent(
+                  supabase,
+                  profile?.id,
+                  mediaInfo.base64,
+                  mediaInfo.mimeType,
+                  args.analysis_focus,
+                  args.specific_question || null,
+                  LOVABLE_API_KEY,
+                );
+              } else {
+                toolResult = { success: false, error: "No video attached. Please send a video with your message so I can analyze it." };
+              }
+            } else if (functionName === "transcribe_voice") {
+              // Usually auto-triggered, but can be called manually
+              if (voiceTranscript) {
+                toolResult = { success: true, data: voiceTranscript };
+              } else if (mediaInfo?.mediaType === "audio") {
+                toolResult = await callVoiceAgent(
+                  supabase,
+                  profile?.id,
+                  mediaInfo.base64,
+                  mediaInfo.mimeType,
+                  args.context || null,
+                  LOVABLE_API_KEY,
+                );
+              } else {
+                toolResult = { success: false, error: "No audio message to transcribe" };
+              }
+            }
+            // Function tools (DB operations) - with audit logging
+            else if (functionName === "save_plant") {
+              toolResult = await savePlant(supabase, profile?.id, args, uploadedPhotoPath || mediaUrl0 || undefined);
+              if (toolResult.success && toolResult.plant) {
+                await logAgentOperation(
+                  supabase,
+                  profile?.id,
+                  correlationId,
+                  "create",
+                  "plants",
+                  toolResult.plant.id,
+                  functionName,
+                  { species: args.species },
+                );
+              }
+            } else if (functionName === "modify_plant") {
+              toolResult = await modifyPlant(supabase, profile?.id, args);
+              if (toolResult.success) {
+                if (toolResult.plants) {
+                  // Bulk operation
+                  for (const plant of toolResult.plants) {
+                    await logAgentOperation(
+                      supabase,
+                      profile?.id,
+                      correlationId,
+                      "update",
+                      "plants",
+                      plant.id,
+                      functionName,
+                      { updates: args.updates, bulk: true },
+                    );
+                  }
+                } else if (toolResult.plant) {
+                  await logAgentOperation(
+                    supabase,
+                    profile?.id,
+                    correlationId,
+                    "update",
+                    "plants",
+                    toolResult.plant.id,
+                    functionName,
+                    { updates: args.updates },
+                  );
+                }
+              }
+            } else if (functionName === "delete_plant") {
+              toolResult = await deletePlant(supabase, profile?.id, args);
+              if (toolResult.success) {
+                if (toolResult.deletedNames) {
+                  // Bulk operation
+                  for (const name of toolResult.deletedNames) {
+                    await logAgentOperation(
+                      supabase,
+                      profile?.id,
+                      correlationId,
+                      "delete",
+                      "plants",
+                      null,
+                      functionName,
+                      { deleted: name, bulk: true },
+                    );
+                  }
+                } else {
+                  await logAgentOperation(supabase, profile?.id, correlationId, "delete", "plants", null, functionName, {
+                    deleted: toolResult.deletedName,
+                  });
+                }
+              }
+            } else if (functionName === "create_reminder") {
+              toolResult = await createReminder(supabase, profile?.id, args);
+              if (toolResult.success) {
+                if (toolResult.reminders) {
+                  // Log bulk operation - each reminder individually
+                  for (const r of toolResult.reminders) {
+                    await logAgentOperation(
+                      supabase,
+                      profile?.id,
+                      correlationId,
+                      "create",
+                      "reminders",
+                      r.reminder.id,
+                      functionName,
+                      { type: args.reminder_type, plant: r.plantName, bulk: true },
+                    );
+                  }
+                } else if (toolResult.reminder) {
+                  await logAgentOperation(
+                    supabase,
+                    profile?.id,
+                    correlationId,
+                    "create",
+                    "reminders",
+                    toolResult.reminder.id,
+                    functionName,
+                    { type: args.reminder_type, plant: args.plant_identifier },
+                  );
+                }
+              } else {
+                console.error(`[${correlationId}] Tool ${functionName} FAILED:`, toolResult.error);
+              }
+            } else if (functionName === "delete_reminder") {
+              toolResult = await deleteReminder(supabase, profile?.id, args);
+              if (toolResult.success) {
+                const auditId = generateCorrelationId();
+                await logAgentOperation(supabase, profile?.id, auditId, "delete", "reminders", null, "delete_reminder", { deletedCount: toolResult.deletedCount });
+              }
+            } else if (functionName === "log_care_event") {
+              toolResult = await logCareEvent(supabase, profile?.id, args);
+              if (toolResult.success) {
+                if (toolResult.events) {
+                  // Bulk operation
+                  for (const e of toolResult.events) {
+                    await logAgentOperation(
+                      supabase,
+                      profile?.id,
+                      correlationId,
+                      "create",
+                      "care_events",
+                      e.event.id,
+                      functionName,
+                      { type: args.event_type, plant: e.plantName, bulk: true },
+                    );
+                  }
+                } else if (toolResult.event) {
+                  await logAgentOperation(
+                    supabase,
+                    profile?.id,
+                    correlationId,
+                    "create",
+                    "care_events",
+                    toolResult.event.id,
+                    functionName,
+                    { type: args.event_type, plant: args.plant_identifier },
+                  );
+                }
+              } else {
+                console.error(`[${correlationId}] Tool ${functionName} FAILED:`, toolResult.error);
+              }
+            } else if (functionName === "save_user_insight") {
+              toolResult = await saveUserInsight(supabase, profile?.id, args, inboundMessage?.id);
+              if (toolResult.success) {
+                await logAgentOperation(
+                  supabase,
+                  profile?.id,
+                  correlationId,
+                  "create",
+                  "user_insights",
+                  null,
+                  functionName,
+                  { key: args.insight_key },
+                );
+              }
+            } else if (functionName === "capture_plant_snapshot") {
+              toolResult = await capturePlantSnapshot(
+                supabase,
+                profile?.id,
+                {
+                  plant_identifier: args.plant_identifier,
+                  description: args.description,
+                  context: args.context || "user_requested",
+                  health_notes: args.health_notes,
+                  source: "telegram_photo",
+                  save_if_missing: args.save_if_missing,
+                  species: args.species,
+                  nickname: args.nickname,
+                  location: args.location,
+                },
+                uploadedPhotoPath || mediaUrl0 || undefined,
+              );
+              if (toolResult.success && toolResult.snapshot) {
+                await logAgentOperation(
+                  supabase,
+                  profile?.id,
+                  correlationId,
+                  "create",
+                  "plant_snapshots",
+                  toolResult.snapshot.id,
+                  functionName,
+                  { plant: toolResult.plantName, context: args.context },
+                );
+              }
+            } else if (functionName === "compare_plant_snapshots") {
+              toolResult = await comparePlantSnapshots(
+                supabase,
+                profile?.id,
+                args.plant_identifier,
+                args.comparison_type || "latest",
+                LOVABLE_API_KEY,
+              );
+              if (toolResult.success) {
+                await logAgentOperation(
+                  supabase,
+                  profile?.id,
+                  correlationId,
+                  "read",
+                  "plant_snapshots",
+                  null,
+                  functionName,
+                  { plant: toolResult.plantName, snapshotCount: toolResult.snapshotCount },
+                );
+              }
+            } else if (functionName === "recall_media") {
+              const source = args.source;
+              const limit = Math.min(args.limit || 3, 5);
+
+              if (source === "plant_snapshots") {
+                if (!args.plant_identifier) {
+                  toolResult = { success: false, error: "Need a plant name to look up snapshots" };
+                } else {
+                  const resolution = await resolvePlants(supabase, profileId, args.plant_identifier);
+                  if (resolution.plants.length === 0) {
+                    toolResult = { success: false, error: `No plant found matching "${args.plant_identifier}"` };
+                  } else {
+                    const plant = resolution.plants[0];
+                    const { data: snapshots } = await supabase
+                      .from("plant_snapshots")
+                      .select("image_path, description, created_at, context")
+                      .eq("plant_id", plant.id)
+                      .eq("profile_id", profileId)
+                      .order("created_at", { ascending: false })
+                      .limit(limit);
+
+                    const images: { url: string; caption: string }[] = [];
+                    for (const snap of (snapshots || [])) {
+                      if (snap.image_path) {
+                        const { data: signed } = await supabase.storage
+                          .from("plant-photos")
+                          .createSignedUrl(snap.image_path, 3600);
+                        if (signed?.signedUrl) {
+                          const date = new Date(snap.created_at).toLocaleDateString();
+                          const caption = `${date}: ${snap.description || snap.context}`;
+                          images.push({ url: signed.signedUrl, caption });
+                          mediaToSend.push({ url: signed.signedUrl, caption });
+                        }
+                      }
+                    }
+                    toolResult = {
+                      success: true,
+                      retrieved: images.length,
+                      plantName: plant.nickname || plant.species || plant.name,
+                    };
+                    await logAgentOperation(
+                      supabase,
+                      profile?.id,
+                      correlationId,
+                      "read",
+                      "plant_snapshots",
+                      null,
+                      functionName,
+                      { plant: toolResult.plantName, retrieved: images.length },
+                    );
+                  }
+                }
+              } else if (source === "generated_guides") {
+                const { data: guides } = await supabase
+                  .from("generated_content")
+                  .select("content, task_description, created_at")
+                  .eq("profile_id", profileId)
+                  .eq("content_type", "image_guide")
+                  .order("created_at", { ascending: false })
+                  .limit(1);
+
+                const images: { url: string; caption: string }[] = [];
+                for (const guide of (guides || [])) {
+                  const steps = (guide.content as any)?.steps || [];
+                  for (const step of steps.slice(0, limit)) {
+                    const path = step.storagePath;
+                    if (path) {
+                      const { data: signed } = await supabase.storage
+                        .from("generated-guides")
+                        .createSignedUrl(path, 3600);
+                      if (signed?.signedUrl) {
+                        const caption = step.description || `Step ${step.step}`;
+                        images.push({ url: signed.signedUrl, caption });
+                        mediaToSend.push({ url: signed.signedUrl, caption });
+                      }
+                    }
+                  }
+                }
+                toolResult = {
+                  success: true,
+                  retrieved: images.length,
+                  task: guides?.[0]?.task_description || "unknown",
+                };
+                await logAgentOperation(
+                  supabase,
+                  profile?.id,
+                  correlationId,
+                  "read",
+                  "generated_content",
+                  null,
+                  functionName,
+                  { retrieved: images.length },
+                );
+              } else {
+                toolResult = { success: false, error: "Invalid source. Use 'plant_snapshots' or 'generated_guides'" };
+              }
+            }
+            // Maps and Store verification tools
+            else if (functionName === "find_stores") {
+              const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY") || "";
+              const profileLatLng = (profile?.latitude && profile?.longitude)
+                ? { lat: Number(profile.latitude), lng: Number(profile.longitude) }
+                : undefined;
+              toolResult = await callMapsShoppingAgent(
+                args.product_query,
+                args.store_type || "any",
+                profile?.location || null,
+                GEMINI_API_KEY,
                 PERPLEXITY_API_KEY,
+                profileLatLng,
               );
               await logAgentOperation(
                 supabase,
@@ -3496,392 +3419,481 @@ ${proactiveContext.events.map((e: any) => `- ${e.message_hint}`).join("\n")}
                 "external_search",
                 null,
                 functionName,
-                { store: args.store_name, product: args.product },
+                { query: args.product_query },
               );
-            }
-          } else if (functionName === "get_cached_stores") {
-            // Retrieve cached store search results from generated_content
-            const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-            const { data: cachedResults } = await supabase
-              .from("generated_content")
-              .select("content, created_at, task_description")
-              .eq("profile_id", profile?.id)
-              .eq("content_type", "store_search")
-              .gte("created_at", twentyFourHoursAgo)
-              .order("created_at", { ascending: false })
-              .limit(5);
 
-            if (cachedResults && cachedResults.length > 0) {
-              // Find the best match by checking if searchedFor overlaps with the query
-              const queryLower = (args.product_query || "").toLowerCase();
-              const bestMatch = cachedResults.find((r: any) =>
-                (r.content?.searchedFor || "").toLowerCase().includes(queryLower) ||
-                queryLower.includes((r.content?.searchedFor || "").toLowerCase())
-              ) || cachedResults[0];
+              // NON-BLOCKING: Backfill lat/lng if profile is missing coordinates
+              if (!profile?.latitude && profile?.location && profile?.id) {
+                geocodeLocation(profile.location).then(coords => {
+                  if (coords) {
+                    supabase.from("profiles").update({
+                      latitude: coords.lat,
+                      longitude: coords.lng
+                    }).eq("id", profile.id).then(() => {
+                      console.log(`[${correlationId}] Backfilled coordinates for profile ${profile.id}`);
+                    });
+                  }
+                }).catch(() => { });
+              }
 
-              const stores = bestMatch.content?.stores || [];
-              console.log(`[${correlationId}] get_cached_stores: found ${stores.length} cached stores for "${args.product_query}"`);
-              toolResult = {
-                success: true,
-                data: {
-                  stores,
-                  searchedFor: bestMatch.content?.searchedFor,
-                  location: bestMatch.content?.location,
-                  cachedAt: bestMatch.created_at,
-                  totalStoresAvailable: stores.length,
-                },
-              };
-            } else {
-              console.log(`[${correlationId}] get_cached_stores: no cached results, suggest calling find_stores`);
-              toolResult = {
-                success: true,
-                data: {
-                  stores: [],
-                  message: "No recent store search results cached. Use find_stores to search for stores.",
-                },
-              };
-            }
-            await logAgentOperation(
-              supabase,
-              profile?.id,
-              correlationId,
-              "read",
-              "generated_content",
-              null,
-              functionName,
-              { query: args.product_query },
-            );
-          } else if (functionName === "update_notification_preferences") {
-            toolResult = await updateNotificationPreferences(supabase, profile?.id, args);
-            if (toolResult.success) {
+              // NON-BLOCKING: Cache store results in generated_content for follow-up queries
+              if (toolResult.success && toolResult.data?.stores?.length > 0 && profile?.id) {
+                supabase.from("generated_content").insert({
+                  profile_id: profile.id,
+                  content_type: "store_search",
+                  content: {
+                    stores: toolResult.data.stores,
+                    searchedFor: toolResult.data.searchedFor,
+                    location: toolResult.data.location,
+                    timestamp: new Date().toISOString()
+                  },
+                  task_description: `Store search: ${args.product_query} near ${profile.location}`
+                }).then(() => {
+                  console.log(`[${correlationId}] Cached ${toolResult.data.stores.length} store results`);
+                }).catch(() => { });
+              }
+
+              // AGENTIC RETRY: If no stores found, automatically trigger research fallback
+              if (toolResult.success && toolResult.data?.stores?.length === 0 && PERPLEXITY_API_KEY) {
+                console.log(
+                  `[${correlationId}] [AgenticRetry] find_stores returned 0 results, triggering online research fallback`,
+                );
+
+                const productName = args.product_query || "plant supplies";
+                const researchQuery = `Where to buy ${productName} online? Best online retailers, pricing, availability, and alternatives for ${productName}. Include Amazon, specialty plant stores, and manufacturer websites.`;
+
+                const researchResult = await callResearchAgent(researchQuery, PERPLEXITY_API_KEY);
+
+                if (researchResult.success && researchResult.data) {
+                  console.log(`[${correlationId}] [AgenticRetry] Research fallback successful, sanitizing output...`);
+
+                  // SANITIZE research output for messaging BEFORE storing
+                  const sanitizedAlternatives = await rewriteResearchForMessaging(
+                    researchResult.data,
+                    `Where to buy ${productName}`,
+                    profile?.personality || "warm",
+                    LOVABLE_API_KEY,
+                  );
+
+                  toolResult.data.onlineAlternatives = sanitizedAlternatives;
+                  toolResult.data.callAheadAdvice = `I found some online options for you.`;
+
+                  await logAgentOperation(
+                    supabase,
+                    profile?.id,
+                    correlationId,
+                    "read",
+                    "external_search",
+                    null,
+                    "research_fallback",
+                    { query: researchQuery, triggered_by: "empty_find_stores" },
+                  );
+                }
+              }
+            } else if (functionName === "verify_store_inventory") {
+              if (!PERPLEXITY_API_KEY) {
+                toolResult = { success: false, error: "Store verification not configured" };
+              } else {
+                toolResult = await verifyStoreInventory(
+                  args.store_name,
+                  args.product,
+                  args.location || profile?.location || null,
+                  PERPLEXITY_API_KEY,
+                );
+                await logAgentOperation(
+                  supabase,
+                  profile?.id,
+                  correlationId,
+                  "read",
+                  "external_search",
+                  null,
+                  functionName,
+                  { store: args.store_name, product: args.product },
+                );
+              }
+            } else if (functionName === "get_cached_stores") {
+              // Retrieve cached store search results from generated_content
+              const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+              const { data: cachedResults } = await supabase
+                .from("generated_content")
+                .select("content, created_at, task_description")
+                .eq("profile_id", profile?.id)
+                .eq("content_type", "store_search")
+                .gte("created_at", twentyFourHoursAgo)
+                .order("created_at", { ascending: false })
+                .limit(5);
+
+              if (cachedResults && cachedResults.length > 0) {
+                // Find the best match by checking if searchedFor overlaps with the query
+                const queryLower = (args.product_query || "").toLowerCase();
+                const bestMatch = cachedResults.find((r: any) =>
+                  (r.content?.searchedFor || "").toLowerCase().includes(queryLower) ||
+                  queryLower.includes((r.content?.searchedFor || "").toLowerCase())
+                ) || cachedResults[0];
+
+                const stores = bestMatch.content?.stores || [];
+                console.log(`[${correlationId}] get_cached_stores: found ${stores.length} cached stores for "${args.product_query}"`);
+                toolResult = {
+                  success: true,
+                  data: {
+                    stores,
+                    searchedFor: bestMatch.content?.searchedFor,
+                    location: bestMatch.content?.location,
+                    cachedAt: bestMatch.created_at,
+                    totalStoresAvailable: stores.length,
+                  },
+                };
+              } else {
+                console.log(`[${correlationId}] get_cached_stores: no cached results, suggest calling find_stores`);
+                toolResult = {
+                  success: true,
+                  data: {
+                    stores: [],
+                    message: "No recent store search results cached. Use find_stores to search for stores.",
+                  },
+                };
+              }
               await logAgentOperation(
                 supabase,
                 profile?.id,
                 correlationId,
-                "update",
-                "proactive_preferences",
+                "read",
+                "generated_content",
                 null,
                 functionName,
-                { topic: args.topic, action: args.action },
+                { query: args.product_query },
               );
-            }
-          }
-          // Profile update tool
-          else if (functionName === "update_profile") {
-            toolResult = await updateProfile(supabase, profile?.id, args);
-            if (toolResult.success && profile) {
-              // Update in-memory profile so subsequent tools (e.g. find_stores) see the new value immediately
-              if (args.field === "pets" || args.field === "primary_concerns") {
-                (profile as any)[args.field] = args.value.split(",").map((v: string) => v.trim().toLowerCase());
-              } else {
-                (profile as any)[args.field] = toolResult.updated?.value ?? args.value;
-              }
-              await logAgentOperation(
-                supabase,
-                profile?.id,
-                correlationId,
-                "update",
-                "profiles",
-                profile?.id,
-                functionName,
-                { field: args.field },
-              );
-            }
-          }
-          else if (functionName === "deep_think") {
-            const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY") || "";
-            if (!LOVABLE_API_KEY) {
-              toolResult = { success: false, error: "Deep think not configured" };
-            } else {
-              try {
-                const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-                  method: "POST",
-                  headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
-                  body: JSON.stringify({
-                    model: "google/gemini-3-flash-preview",
-                    messages: [
-                      { role: "system", content: "You are an expert botanist and plant pathologist. Provide detailed, actionable advice. Be specific about symptoms, causes, and treatments." },
-                      { role: "user", content: args.context ? `${args.question}\n\nContext: ${args.context}` : args.question },
-                    ],
-                    temperature: 1.0,
-                  }),
-                });
-                const data = await response.json();
-                toolResult = { success: true, answer: data.choices?.[0]?.message?.content || "" };
-              } catch (err) {
-                toolResult = { success: false, error: String(err) };
+            } else if (functionName === "update_notification_preferences") {
+              toolResult = await updateNotificationPreferences(supabase, profile?.id, args);
+              if (toolResult.success) {
+                await logAgentOperation(
+                  supabase,
+                  profile?.id,
+                  correlationId,
+                  "update",
+                  "proactive_preferences",
+                  null,
+                  functionName,
+                  { topic: args.topic, action: args.action },
+                );
               }
             }
-          }
-          else if (functionName === "generate_image") {
-            const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY") || "";
-            if (!LOVABLE_API_KEY) {
-              toolResult = { success: false, error: "Image generation not configured" };
-            } else {
-              try {
-                const response = await fetch("https://ai.gateway.lovable.dev/v1/images/generations", {
-                  method: "POST",
-                  headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
-                  body: JSON.stringify({ model: "dall-e-3", prompt: args.prompt, n: 1, size: "1024x1024" }),
-                });
-                const data = await response.json();
-                const imageUrl = data.data?.[0]?.url || data.data?.[0]?.b64_json;
-                toolResult = imageUrl ? { success: true, imageUrl } : { success: false, error: "No image generated" };
-                // Push generated image to mediaToSend so it reaches the client
-                if (imageUrl) {
-                  mediaToSend.push({ url: imageUrl, caption: args.prompt || "" });
-                }
-              } catch (err) {
-                toolResult = { success: false, error: String(err) };
-              }
-            }
-          }
-          else {
-            toolResult = { success: false, error: `Unknown tool: ${functionName}` };
-          }
-
-          toolResults.push({
-            id: toolCall.id,
-            name: functionName,
-            result: toolResult,
-          });
-        }
-
-        // Synthesize fallback reply from tool results
-        const synthesizeReplyFromToolResults = (): string => {
-          let reply = "";
-          for (const tr of toolResults) {
-            if (!tr.result?.success) {
-              // Handle special cases for failed tools
-              if (tr.name === "find_stores" && tr.result?.promptForLocation) {
-                reply =
-                  "🗺️ I'd love to find stores near you! Could you share your city or ZIP code so I can recommend the best local nurseries and garden centers?";
-              }
-              continue;
-            }
-            if (tr.name === "identify_plant" && tr.result.data) {
-              reply = `🌿 I identified this as ${tr.result.data.species}! ${tr.result.data.careSummary}`;
-            } else if (tr.name === "diagnose_plant" && tr.result.data) {
-              reply = `🔍 Diagnosis: ${tr.result.data.diagnosis} (${tr.result.data.severity})\n\nTreatment: ${tr.result.data.treatment}`;
-            } else if (tr.name === "find_stores" && tr.result.data) {
-              // Handle both empty and populated store results
-              if (tr.result.data.stores?.length > 0) {
-                const stores = tr.result.data.stores;
-                reply = `🏪 Stores for ${tr.result.data.searchedFor} near ${tr.result.data.location}:\n\n`;
-                stores.slice(0, 5).forEach((s: any, i: number) => {
-                  reply += `${i + 1}. ${s.fullName || s.name} (${s.type})`;
-                  if (s.distance) reply += ` - ${s.distance}`;
-                  if (s.driveTime) reply += `, ${s.driveTime}`;
-                  reply += `\n`;
-                  if (s.address && s.addressVerified) {
-                    reply += `📍 ${s.address}\n`;
-                  } else if (s.neighborhood) {
-                    reply += `📍 ${s.neighborhood}\n`;
-                  }
-                  if (s.phone) reply += `📞 ${s.phone}\n`;
-                  if (s.reasoning) reply += `${s.reasoning}\n`;
-                  if (s.productNotes) reply += `💡 ${s.productNotes}\n`;
-                  reply += `\n`;
-                });
-              } else {
-                // Empty stores - provide helpful fallback (sanitized for messaging)
-                const product = tr.result.data.searchedFor || "that item";
-                const location = tr.result.data.location || "your area";
-                reply = `🔍 I searched for ${product} near ${location} but couldn't find specific local stores carrying it.\n\n`;
-
-                // Check if we have online alternatives from research fallback (already sanitized)
-                if (tr.result.data.onlineAlternatives) {
-                  reply += `Here's what I found online:\n\n${tr.result.data.onlineAlternatives}`;
+            // Profile update tool
+            else if (functionName === "update_profile") {
+              toolResult = await updateProfile(supabase, profile?.id, args);
+              if (toolResult.success && profile) {
+                // Update in-memory profile so subsequent tools (e.g. find_stores) see the new value immediately
+                if (args.field === "pets" || args.field === "primary_concerns") {
+                  (profile as any)[args.field] = args.value.split(",").map((v: string) => v.trim().toLowerCase());
                 } else {
-                  reply += `Here's what I'd suggest:\n\n`;
-                  reply += `Check Amazon or the manufacturer's website. You could also call local nurseries or hydroponics stores to ask - they sometimes carry specialty items that don't show up in searches.\n\n`;
-                  reply += `Want me to search for online options? 🌐`;
+                  (profile as any)[args.field] = toolResult.updated?.value ?? args.value;
                 }
-              }
-            } else if (tr.name === "verify_store_inventory" && tr.result.data) {
-              const v = tr.result.data;
-              reply += `\n✅ ${v.storeName}: ${v.availability === "likely_in_stock" ? "Likely in stock" : v.availability === "call_ahead" ? "Call ahead to confirm" : "May not have it"}`;
-              if (v.department) reply += ` (${v.department})`;
-              if (v.brands?.length) reply += `\nBrands: ${v.brands.join(", ")}`;
-              if (v.notes) reply += `\n${v.notes}`;
-            } else if (tr.name === "save_plant" && tr.result.plant) {
-              reply = `✅ Saved ${tr.result.plant.nickname || tr.result.plant.species} to your collection!`;
-            } else if (tr.name === "modify_plant") {
-              if (tr.result.success) {
-                if (tr.result.plantsCount) {
-                  // Bulk update
-                  const filterDesc = tr.result.filter?.value ? ` in the ${tr.result.filter.value}` : "";
-                  reply = `✅ Updated ${tr.result.plantsCount} plants${filterDesc}!`;
-                } else if (tr.result.plant) {
-                  // Single update
-                  reply = `✅ Updated ${tr.result.plant.nickname || tr.result.plant.species}!`;
-                }
-              } else {
-                reply = `⚠️ Couldn't update: ${tr.result.error}`;
-              }
-            } else if (tr.name === "delete_plant") {
-              if (tr.result.requiresConfirmation) {
-                // Needs user confirmation
-                const filterDesc =
-                  tr.result.filter?.type === "location"
-                    ? ` in the ${tr.result.filter.value}`
-                    : tr.result.filter?.type === "species"
-                      ? ` (${tr.result.filter.value})`
-                      : "";
-                reply = `⚠️ This will delete ${tr.result.plantsToDelete} plants${filterDesc}: ${tr.result.plantNames}.\n\nAre you sure you want to delete them all?`;
-              } else if (tr.result.success) {
-                if (tr.result.deletedCount) {
-                  // Bulk delete completed
-                  const filterDesc = tr.result.filter?.value ? ` from the ${tr.result.filter.value}` : "";
-                  reply = `🗑️ Deleted ${tr.result.deletedCount} plants${filterDesc}.`;
-                } else if (tr.result.deletedName) {
-                  // Single delete
-                  reply = `🗑️ Removed ${tr.result.deletedName} from your collection.`;
-                }
-              } else {
-                reply = `⚠️ Couldn't delete: ${tr.result.error}`;
-              }
-            } else if (tr.name === "create_reminder") {
-              if (tr.result.success) {
-                if (tr.result.plantsCount) {
-                  // Bulk reminder created
-                  const filterDesc = tr.result.filter?.value ? ` in the ${tr.result.filter.value}` : "";
-                  reply = `⏰ Done! I've set a ${tr.result.reminders[0].reminder.reminder_type} reminder for ${tr.result.plantsCount} plants${filterDesc} - I'll check in every ${tr.result.reminders[0].reminder.frequency_days} days.`;
-                } else if (tr.result.reminder) {
-                  // Single reminder
-                  reply = `⏰ I'll remind you to ${tr.result.reminder.reminder_type} your ${tr.result.plantName} every ${tr.result.reminder.frequency_days} days!`;
-                }
-              } else {
-                // Handle error explicitly - don't let LLM hallucinate success
-                reply = `⚠️ Couldn't create that reminder: ${tr.result.error}`;
-              }
-            } else if (tr.name === "log_care_event") {
-              if (tr.result.success) {
-                if (tr.result.eventsCount) {
-                  // Bulk care event
-                  const filterDesc = tr.result.filter?.value ? ` in the ${tr.result.filter.value}` : "";
-                  const eventEmoji =
-                    tr.result.events?.[0]?.event?.event_type === "water"
-                      ? "💧"
-                      : tr.result.events?.[0]?.event?.event_type === "fertilize"
-                        ? "🌱"
-                        : tr.result.events?.[0]?.event?.event_type === "prune"
-                          ? "✂️"
-                          : "✅";
-                  reply = `${eventEmoji} Logged ${tr.result.events?.[0]?.event?.event_type || "care"} for ${tr.result.eventsCount} plants${filterDesc}!`;
-                } else if (tr.result.event) {
-                  // Single care event
-                  const eventEmoji =
-                    tr.result.event.event_type === "water"
-                      ? "💧"
-                      : tr.result.event.event_type === "fertilize"
-                        ? "🌱"
-                        : tr.result.event.event_type === "prune"
-                          ? "✂️"
-                          : "✅";
-                  reply = `${eventEmoji} Logged ${tr.result.event.event_type} for ${tr.result.plantName}!`;
-                }
-              } else {
-                reply = `⚠️ Couldn't log that care event: ${tr.result.error}`;
-              }
-            } else if (tr.name === "generate_visual_guide" && tr.result.images?.length) {
-              reply = `📚 I've created a ${tr.result.images.length}-step visual guide for you! Check out the images below.`;
-            } else if (tr.name === "analyze_video" && tr.result.data) {
-              const va = tr.result.data;
-              reply = `📹 Video Analysis:\n${va.summary}`;
-              if (va.diagnosis) reply += `\n\nIssue found: ${va.diagnosis}`;
-              if (va.recommendations?.length)
-                reply += `\n\nRecommendations:\n${va.recommendations.map((r: string) => `- ${r}`).join("\n")}`;
-            } else if (tr.name === "research" && tr.result.data) {
-              // ALWAYS sanitize research output for messaging
-              reply = sanitizeForMessaging(tr.result.data);
-            } else if (tr.name === "save_user_insight" && tr.result.success) {
-              // Don't add anything to reply for insight saves - they're silent
-            } else if (tr.name === "update_notification_preferences" && tr.result.success) {
-              const topics = tr.result.updated?.join(", ") || "preferences";
-              reply = `✅ Updated your ${topics} notification settings!`;
-            } else if (tr.name === "update_profile" && tr.result.success) {
-              const field = tr.result.updated?.field || "profile";
-              const value = tr.result.updated?.value || "";
-              if (field === "display_name") {
-                reply = `✅ Got it! I'll call you ${value} from now on. 🌿`;
-              } else if (field === "location") {
-                reply = `✅ Updated your location to ${value}. This helps me give you better seasonal advice!`;
-              } else if (field === "experience_level") {
-                reply = `✅ Noted - you're at the ${value} level. I'll adjust my advice accordingly!`;
-              } else {
-                reply = `✅ Updated your ${field}!`;
+                await logAgentOperation(
+                  supabase,
+                  profile?.id,
+                  correlationId,
+                  "update",
+                  "profiles",
+                  profile?.id,
+                  functionName,
+                  { field: args.field },
+                );
               }
             }
+            else if (functionName === "deep_think") {
+              const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY") || "";
+              if (!LOVABLE_API_KEY) {
+                toolResult = { success: false, error: "Deep think not configured" };
+              } else {
+                try {
+                  const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+                    method: "POST",
+                    headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      model: "google/gemini-3-flash-preview",
+                      messages: [
+                        { role: "system", content: "You are an expert botanist and plant pathologist. Provide detailed, actionable advice. Be specific about symptoms, causes, and treatments." },
+                        { role: "user", content: args.context ? `${args.question}\n\nContext: ${args.context}` : args.question },
+                      ],
+                      temperature: 1.0,
+                    }),
+                  });
+                  const data = await response.json();
+                  toolResult = { success: true, answer: data.choices?.[0]?.message?.content || "" };
+                } catch (err) {
+                  toolResult = { success: false, error: String(err) };
+                }
+              }
+            }
+            else if (functionName === "generate_image") {
+              const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY") || "";
+              if (!LOVABLE_API_KEY) {
+                toolResult = { success: false, error: "Image generation not configured" };
+              } else {
+                try {
+                  const response = await fetch("https://ai.gateway.lovable.dev/v1/images/generations", {
+                    method: "POST",
+                    headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
+                    body: JSON.stringify({ model: "dall-e-3", prompt: args.prompt, n: 1, size: "1024x1024" }),
+                  });
+                  const data = await response.json();
+                  const imageUrl = data.data?.[0]?.url || data.data?.[0]?.b64_json;
+                  toolResult = imageUrl ? { success: true, imageUrl } : { success: false, error: "No image generated" };
+                  // Push generated image to mediaToSend so it reaches the client
+                  if (imageUrl) {
+                    mediaToSend.push({ url: imageUrl, caption: args.prompt || "" });
+                  }
+                } catch (err) {
+                  toolResult = { success: false, error: String(err) };
+                }
+              }
+            }
+            else {
+              toolResult = { success: false, error: `Unknown tool: ${functionName}` };
+            }
+
+            toolResults.push({
+              id: toolCall.id,
+              name: functionName,
+              result: toolResult,
+            });
           }
-          return reply;
-        };
 
-        // Append assistant message (with tool calls) and tool results to conversation
-        const toolMessages = toolResults.map((tr) => ({
-          role: "tool" as const,
-          tool_call_id: tr.id,
-          content: JSON.stringify(tr.result),
-        }));
+          // Synthesize fallback reply from tool results
+          const synthesizeReplyFromToolResults = (): string => {
+            let reply = "";
+            for (const tr of toolResults) {
+              if (!tr.result?.success) {
+                // Handle special cases for failed tools
+                if (tr.name === "find_stores" && tr.result?.promptForLocation) {
+                  reply =
+                    "🗺️ I'd love to find stores near you! Could you share your city or ZIP code so I can recommend the best local nurseries and garden centers?";
+                }
+                continue;
+              }
+              if (tr.name === "identify_plant" && tr.result.data) {
+                reply = `🌿 I identified this as ${tr.result.data.species}! ${tr.result.data.careSummary}`;
+              } else if (tr.name === "diagnose_plant" && tr.result.data) {
+                reply = `🔍 Diagnosis: ${tr.result.data.diagnosis} (${tr.result.data.severity})\n\nTreatment: ${tr.result.data.treatment}`;
+              } else if (tr.name === "find_stores" && tr.result.data) {
+                // Handle both empty and populated store results
+                if (tr.result.data.stores?.length > 0) {
+                  const stores = tr.result.data.stores;
+                  reply = `🏪 Stores for ${tr.result.data.searchedFor} near ${tr.result.data.location}:\n\n`;
+                  stores.slice(0, 5).forEach((s: any, i: number) => {
+                    reply += `${i + 1}. ${s.fullName || s.name} (${s.type})`;
+                    if (s.distance) reply += ` - ${s.distance}`;
+                    if (s.driveTime) reply += `, ${s.driveTime}`;
+                    reply += `\n`;
+                    if (s.address && s.addressVerified) {
+                      reply += `📍 ${s.address}\n`;
+                    } else if (s.neighborhood) {
+                      reply += `📍 ${s.neighborhood}\n`;
+                    }
+                    if (s.phone) reply += `📞 ${s.phone}\n`;
+                    if (s.reasoning) reply += `${s.reasoning}\n`;
+                    if (s.productNotes) reply += `💡 ${s.productNotes}\n`;
+                    reply += `\n`;
+                  });
+                } else {
+                  // Empty stores - provide helpful fallback (sanitized for messaging)
+                  const product = tr.result.data.searchedFor || "that item";
+                  const location = tr.result.data.location || "your area";
+                  reply = `🔍 I searched for ${product} near ${location} but couldn't find specific local stores carrying it.\n\n`;
 
-        aiMessages.push(
-          {
-            role: "assistant",
-            content: aiReply || null,
-            tool_calls: toolCalls,
-            ...(currentThoughtSignature && { thoughtSignature: currentThoughtSignature }),
-          } as any,
-          ...toolMessages,
-        );
+                  // Check if we have online alternatives from research fallback (already sanitized)
+                  if (tr.result.data.onlineAlternatives) {
+                    reply += `Here's what I found online:\n\n${tr.result.data.onlineAlternatives}`;
+                  } else {
+                    reply += `Here's what I'd suggest:\n\n`;
+                    reply += `Check Amazon or the manufacturer's website. You could also call local nurseries or hydroponics stores to ask - they sometimes carry specialty items that don't show up in searches.\n\n`;
+                    reply += `Want me to search for online options? 🌐`;
+                  }
+                }
+              } else if (tr.name === "verify_store_inventory" && tr.result.data) {
+                const v = tr.result.data;
+                reply += `\n✅ ${v.storeName}: ${v.availability === "likely_in_stock" ? "Likely in stock" : v.availability === "call_ahead" ? "Call ahead to confirm" : "May not have it"}`;
+                if (v.department) reply += ` (${v.department})`;
+                if (v.brands?.length) reply += `\nBrands: ${v.brands.join(", ")}`;
+                if (v.notes) reply += `\n${v.notes}`;
+              } else if (tr.name === "save_plant" && tr.result.plant) {
+                reply = `✅ Saved ${tr.result.plant.nickname || tr.result.plant.species} to your collection!`;
+              } else if (tr.name === "modify_plant") {
+                if (tr.result.success) {
+                  if (tr.result.plantsCount) {
+                    // Bulk update
+                    const filterDesc = tr.result.filter?.value ? ` in the ${tr.result.filter.value}` : "";
+                    reply = `✅ Updated ${tr.result.plantsCount} plants${filterDesc}!`;
+                  } else if (tr.result.plant) {
+                    // Single update
+                    reply = `✅ Updated ${tr.result.plant.nickname || tr.result.plant.species}!`;
+                  }
+                } else {
+                  reply = `⚠️ Couldn't update: ${tr.result.error}`;
+                }
+              } else if (tr.name === "delete_plant") {
+                if (tr.result.requiresConfirmation) {
+                  // Needs user confirmation
+                  const filterDesc =
+                    tr.result.filter?.type === "location"
+                      ? ` in the ${tr.result.filter.value}`
+                      : tr.result.filter?.type === "species"
+                        ? ` (${tr.result.filter.value})`
+                        : "";
+                  reply = `⚠️ This will delete ${tr.result.plantsToDelete} plants${filterDesc}: ${tr.result.plantNames}.\n\nAre you sure you want to delete them all?`;
+                } else if (tr.result.success) {
+                  if (tr.result.deletedCount) {
+                    // Bulk delete completed
+                    const filterDesc = tr.result.filter?.value ? ` from the ${tr.result.filter.value}` : "";
+                    reply = `🗑️ Deleted ${tr.result.deletedCount} plants${filterDesc}.`;
+                  } else if (tr.result.deletedName) {
+                    // Single delete
+                    reply = `🗑️ Removed ${tr.result.deletedName} from your collection.`;
+                  }
+                } else {
+                  reply = `⚠️ Couldn't delete: ${tr.result.error}`;
+                }
+              } else if (tr.name === "create_reminder") {
+                if (tr.result.success) {
+                  if (tr.result.plantsCount) {
+                    // Bulk reminder created
+                    const filterDesc = tr.result.filter?.value ? ` in the ${tr.result.filter.value}` : "";
+                    reply = `⏰ Done! I've set a ${tr.result.reminders[0].reminder.reminder_type} reminder for ${tr.result.plantsCount} plants${filterDesc} - I'll check in every ${tr.result.reminders[0].reminder.frequency_days} days.`;
+                  } else if (tr.result.reminder) {
+                    // Single reminder
+                    reply = `⏰ I'll remind you to ${tr.result.reminder.reminder_type} your ${tr.result.plantName} every ${tr.result.reminder.frequency_days} days!`;
+                  }
+                } else {
+                  // Handle error explicitly - don't let LLM hallucinate success
+                  reply = `⚠️ Couldn't create that reminder: ${tr.result.error}`;
+                }
+              } else if (tr.name === "log_care_event") {
+                if (tr.result.success) {
+                  if (tr.result.eventsCount) {
+                    // Bulk care event
+                    const filterDesc = tr.result.filter?.value ? ` in the ${tr.result.filter.value}` : "";
+                    const eventEmoji =
+                      tr.result.events?.[0]?.event?.event_type === "water"
+                        ? "💧"
+                        : tr.result.events?.[0]?.event?.event_type === "fertilize"
+                          ? "🌱"
+                          : tr.result.events?.[0]?.event?.event_type === "prune"
+                            ? "✂️"
+                            : "✅";
+                    reply = `${eventEmoji} Logged ${tr.result.events?.[0]?.event?.event_type || "care"} for ${tr.result.eventsCount} plants${filterDesc}!`;
+                  } else if (tr.result.event) {
+                    // Single care event
+                    const eventEmoji =
+                      tr.result.event.event_type === "water"
+                        ? "💧"
+                        : tr.result.event.event_type === "fertilize"
+                          ? "🌱"
+                          : tr.result.event.event_type === "prune"
+                            ? "✂️"
+                            : "✅";
+                    reply = `${eventEmoji} Logged ${tr.result.event.event_type} for ${tr.result.plantName}!`;
+                  }
+                } else {
+                  reply = `⚠️ Couldn't log that care event: ${tr.result.error}`;
+                }
+              } else if (tr.name === "generate_visual_guide" && tr.result.images?.length) {
+                reply = `📚 I've created a ${tr.result.images.length}-step visual guide for you! Check out the images below.`;
+              } else if (tr.name === "analyze_video" && tr.result.data) {
+                const va = tr.result.data;
+                reply = `📹 Video Analysis:\n${va.summary}`;
+                if (va.diagnosis) reply += `\n\nIssue found: ${va.diagnosis}`;
+                if (va.recommendations?.length)
+                  reply += `\n\nRecommendations:\n${va.recommendations.map((r: string) => `- ${r}`).join("\n")}`;
+              } else if (tr.name === "research" && tr.result.data) {
+                // ALWAYS sanitize research output for messaging
+                reply = sanitizeForMessaging(tr.result.data);
+              } else if (tr.name === "save_user_insight" && tr.result.success) {
+                // Don't add anything to reply for insight saves - they're silent
+              } else if (tr.name === "update_notification_preferences" && tr.result.success) {
+                const topics = tr.result.updated?.join(", ") || "preferences";
+                reply = `✅ Updated your ${topics} notification settings!`;
+              } else if (tr.name === "update_profile" && tr.result.success) {
+                const field = tr.result.updated?.field || "profile";
+                const value = tr.result.updated?.value || "";
+                if (field === "display_name") {
+                  reply = `✅ Got it! I'll call you ${value} from now on. 🌿`;
+                } else if (field === "location") {
+                  reply = `✅ Updated your location to ${value}. This helps me give you better seasonal advice!`;
+                } else if (field === "experience_level") {
+                  reply = `✅ Noted - you're at the ${value} level. I'll adjust my advice accordingly!`;
+                } else {
+                  reply = `✅ Updated your ${field}!`;
+                }
+              }
+            }
+            return reply;
+          };
 
-        // Call orchestrator again with tool results
-        const isLastIteration = toolIteration >= MAX_TOOL_ITERATIONS;
-        console.log(`Calling orchestrator with tool results (iteration ${toolIteration})...`);
+          // Append assistant message (with tool calls) and tool results to conversation
+          const toolMessages = toolResults.map((tr) => ({
+            role: "tool" as const,
+            tool_call_id: tr.id,
+            content: JSON.stringify(tr.result),
+          }));
 
-        const followUpResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${LOVABLE_API_KEY}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            model: "google/gemini-3-flash-preview",
-            messages: aiMessages,
-            // Allow more tool calls unless we've hit the limit
-            ...(isLastIteration ? {} : { tools: allTools, tool_choice: "auto" }),
-            max_tokens: 500,
-          }),
-        });
+          aiMessages.push(
+            {
+              role: "assistant",
+              content: aiReply || null,
+              tool_calls: toolCalls,
+              ...(currentThoughtSignature && { thoughtSignature: currentThoughtSignature }),
+            } as any,
+            ...toolMessages,
+          );
 
-        if (followUpResponse.ok) {
-          const followUpData = await followUpResponse.json();
-          const followUpMessage = followUpData.choices?.[0]?.message;
-          aiReply = followUpMessage?.content || aiReply;
-          currentToolCalls = followUpMessage?.tool_calls || null;
-          currentThoughtSignature = followUpMessage?.thoughtSignature || followUpMessage?.reasoning_details?.[0]?.data || null;
+          // Call orchestrator again with tool results
+          const isLastIteration = toolIteration >= MAX_TOOL_ITERATIONS;
+          console.log(`Calling orchestrator with tool results (iteration ${toolIteration})...`);
 
-          if (currentToolCalls && currentToolCalls.length > 0) {
-            console.log(`[${correlationId}] Follow-up response has ${currentToolCalls.length} more tool call(s) — will loop`);
+          const followUpResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${LOVABLE_API_KEY}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              model: "google/gemini-3-flash-preview",
+              messages: aiMessages,
+              // Allow more tool calls unless we've hit the limit
+              ...(isLastIteration ? {} : { tools: allTools, tool_choice: "auto" }),
+              max_tokens: 500,
+            }),
+          });
+
+          if (followUpResponse.ok) {
+            const followUpData = await followUpResponse.json();
+            const followUpMessage = followUpData.choices?.[0]?.message;
+            aiReply = followUpMessage?.content || aiReply;
+            currentToolCalls = followUpMessage?.tool_calls || null;
+            currentThoughtSignature = followUpMessage?.thoughtSignature || followUpMessage?.reasoning_details?.[0]?.data || null;
+
+            if (currentToolCalls && currentToolCalls.length > 0) {
+              console.log(`[${correlationId}] Follow-up response has ${currentToolCalls.length} more tool call(s) — will loop`);
+            } else {
+              console.log(`[${correlationId}] Follow-up response is final text (iteration ${toolIteration})`);
+            }
+
+            if ((!aiReply || aiReply.trim() === "") && !currentToolCalls) {
+              console.error("Follow-up response was empty; using tool-result fallback formatter");
+              const fallbackReply = synthesizeReplyFromToolResults();
+              if (fallbackReply) aiReply = fallbackReply;
+            }
           } else {
-            console.log(`[${correlationId}] Follow-up response is final text (iteration ${toolIteration})`);
-          }
-
-          if ((!aiReply || aiReply.trim() === "") && !currentToolCalls) {
-            console.error("Follow-up response was empty; using tool-result fallback formatter");
+            console.error("Follow-up response error:", await followUpResponse.text());
             const fallbackReply = synthesizeReplyFromToolResults();
             if (fallbackReply) aiReply = fallbackReply;
+            break; // Exit loop on error
           }
-        } else {
-          console.error("Follow-up response error:", await followUpResponse.text());
-          const fallbackReply = synthesizeReplyFromToolResults();
-          if (fallbackReply) aiReply = fallbackReply;
-          break; // Exit loop on error
-        }
-      } // end tool loop
+        } // end tool loop
 
-      if (!aiReply) {
-        aiReply = "I'm here to help with your plants! Send me a photo or ask me anything. 🌿";
-      }
+        if (!aiReply) {
+          aiReply = "I'm here to help with your plants! Send me a photo or ask me anything. 🌿";
+        }
       } // Close defensive check else block
     }
 

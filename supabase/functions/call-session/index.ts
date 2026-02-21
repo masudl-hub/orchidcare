@@ -80,35 +80,63 @@ function json(data: unknown, status = 200) {
   });
 }
 
-async function validateAndGetProfile(
+async function validateAuthAndGetProfile(
   supabase: SupabaseClient,
-  initData: string,
+  initData: string | undefined,
+  authHeader: string | null,
   botToken: string,
-): Promise<{ user: TelegramUser; profile: Profile } | null> {
+): Promise<{ profile: Profile; source: "telegram" | "web" } | null> {
   const authStart = Date.now();
-  console.log(`[CallSession] Auth: validating initData (${initData.length} chars)`);
 
-  const user = await validateInitData(initData, botToken);
-  if (!user) {
-    console.error(`[CallSession] Auth: HMAC validation FAILED (${Date.now() - authStart}ms)`);
-    return null;
+  // 1. Try Supabase Auth (Web/PWA)
+  if (authHeader && authHeader.startsWith("Bearer ")) {
+    const token = authHeader.split(" ")[1];
+    if (token && token !== "undefined" && token !== "null") {
+      const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+      if (!authError && user) {
+        console.log(`[CallSession] Auth: Supabase Web valid, user_id=${user.id} (${Date.now() - authStart}ms)`);
+        const { data: profile, error: profileError } = await supabase
+          .from("profiles")
+          .select("*")
+          .eq("id", user.id)
+          .single();
+        if (!profileError && profile) {
+          console.log(`[CallSession] Auth: resolved Web profile_id=${profile.id}`);
+          return { profile, source: "web" };
+        }
+      } else {
+        console.error(`[CallSession] Auth: Supabase Web FAILED:`, authError?.message);
+      }
+    }
   }
-  console.log(`[CallSession] Auth: HMAC valid, telegram user_id=${user.id}, username=${user.username || "none"} (${Date.now() - authStart}ms)`);
 
-  const dbStart = Date.now();
-  const { data: profile, error: profileError } = await supabase
-    .from("profiles")
-    .select("*")
-    .eq("telegram_chat_id", user.id)
-    .single();
+  // 2. Fallback to Telegram initData
+  if (initData) {
+    console.log(`[CallSession] Auth: validating initData (${initData.length} chars)`);
+    const user = await validateInitData(initData, botToken);
+    if (!user) {
+      console.error(`[CallSession] Auth: HMAC validation FAILED (${Date.now() - authStart}ms)`);
+      return null;
+    }
+    console.log(`[CallSession] Auth: HMAC valid, telegram user_id=${user.id}, username=${user.username || "none"} (${Date.now() - authStart}ms)`);
 
-  if (profileError || !profile) {
-    console.error(`[CallSession] Auth: profile lookup FAILED for telegram_chat_id=${user.id} (${Date.now() - dbStart}ms):`, profileError?.message || "no rows");
-    return null;
+    const dbStart = Date.now();
+    const { data: profile, error: profileError } = await supabase
+      .from("profiles")
+      .select("*")
+      .eq("telegram_chat_id", user.id)
+      .single();
+
+    if (profileError || !profile) {
+      console.error(`[CallSession] Auth: profile lookup FAILED for telegram_chat_id=${user.id} (${Date.now() - dbStart}ms):`, profileError?.message || "no rows");
+      return null;
+    }
+
+    console.log(`[CallSession] Auth: resolved Telegram profile_id=${profile.id} (${Date.now() - dbStart}ms)`);
+    return { profile, source: "telegram" };
   }
 
-  console.log(`[CallSession] Auth: resolved profile_id=${profile.id}, display_name="${profile.display_name || "none"}", location="${profile.location || "none"}" (${Date.now() - dbStart}ms)`);
-  return { user, profile };
+  return null;
 }
 
 import { voiceToolDeclarations } from "../_shared/voiceTools.ts";
@@ -121,21 +149,22 @@ import { executeTool } from "../_shared/toolExecutor.ts";
 async function handleCreate(
   supabase: SupabaseClient,
   body: CreateBody,
+  authHeader: string | null,
   botToken: string,
 ) {
   const routeStart = Date.now();
   console.log(`[CallSession] /create: body keys=${Object.keys(body).join(",")}, initData present=${!!body.initData}`);
 
   const { initData } = body;
-  if (!initData) {
-    console.error("[CallSession] /create: REJECTED — missing initData");
-    return json({ error: "Missing initData" }, 400);
+  if (!initData && !authHeader) {
+    console.error("[CallSession] /create: REJECTED — missing initData and authHeader");
+    return json({ error: "Missing initData or Authorization header" }, 400);
   }
 
-  const result = await validateAndGetProfile(supabase, initData, botToken);
+  const result = await validateAuthAndGetProfile(supabase, initData, authHeader, botToken);
   if (!result) {
     console.error(`[CallSession] /create: REJECTED — auth failed (${Date.now() - routeStart}ms)`);
-    return json({ error: "Invalid initData or profile not found" }, 401);
+    return json({ error: "Invalid initData, token, or profile not found" }, 401);
   }
 
   const { profile } = result;
@@ -165,6 +194,7 @@ async function handleCreate(
 async function handleToken(
   supabase: SupabaseClient,
   body: TokenBody,
+  authHeader: string | null,
   botToken: string,
   geminiApiKey: string,
 ) {
@@ -172,16 +202,16 @@ async function handleToken(
   console.log(`[CallSession] /token: sessionId=${body.sessionId}, initData present=${!!body.initData}`);
 
   const { sessionId, initData } = body;
-  if (!sessionId || !initData) {
-    console.error("[CallSession] /token: REJECTED — missing sessionId or initData");
-    return json({ error: "Missing sessionId or initData" }, 400);
+  if (!sessionId || (!initData && !authHeader)) {
+    console.error("[CallSession] /token: REJECTED — missing sessionId, initData, or authHeader");
+    return json({ error: "Missing sessionId, initData, or authHeader" }, 400);
   }
 
   // Validate initData and resolve profile
-  const result = await validateAndGetProfile(supabase, initData, botToken);
+  const result = await validateAuthAndGetProfile(supabase, initData, authHeader, botToken);
   if (!result) {
     console.error(`[CallSession] /token: REJECTED — auth failed (${Date.now() - routeStart}ms)`);
-    return json({ error: "Invalid initData or profile not found" }, 401);
+    return json({ error: "Invalid initData, token, or profile not found" }, 401);
   }
 
   const { profile } = result;
@@ -311,6 +341,7 @@ async function handleToken(
 async function handleTools(
   supabase: SupabaseClient,
   body: ToolsBody,
+  authHeader: string | null,
   botToken: string,
   perplexityApiKey?: string,
   lovableApiKey?: string,
@@ -319,16 +350,16 @@ async function handleTools(
   console.log(`[CallSession] /tools: toolName=${body.toolName}, sessionId=${body.sessionId}, callId=${body.toolCallId}, args=${JSON.stringify(body.toolArgs || {}).substring(0, 300)}`);
 
   const { sessionId, initData, toolName, toolArgs, toolCallId } = body;
-  if (!sessionId || !initData || !toolName) {
-    console.error(`[CallSession] /tools: REJECTED — missing fields: sessionId=${!!sessionId}, initData=${!!initData}, toolName=${!!toolName}`);
-    return json({ error: "Missing sessionId, initData, or toolName" }, 400);
+  if (!sessionId || (!initData && !authHeader) || !toolName) {
+    console.error(`[CallSession] /tools: REJECTED — missing fields`);
+    return json({ error: "Missing sessionId, auth, or toolName" }, 400);
   }
 
   // Validate initData and resolve profile
-  const result = await validateAndGetProfile(supabase, initData, botToken);
+  const result = await validateAuthAndGetProfile(supabase, initData, authHeader, botToken);
   if (!result) {
     console.error(`[CallSession] /tools: REJECTED — auth failed (${Date.now() - routeStart}ms)`);
-    return json({ error: "Invalid initData or profile not found" }, 401);
+    return json({ error: "Invalid auth or profile not found" }, 401);
   }
 
   const { profile } = result;
@@ -375,22 +406,23 @@ async function handleTools(
 async function handleEnd(
   supabase: SupabaseClient,
   body: EndBody,
+  authHeader: string | null,
   botToken: string,
 ) {
   const routeStart = Date.now();
   console.log(`[CallSession] /end: sessionId=${body.sessionId}, durationSeconds=${body.durationSeconds}`);
 
   const { sessionId, initData, durationSeconds } = body;
-  if (!sessionId || !initData) {
-    console.error(`[CallSession] /end: REJECTED — missing fields: sessionId=${!!sessionId}, initData=${!!initData}`);
-    return json({ error: "Missing sessionId or initData" }, 400);
+  if (!sessionId || (!initData && !authHeader)) {
+    console.error(`[CallSession] /end: REJECTED — missing fields`);
+    return json({ error: "Missing sessionId or auth token" }, 400);
   }
 
-  // Validate initData and resolve profile
-  const result = await validateAndGetProfile(supabase, initData, botToken);
+  // Validate auth and resolve profile
+  const result = await validateAuthAndGetProfile(supabase, initData, authHeader, botToken);
   if (!result) {
     console.error(`[CallSession] /end: REJECTED — auth failed (${Date.now() - routeStart}ms)`);
-    return json({ error: "Invalid initData or profile not found" }, 401);
+    return json({ error: "Invalid auth or profile not found" }, 401);
   }
 
   const { profile } = result;
@@ -484,16 +516,19 @@ serve(async (req: Request) => {
     const body: unknown = await req.json();
     console.log(`[CallSession] Request body keys: ${Object.keys(body as Record<string, unknown>).join(", ")}`);
 
+    const authHeader = req.headers.get("Authorization");
+
     let response: Response;
 
     switch (path) {
       case "create":
-        response = await handleCreate(supabase, body as CreateBody, TELEGRAM_BOT_TOKEN);
+        response = await handleCreate(supabase, body as CreateBody, authHeader, TELEGRAM_BOT_TOKEN);
         break;
       case "token":
         response = await handleToken(
           supabase,
           body as TokenBody,
+          authHeader,
           TELEGRAM_BOT_TOKEN,
           GEMINI_API_KEY!,
         );
@@ -502,13 +537,14 @@ serve(async (req: Request) => {
         response = await handleTools(
           supabase,
           body as ToolsBody,
+          authHeader,
           TELEGRAM_BOT_TOKEN,
           PERPLEXITY_API_KEY,
           LOVABLE_API_KEY,
         );
         break;
       case "end":
-        response = await handleEnd(supabase, body as EndBody, TELEGRAM_BOT_TOKEN);
+        response = await handleEnd(supabase, body as EndBody, authHeader, TELEGRAM_BOT_TOKEN);
         break;
       default:
         console.warn(`[CallSession] Unknown route: ${path}`);

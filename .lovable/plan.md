@@ -1,151 +1,137 @@
 
 
-# Fix: Handler Scoping + Error Response Architecture in orchid-agent
+# Disable Auto-Interruption + Add Manual Interrupt Button
 
-## Root Cause Analysis
+## What This Does
 
-This is not a simple "move a variable" problem. There are two architectural flaws working together:
+Two changes working together:
 
-### Flaw 1: orchid-agent's catch block is Telegram-only
+1. **Disable automatic barge-in** -- the model will no longer get cut off by background noise, bumps, or accidental sounds. It always finishes its thought.
+2. **Add a manual "interrupt" button** -- appears only while the model is speaking, letting users intentionally cut in when needed.
 
-The top-level `catch` block (line 3988-3995) **always** returns TwiML XML with HTTP 200 -- because it was originally designed for Twilio/Telegram webhooks, where you must return valid XML even on failure.
-
-But now orchid-agent serves **three callers**: Telegram, pwa-agent, and proactive-agent. When an internal JSON caller triggers an error, the catch block still returns XML with a 200 status.
-
-### Flaw 2: Response-level variables declared inside nested blocks
-
-`toolsUsed` is declared at line 2727, deep inside:
-
-```text
-if (orchestratorResponse.ok)          // line 2695
-  else (choices exist)                // line 2707
-    const toolsUsed = []              // line 2727
-```
-
-But it's consumed at line 3972 at the handler's top level. When the orchestrator returns an error (429, 402, etc.) or malformed data, `toolsUsed` is never declared, so line 3972 throws `ReferenceError`.
-
-### The crash chain
-
-```text
-1. User sends message via PWA
-2. pwa-agent forwards to orchid-agent (X-Internal-Agent-Call: true)
-3. orchid-agent processes, hits line 3972: toolsUsed is not defined
-4. ReferenceError thrown, caught by catch block (line 3988)
-5. catch block returns XML with HTTP 200 (Telegram pattern)
-6. pwa-agent sees HTTP 200, skips error check (line 132)
-7. pwa-agent calls .json() on XML body -> SyntaxError: "<?xml vers..."
-8. pwa-agent's own catch returns 500 to frontend
-```
-
-The pwa-agent's `!agentResponse.ok` check at line 132 is correct -- but useless here because orchid-agent returns 200 with XML on crash.
+The tradeoff: users must tap the button to interrupt. For a plant care assistant with tool-heavy flows, this is the right call -- losing a tool chain mid-execution is far worse than waiting a few seconds.
 
 ---
 
-## Fix 1: Mode-aware error handling in orchid-agent's catch block
+## Technical Changes
 
-**File:** `supabase/functions/orchid-agent/index.ts` (lines 3988-3995)
+### 1. Disable Server-Side VAD + Client-Side Audio Gating
 
-The catch block must check whether this is an internal agent call and return the appropriate format:
+**File:** `src/hooks/useGeminiLive.ts`
+
+**a) Replace VAD config (lines 252-259)** with disabled automatic activity detection:
 
 ```typescript
-} catch (error) {
-  console.error("Webhook error:", error);
+realtimeInputConfig: {
+  automaticActivityDetection: {
+    disabled: true,
+  },
+},
+```
 
-  // Determine if this was an internal agent call by checking the request header
-  // (isInternalAgentCall is declared earlier in the try block and may not be in scope here,
-  // so we re-check the original request header)
-  const wasInternalCall = req.headers.get("X-Internal-Agent-Call") === "true";
+**b) Gate outgoing audio (lines 363-372)** -- stop sending audio chunks while the model is speaking:
 
-  if (wasInternalCall) {
-    return new Response(JSON.stringify({
-      error: "Internal agent error",
-      detail: String(error).substring(0, 200),
-      reply: "I had a little hiccup! Could you try again? 🌱",
-      mediaToSend: [],
-      toolsUsed: [],
-    }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+```typescript
+capture.onAudioData.current = (base64: string) => {
+  if (sessionRef.current && !playback.isSpeaking) {
+    audioChunkCount++;
+    if (audioChunkCount <= 3 || audioChunkCount % 50 === 0) {
+      log(`Sending audio chunk #${audioChunkCount} (${base64.length} chars)`);
+    }
+    sessionRef.current.sendRealtimeInput({
+      media: { data: base64, mimeType: 'audio/pcm;rate=16000' },
     });
   }
-
-  return new Response('<?xml version="1.0" encoding="UTF-8"?><Response></Response>', {
-    headers: {
-      ...corsHeaders,
-      "Content-Type": "application/xml",
-    },
-  });
-}
+};
 ```
 
-This ensures internal callers always get JSON errors with proper HTTP status codes, while Telegram callers still get valid TwiML.
-
----
-
-## Fix 2: Hoist `toolsUsed` to handler scope
-
-**File:** `supabase/functions/orchid-agent/index.ts`
-
-Move `toolsUsed` declaration from line 2727 (inside nested else block) to line 2682, alongside `aiReply` and `mediaToSend` -- the other response-level variables:
+**c) Neuter interruption handler (lines 180-183)** -- log-only, no flush:
 
 ```typescript
-let aiReply: string;
-let mediaToSend: Array<{ url: string; caption?: string }> = [];
-const toolsUsed: string[] = [];   // <-- moved here from line 2727
+if (message.serverContent?.interrupted) {
+  log('Received interrupted signal (VAD disabled -- unexpected)');
+}
 ```
 
-Remove the declaration at line 2727. The `.push(functionName)` calls inside the tool loop continue to work because they reference the same array.
+**d) Remove `vadConfig` from connect signature and refs** (lines 37, 214) -- the option no longer exists.
 
-This follows the same pattern as `aiReply` and `mediaToSend`, which are already declared at this scope level.
+### 2. Add `interruptModel` Method
 
----
+**File:** `src/hooks/useGeminiLive.ts`
 
-## Fix 3: Content-type validation in pwa-agent
-
-**File:** `supabase/functions/pwa-agent/index.ts` (lines 132-147)
-
-Even with Fix 1, pwa-agent should defend against unexpected response formats from any upstream service:
+New callback alongside `disconnect`, `toggleMic`, etc.:
 
 ```typescript
-if (!agentResponse.ok) {
-  const errorText = await agentResponse.text();
-  console.error(`[pwa-agent] orchid-agent error: ${agentResponse.status} ${errorText.substring(0, 500)}`);
-  return new Response(JSON.stringify({ error: "Agent error", detail: errorText.substring(0, 200) }), {
-    status: agentResponse.status,
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
-  });
-}
+const interruptModel = useCallback(() => {
+  if (!sessionRef.current || !playback.isSpeaking) return;
+  log('User triggered manual interrupt');
 
-// Validate content-type before parsing -- orchid-agent's catch block
-// may return XML on crash (Telegram legacy), or Deno runtime may return HTML
-const responseContentType = agentResponse.headers.get("content-type") || "";
-if (!responseContentType.includes("application/json")) {
-  const rawBody = await agentResponse.text();
-  console.error(`[pwa-agent] orchid-agent returned non-JSON (${responseContentType}): ${rawBody.substring(0, 300)}`);
-  return new Response(JSON.stringify({
-    error: "Unexpected response format from agent",
-    detail: `Got ${responseContentType} instead of JSON`,
-  }), {
-    status: 502,
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
-  });
-}
+  // 1. Silence the audio output immediately
+  playback.flush();
 
-const agentResult = await agentResponse.json();
+  // 2. Send a client turn so the model stops generating and listens
+  sessionRef.current.sendClientContent({
+    turns: [{ role: 'user', parts: [{ text: '(user interrupted -- listening now)' }] }],
+    turnComplete: true,
+  });
+
+  setIsListening(true);
+}, [playback, log]);
 ```
 
----
+Expose in the return object alongside other methods.
 
-## Why this is architectural, not a patch
+### 3. Add Interrupt Button to CallScreen
 
-| Aspect | Patch approach | This approach |
-|--------|---------------|---------------|
-| `toolsUsed` scoping | Move variable up | Move variable up (same, because this IS the correct fix) |
-| Catch block | Leave as-is | Make mode-aware: JSON for internal callers, XML for Telegram |
-| pwa-agent parsing | Wrap in try/catch | Validate content-type before parsing (fail fast with clear error) |
-| Future callers | Would hit same XML-on-crash bug | All internal callers automatically get JSON errors |
+**File:** `src/components/call/CallScreen.tsx`
 
-The variable hoisting is simple because it's the right thing to do. The real architectural work is making the error boundaries mode-aware so the system degrades gracefully regardless of which caller path triggered the failure.
+New prop `onInterrupt`. Renders a button in the top-left corner, visible only when `isSpeaking` is true:
+
+```typescript
+{isSpeaking && onInterrupt && (
+  <button
+    onClick={onInterrupt}
+    style={{
+      position: 'absolute',
+      top: '16px',
+      left: '16px',
+      zIndex: 20,
+      backgroundColor: 'rgba(0,0,0,0.4)',
+      border: '1px solid rgba(255,255,255,0.25)',
+      borderRadius: '0',
+      padding: '8px 14px',
+      cursor: 'pointer',
+      display: 'flex',
+      alignItems: 'center',
+      gap: '6px',
+      fontFamily: 'ui-monospace, monospace',
+      fontSize: '11px',
+      color: 'rgba(255,255,255,0.8)',
+      letterSpacing: '0.05em',
+    }}
+    aria-label="Interrupt"
+  >
+    interrupt
+  </button>
+)}
+```
+
+Matches the existing visual language (semi-transparent background, monospace, no border-radius) -- same as the flip-camera and snapshot buttons.
+
+### 4. Wire Through Call Pages
+
+**Files:** `src/pages/LiveCallPage.tsx`, `src/pages/DevCallPage.tsx`, `src/components/demo/DemoVoiceOverlay.tsx`
+
+One-liner each: pass `onInterrupt={gemini.interruptModel}` to `CallScreen`.
+
+### 5. Clean Up DevCallPage VAD Controls
+
+**File:** `src/pages/DevCallPage.tsx`
+
+Remove the now-unused state variables and UI controls:
+- `vadEndSensitivity` state and buttons (lines 68, 396-410)
+- `vadSilenceMs` state and slider (lines 69, 412-428)
+- `vadConfig` spread in `startQuick` and `startFull` calls (lines 129-137, 182-188)
 
 ---
 
@@ -153,6 +139,9 @@ The variable hoisting is simple because it's the right thing to do. The real arc
 
 | File | Changes |
 |------|---------|
-| `supabase/functions/orchid-agent/index.ts` | (1) Hoist `toolsUsed` to handler scope at line 2682. (2) Make catch block mode-aware for internal vs Telegram callers. |
-| `supabase/functions/pwa-agent/index.ts` | Add content-type validation before `.json()` parsing. |
+| `src/hooks/useGeminiLive.ts` | Disable server VAD, gate outgoing audio, neuter interrupt handler, add `interruptModel` method, remove `vadConfig` option |
+| `src/components/call/CallScreen.tsx` | Add `onInterrupt` prop, render conditional interrupt button top-left |
+| `src/pages/LiveCallPage.tsx` | Pass `onInterrupt` prop |
+| `src/pages/DevCallPage.tsx` | Pass `onInterrupt` prop, remove VAD controls and state |
+| `src/components/demo/DemoVoiceOverlay.tsx` | Pass `onInterrupt` prop |
 

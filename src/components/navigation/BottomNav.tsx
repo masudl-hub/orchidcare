@@ -41,7 +41,7 @@ export function BottomNav() {
     return (
         <div className="fixed bottom-0 left-0 w-full z-50 md:hidden bg-black/95 backdrop-blur-md border-t border-white/10"
             style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
-            <div className="flex items-center justify-around px-2 py-3">
+            <div className="flex items-center justify-around px-3 py-4">
                 {navItems.map((item) => {
                     const isActive = activePath.startsWith(item.path) || 
                         (item.id === '/developer' && isDeveloperContext && item.path === '/developer');
@@ -57,7 +57,7 @@ export function BottomNav() {
                                 style={{ WebkitTapHighlightColor: 'transparent' }}
                             >
                                 <item.icon
-                                    size={18}
+                                    size={22}
                                     strokeWidth={isActive ? 2.5 : 1.5}
                                     className={`transition-colors ${isActive ? 'text-white' : 'text-white/40'}`}
                                 />

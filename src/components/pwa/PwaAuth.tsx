@@ -16,9 +16,9 @@ const PIXEL_ASSETS = [
 
 type AuthMode = 'signup' | 'login';
 
-export function PwaAuth() {
+export function PwaAuth({ defaultMode = 'signup' }: { defaultMode?: AuthMode }) {
   const { signUp, signIn } = useAuth();
-  const [mode, setMode] = useState<AuthMode>('signup');
+  const [mode, setMode] = useState<AuthMode>(defaultMode);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');

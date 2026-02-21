@@ -23,7 +23,7 @@ export default function LoginPage() {
   if (!user) {
     return (
       <div className="fixed inset-0 bg-black flex flex-col" style={{ overscrollBehaviorY: 'none' }}>
-        <PwaAuth />
+        <PwaAuth defaultMode="login" />
         <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 50 }}>
           <InstallPrompt />
         </div>

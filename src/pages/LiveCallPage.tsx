@@ -117,8 +117,12 @@ function LiveCallPageInner() {
         // Final guard: don't connect if user already ended the call
         if (signal.aborted || endedRef.current) return;
 
-        // Connect to Gemini Live
+        // Connect to Gemini Live.
+        // For web/PWA auth (authToken set, no initData): pass the Bearer token so
+        // tool call fetches can authenticate — the tools endpoint requires either
+        // initData (Telegram) or an Authorization header (web).
         gemini.connect(tokenData.token, createData.sessionId, initData || undefined, {
+          toolsAuthHeader: authToken ? `Bearer ${authToken}` : undefined,
           onReconnectNeeded: async () => {
             try {
               const tokenRes = await fetch(`${SUPABASE_URL}/functions/v1/call-session/token`, {

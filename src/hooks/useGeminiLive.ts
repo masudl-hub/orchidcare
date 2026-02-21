@@ -33,6 +33,7 @@ export function useGeminiLive() {
   const initDataRef = useRef<string>('');
   const toolsUrlRef = useRef(`${SUPABASE_URL}/functions/v1/call-session/tools`);
   const extraAuthRef = useRef<Record<string, unknown>>({});
+  const toolsAuthHeaderRef = useRef<string | undefined>(undefined);
   const connectingRef = useRef(false);
   const connectedRef = useRef(false);
   const greetingSentRef = useRef(false);
@@ -144,9 +145,13 @@ export function useGeminiLive() {
                 }
               }
 
+              const toolFetchHeaders: Record<string, string> = { 'Content-Type': 'application/json' };
+              if (toolsAuthHeaderRef.current) {
+                toolFetchHeaders['Authorization'] = toolsAuthHeaderRef.current;
+              }
               const res = await fetch(toolsUrlRef.current, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: toolFetchHeaders,
                 body: JSON.stringify({
                   sessionId: sessionIdRef.current,
                   initData: initDataRef.current,
@@ -157,6 +162,19 @@ export function useGeminiLive() {
                 }),
               });
               const data = await res.json();
+              if (!res.ok) {
+                // Return an explicit failure so the LLM cannot pretend the call succeeded.
+                const errMsg = data.error || `HTTP ${res.status}`;
+                log(`tool error: ${fc.name} → ${errMsg}`);
+                return {
+                  id: fc.id!, name: fc.name!,
+                  response: {
+                    success: false,
+                    error: errMsg,
+                    message: `TOOL_CALL_FAILED: "${fc.name}" could not be executed (${errMsg}). You MUST acknowledge this failure honestly to the user. Do NOT claim the operation succeeded.`,
+                  },
+                };
+              }
               return { id: fc.id!, name: fc.name!, response: data.result || data };
             } catch (err) {
               return { id: fc.id!, name: fc.name!, response: { error: String(err) } };
@@ -258,7 +276,7 @@ export function useGeminiLive() {
   // ---------------------------------------------------------------------------
   // connect — orchestrates playback, capture, and SDK session setup
   // ---------------------------------------------------------------------------
-  const connect = useCallback(async (token: string, sessionId: string, initData: string, options?: { toolsUrl?: string; extraAuth?: Record<string, unknown>; onReconnectNeeded?: () => Promise<string | null> }) => {
+  const connect = useCallback(async (token: string, sessionId: string, initData: string, options?: { toolsUrl?: string; extraAuth?: Record<string, unknown>; toolsAuthHeader?: string; onReconnectNeeded?: () => Promise<string | null> }) => {
     // Re-entrancy guard
     if (connectingRef.current || sessionRef.current) {
       log('connect() skipped — already connecting or connected');
@@ -290,6 +308,7 @@ export function useGeminiLive() {
     initDataRef.current = initData;
     toolsUrlRef.current = options?.toolsUrl || `${SUPABASE_URL}/functions/v1/call-session/tools`;
     extraAuthRef.current = options?.extraAuth || {};
+    toolsAuthHeaderRef.current = options?.toolsAuthHeader;
     setStatus('connecting');
     setErrorDetail('');
     log(`connect() start — token=${token.substring(0, 25)}..., sessionId=${sessionId}`);

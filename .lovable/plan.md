@@ -1,77 +1,97 @@
 
 
-# Mobile Hero Fixes -- Round 3
+# Unified Web Auth Flow -- Skip Telegram, Land in Chat
 
-## Issues Identified (verified via mobile screenshot)
+## What changes
 
-1. **Tagline invisible**: "plant care made easy" has `color: 'white'` on a white background -- completely invisible
-2. **Page scrolls**: Hero uses `min-h-screen` allowing overflow; the fixed `InstallPrompt` at bottom adds extra space
-3. **Touch scroll not blocked**: The `touchmove` event is not prevented, so swiping the carousel also scrolls the page
-4. **No "/add-to-home" option in navigation menu**: The user wants a visible menu item alongside /start, /get-demo, /login
-5. **"Tap to start" action sheet missing "Add to Home Screen"**: The `canInstall || isIos` guard in `qr-orchid.tsx` hides the option in most browsers -- it should always be shown
-6. **InstallPrompt banner at bottom is ugly/redundant**: White text on white page, and the `/add-to-home` menu item replaces its purpose
+Currently, the web auth flow is: Sign up --> Profile config --> Connect Telegram --> /dashboard.
+The new flow is: Sign up or Log in --> Profile config (new users only) --> PwaChat.
 
-Note: The back button is already hidden on mobile (`hidden md:block` in `back-button.tsx`). No change needed there.
+All three channels (in-browser, PWA, Telegram) converge on the same chat experience. Telegram linking is removed from the web onboarding -- users who want Telegram will tap "Open in Telegram" from the start page.
+
+## Current state
+
+```text
+/login  --> LoginPage.tsx  (Login.tsx component)  --> /dashboard
+/begin  --> BeginPage.tsx  (CreateAccount.tsx)     --> /onboarding --> ProfileConfig --> ConnectTelegram --> /dashboard
+/app    --> AppPage.tsx    (PwaAuth --> PwaOnboarding --> PwaChat)
+```
+
+## New state
+
+```text
+/login  --> Consolidated auth page (login/signup toggle, same as /app) --> PwaChat
+/begin  --> Redirect to /login
+/app    --> Same as today (PwaAuth --> PwaOnboarding --> PwaChat)
+/onboarding --> ProfileConfig --> PwaChat (no Telegram step)
+/dashboard  --> Still accessible but no longer the default post-auth landing
+```
 
 ---
 
-## Changes
+## Detailed changes
 
-### 1. Fix tagline color (`orchid-hero.tsx`, line 453)
+### 1. Consolidate /login and /begin into a single auth page
 
-Change `color: 'white'` to `color: 'rgba(0,0,0,0.35)'` -- a subtle muted black that's visible on white and matches the monospace aesthetic.
+**File: `src/pages/LoginPage.tsx`** -- Rewrite to use the same lifecycle as `AppPage.tsx`:
+- Not authenticated: show `PwaAuth` (has login/signup toggle built in)
+- Authenticated, no profile: show `PwaOnboarding`
+- Authenticated, with profile: show `PwaChat`
 
-### 2. Lock hero to viewport (`orchid-hero.tsx`, line 268)
+This replaces the separate `Login.tsx` and `CreateAccount.tsx` component usage. The `PwaAuth` component already has a login/signup toggle, social auth (Google/Apple), and matching aesthetic.
 
-Change `min-h-screen` to `h-screen` and ensure `overflow-hidden` is applied. This prevents any page scroll on the hero.
+The loading animation overlay currently in LoginPage can be removed since PwaAuth handles the transition internally via AuthContext state changes.
 
-### 3. Block touch scroll during swipe (`orchid-hero.tsx`, lines 192-221)
+### 2. Redirect /begin to /login
 
-Add a `touchmove` listener with `e.preventDefault()` to stop the browser from scrolling the page while the user is swiping the carousel. The touch handlers currently use `passive: true` for `touchstart` -- we need to add a non-passive `touchmove` handler that prevents default scrolling.
+**File: `src/App.tsx`** -- Change the `/begin` route from rendering `BeginPage` to `<Navigate to="/login" replace />`.
 
-### 4. Add "/add-to-home" to navigation menu (`orchid-hero.tsx`, lines 433-447)
+The `/signup` redirect already points to `/begin`, so update it to point to `/login` as well.
 
-Add a fourth menu link:
-```
-/add-to-home
-```
+### 3. Update Onboarding to skip Telegram and land in chat
 
-- Import `usePwaInstall` hook
-- On tap: if `canInstall`, call `triggerInstall()`; if iOS, show a brief inline hint; otherwise show a generic browser instruction
-- Only show on mobile (use `md:hidden` class)
-- Styled identically to `/start`, `/get-demo`, `/login`
+**File: `src/pages/Onboarding.tsx`** -- Two changes:
+- Remove the `connectTelegram` step entirely. After profile config completes, go straight to the `complete` step.
+- Change `handleOnboardingComplete` to navigate to `/login` instead of `/dashboard` (which will detect the profile and show PwaChat).
 
-### 5. Always show "Add to Home Screen" in tap-to-start sheet (`qr-orchid.tsx`, line 217)
+Alternatively, navigate to `/app` -- but since `/login` is now the consolidated page, either works. Using `/login` keeps the URL cleaner for browser users.
 
-Remove the `(canInstall || isIos) && !isStandalone` guard. Always render the button on mobile. When tapped:
-- Chrome/Android with `canInstall`: triggers native install prompt
-- iOS: shows the share hint text
-- Other browsers: shows a brief instruction about using browser menu
+### 4. Update post-auth redirects across the app
 
-### 6. Remove fixed InstallPrompt banner (`OrchidPage.tsx`, lines 65-68)
+Several pages redirect authenticated users to `/dashboard`. These need to point to `/login` (or `/app`) instead so users land in chat:
 
-Delete the `<div className="md:hidden">` wrapper with `<InstallPrompt />` since the `/add-to-home` menu item replaces this functionality and looks much better.
+- **`src/pages/Auth.tsx`** (lines 34, 53): Change `/dashboard` to `/login`
+- **`src/pages/LoginPage.tsx`**: Handled by rewrite (step 1)
+- **`src/pages/BeginPage.tsx`**: No longer used (step 2)
+
+### 5. Update the hero nav links
+
+**File: `src/components/landing/orchid-hero.tsx`** -- The `/login` and menu links should still point to `/login`. The "Continue on web" option in the tap-to-start sheet (`qr-orchid.tsx`) currently navigates to `/begin` -- update it to navigate to `/login`.
+
+**File: `src/components/landing/qr-orchid.tsx`** -- Change the "Continue on web" `navigate('/begin')` to `navigate('/login')`.
+
+### 6. Clean up unused pages
+
+**Files to remove from routes (but keep files for now):**
+- `BeginPage.tsx` -- no longer routed
+- `Auth.tsx` -- check if still routed (it's not in App.tsx routes, so already unused)
 
 ---
 
-## Technical Details
+## Technical summary
 
-### Files to modify:
-1. **`src/components/landing/orchid-hero.tsx`**
-   - Line 268: `min-h-screen` to `h-screen`
-   - Lines 192-221: Add `touchmove` with `preventDefault` (non-passive)
-   - Line 453: Change tagline color to `rgba(0,0,0,0.35)`
-   - Lines 433-447: Add `/add-to-home` link with `usePwaInstall` hook
-   - Import `usePwaInstall` at top
+| File | Action |
+|------|--------|
+| `src/pages/LoginPage.tsx` | Rewrite to use PwaAuth/PwaOnboarding/PwaChat lifecycle (same as AppPage) |
+| `src/App.tsx` | Change `/begin` and `/signup` routes to redirect to `/login`; remove BeginPage import |
+| `src/pages/Onboarding.tsx` | Remove `connectTelegram` step; navigate to `/login` on complete |
+| `src/components/landing/qr-orchid.tsx` | Change "Continue on web" from `/begin` to `/login` |
+| `src/components/landing/orchid-hero.tsx` | Verify nav links point to `/login` (already should) |
 
-2. **`src/components/landing/qr-orchid.tsx`**
-   - Line 217: Remove `(canInstall || isIos) && !isStandalone` guard; always show "Add to Home Screen" button
-   - Add fallback text for unsupported browsers
+### What stays the same
+- `/app` route and AppPage behavior -- identical, untouched
+- PwaAuth, PwaOnboarding, PwaChat components -- reused as-is
+- Dashboard route -- still accessible via direct URL or navigation from chat
+- Telegram bot flow -- completely independent, users discover it from start page
+- Login.tsx and CreateAccount.tsx components -- kept in codebase but no longer used by main routes
 
-3. **`src/pages/OrchidPage.tsx`**
-   - Lines 65-68: Remove fixed InstallPrompt div
-   - Remove `InstallPrompt` import
-
-### No changes needed:
-- `back-button.tsx` -- already hidden on mobile via `hidden md:block`
-- Desktop behavior -- all changes scoped with mobile-only classes or touch detection

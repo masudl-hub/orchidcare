@@ -368,31 +368,15 @@ export function useGeminiLive() {
       } catch { /* chime is non-critical */ }
 
       // 4. Wire capture output -> Gemini via SDK
-      // Uses ref-based gate to block audio while model is speaking (walkie-talkie).
-      // With automaticActivityDetection.disabled, we must send activityStart/End.
+      // isSpeakingRef is a synchronous ref (kept in sync with isSpeaking state) —
+      // prevents the React re-render lag that let chunks slip through mid-speech.
       let audioChunkCount = 0;
-      const userActivityActiveRef = { current: false };
 
       capture.onAudioData.current = (base64: string) => {
         if (!sessionRef.current) return;
 
-        // Gate: block mic audio while model is speaking
-        if (playback.isSpeakingRef.current) {
-          // If we were in an active user turn, close it
-          if (userActivityActiveRef.current) {
-            userActivityActiveRef.current = false;
-            sessionRef.current.sendRealtimeInput({ activityEnd: {} });
-            log('activityEnd (model started speaking)');
-          }
-          return;
-        }
-
-        // Start a new user turn if not already active
-        if (!userActivityActiveRef.current) {
-          userActivityActiveRef.current = true;
-          sessionRef.current.sendRealtimeInput({ activityStart: {} });
-          log('activityStart');
-        }
+        // Gate: ref-based, always synchronous — blocks mic while model is speaking
+        if (playback.isSpeakingRef.current) return;
 
         audioChunkCount++;
         if (audioChunkCount <= 3 || audioChunkCount % 50 === 0) {
@@ -402,7 +386,8 @@ export function useGeminiLive() {
           media: { data: base64, mimeType: 'audio/pcm;rate=16000' },
         });
       };
-      log('Audio capture wired to session (ref-gated + activity framing)');
+      log('Audio capture wired to session (ref-gated)');
+
 
     } catch (err) {
       const detail = err instanceof Error ? `${err.name}: ${err.message}` : String(err);

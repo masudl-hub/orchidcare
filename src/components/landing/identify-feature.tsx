@@ -953,7 +953,7 @@ export function IdentifyFeature({
     >
       {/* Figure annotation label */}
       <div
-        className="absolute transition-all duration-600 ease-out"
+        className="absolute transition-all duration-600 ease-out hidden md:block"
         style={{
           top: 40,
           right: 40,

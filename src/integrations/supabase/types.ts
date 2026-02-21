@@ -93,6 +93,54 @@ export type Database = {
           },
         ]
       }
+      api_usage_log: {
+        Row: {
+          api_key_id: string
+          created_at: string | null
+          end_user_id: string
+          error_message: string | null
+          id: string
+          latency_ms: number | null
+          profile_id: string
+          status: string
+        }
+        Insert: {
+          api_key_id: string
+          created_at?: string | null
+          end_user_id: string
+          error_message?: string | null
+          id?: string
+          latency_ms?: number | null
+          profile_id: string
+          status: string
+        }
+        Update: {
+          api_key_id?: string
+          created_at?: string | null
+          end_user_id?: string
+          error_message?: string | null
+          id?: string
+          latency_ms?: number | null
+          profile_id?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "api_usage_log_api_key_id_fkey"
+            columns: ["api_key_id"]
+            isOneToOne: false
+            referencedRelation: "developer_api_keys"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "api_usage_log_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       call_sessions: {
         Row: {
           created_at: string | null
@@ -256,6 +304,53 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "conversations_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      developer_api_keys: {
+        Row: {
+          created_at: string | null
+          id: string
+          key_hash: string
+          key_prefix: string
+          last_used_at: string | null
+          name: string
+          profile_id: string
+          rate_limit_per_minute: number | null
+          status: string
+          total_calls: number | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          key_hash: string
+          key_prefix: string
+          last_used_at?: string | null
+          name?: string
+          profile_id: string
+          rate_limit_per_minute?: number | null
+          status?: string
+          total_calls?: number | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          key_hash?: string
+          key_prefix?: string
+          last_used_at?: string | null
+          name?: string
+          profile_id?: string
+          rate_limit_per_minute?: number | null
+          status?: string
+          total_calls?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "developer_api_keys_profile_id_fkey"
             columns: ["profile_id"]
             isOneToOne: false
             referencedRelation: "profiles"

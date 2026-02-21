@@ -1,98 +1,85 @@
 
 
-# Mobile UX Overhaul
+# Mobile Refinements -- Round 2
 
-This plan addresses the broken mobile experience across the app while preserving the desktop design exactly as-is. All changes target screens below 768px (the existing `MOBILE_BREAKPOINT`).
+## 1. Restore annotations on mobile in orchid-hero.tsx
 
----
+The previous change added `hidden md:block` to the annotation callout. This should be reverted -- the annotation should be visible on all screen sizes.
 
-## 1. Remove the placeholder rectangle from the de-pixelation animation (all screens)
-
-**Problem:** The `createPlaceholderImage()` function in `orchid-hero.tsx` generates a colored rectangle (purple/green/brown blocks) that doesn't look like the real pixelated orchid. It was meant to bridge the loading gap but looks wrong.
-
-**Fix:**
-- Remove `createPlaceholderImage()` entirely from `orchid-hero.tsx`
-- Instead, start the de-pixelation only after the real image loads (the `fullImg` path)
-- Keep the loading progress bar at top as visual feedback while the image loads
-- On the canvas, show nothing (transparent) until the real image is ready, then run the de-pixelation from step 0
-- This applies to both desktop and mobile
+**File:** `src/components/landing/orchid-hero.tsx`
+- Remove `hidden md:block` from the annotation div (line 326)
+- Keep all other annotation logic as-is
 
 ---
 
-## 2. Fix "plant care made easy" text positioning on mobile
+## 2. Move "plant care made easy" to bottom-center of page
 
-**Problem:** The tagline overlaps the carousel and annotation on small screens. The large negative margin (`mb-[-40px]` / `mb-[-100px]`) designed for desktop causes collisions on mobile.
+Currently the tagline sits above the ORCHID text. Per the user's screenshot reference, it should be at the **bottom center** of the viewport, a few pixels above the bottom edge.
 
-**Fix:**
-- On mobile (`md:` breakpoint), reduce the negative margin to something like `mb-[-12px]` so the text sits ~8px above the orchid carousel
-- Reduce font size on mobile (e.g., `text-[13px]` instead of `16px`)
-- Keep the desktop values unchanged via responsive classes
-
----
-
-## 3. Fix scroll-to-carousel on the homepage
-
-**Problem:** Wheel events on the orchid-hero page prevent default scrolling but on mobile (touch), there's no way to swipe through the carousel. The page just scrolls normally and the carousel is stuck.
-
-**Fix:**
-- On touch devices, add touch/swipe gesture handling (touchstart/touchmove/touchend) to cycle through the carousel
-- Keep the existing wheel handler for desktop
-- Detect touch via the existing `useIsTouch()` hook
+**File:** `src/components/landing/orchid-hero.tsx`
+- Remove the tagline from its current position (above ORCHID, lines 299-305)
+- Add it as an absolutely positioned element at the bottom of the container: `absolute bottom-6 left-0 right-0 text-center`
+- Keep the reveal animation behavior
 
 ---
 
-## 4. Hide the BackButton on mobile
+## 3. Reorder feature sections: text/headers BEFORE mockups on mobile
 
-**Problem:** The `BackButton` component (`absolute top-8 left-8`) overlaps with page content on small screens (visible in screenshots: back button over content on /demo, /proposal, start-page features).
+Currently, several features show the mockup first on mobile (via `order-1` on the mockup div), then the text description. The user wants the header/description to come first on mobile for the following features:
 
-**Fix:**
-- Add `hidden md:block` to the BackButton component so it's invisible on mobile (under 768px)
-- Mobile devices have their own native back gesture/button
-- This is a one-line change in `back-button.tsx` that affects all pages using it
+### identify-feature.tsx (lines 974-988)
+- Currently: MockChat is first in DOM, FeatureDescription second. On mobile they stack in that order.
+- Fix: Add `order-2 md:order-1` to MockChat div, `order-1 md:order-2` to FeatureDescription div -- so description appears first on mobile.
 
----
+### diagnosis-feature.tsx (lines 814-838)
+- Currently has `order-2 md:order-1` on description (correct on desktop, but on mobile order-2 means it comes second).
+- Fix: Swap to `order-1 md:order-2` for description, `order-2 md:order-1` for mockup -- so description appears first on mobile.
 
-## 5. Fix StartPage feature sections for mobile
+### proactive-feature.tsx (lines 709-728)
+- Currently has `order-2 md:order-1` on description, `order-1 md:order-2` on notifications.
+- Fix: Same swap -- description gets `order-1 md:order-2`, notifications get `order-2 md:order-1`.
 
-**Problem:** The two-column layout in feature sections (e.g., `identify-feature.tsx` uses `flex-row` with side-by-side chat mock + description) breaks on mobile -- content falls into margins, requires horizontal scrolling.
+### live-feature.tsx (lines 162-340)
+- Uses `grid grid-cols-1 md:grid-cols-2`. Description is first in DOM, video second. On mobile this should already be correct (description first). Verify no order classes are backwards.
 
-**Fix:**
-- In `identify-feature.tsx`, change the content grid from `flex-row` to `flex-col` on mobile (`flex-col md:flex-row`)
-- Reduce horizontal padding on mobile (`px-4 md:px-10 lg:px-24`)
-- Apply the same pattern to `diagnosis-feature.tsx`, `memory-feature.tsx`, `proactive-feature.tsx`, `shopping-feature.tsx`, `guides-feature.tsx`, `live-feature.tsx`, and `cta-feature.tsx`
-- Reduce large pixel-art heading font sizes on mobile (e.g., `fontSize: "32px"` becomes responsive)
-- Cap mock chat and description panel widths to `100%` on mobile
-
----
-
-## 6. General mobile polish pass
-
-Additional responsive fixes across the app:
-
-- **Annotation callout** in `orchid-hero.tsx`: Hide or reposition the SVG line + label on mobile since it extends off-screen
-- **Start page decrypt text**: Reduce font size on mobile for the `/start` text and decrypted paragraph
-- **Feature figure annotations** (e.g., "FIG 2.1 -- SPECIES IDENTIFICATION"): Reposition or hide on mobile to avoid overlap
-- **Login/Begin pages**: Already look acceptable on mobile (confirmed via screenshots), no changes needed
+### shopping-feature.tsx (lines 316-415)
+- Currently: description is first (left), store listings second (right). On mobile with `grid-cols-1`, description comes first naturally. This is already correct order-wise.
+- However, the PixelMap is currently inside the description column (left side). On mobile, the user wants the map to appear AFTER the "Where can I get neem oil nearby?" user message.
+- Fix: Move the PixelMap from the left (description) column into the right (store listings) column, placed after the user message bubble and before the store results.
 
 ---
 
-## Technical Details
+## 4. Fix "Local Shopping" title overlap with "LOCAL COMMERCE"
+
+From the screenshot, the "Local Shopping" pixel heading is overlapping with the "FIG 2.5 -- LOCAL COMMERCE" annotation. On mobile, the heading text may collide with the figure annotation.
+
+- Add `mt-8 md:mt-0` to the description heading to push it down on mobile, giving the annotation room.
+
+---
+
+## 5. Apply same patterns to /proposal page
+
+The proposal page at `src/pages/Proposal.tsx` uses similar layouts. Key fixes:
+
+- The **bento grid** (AI Technologies section, line 1870) uses `gridTemplateColumns: 'repeat(4, 1fr)'` which creates 4 narrow columns on mobile. Fix: change to `grid-cols-1 md:grid-cols-4` or use responsive classes.
+- The `col-span-2` cells need to become `col-span-1 md:col-span-2` on mobile so they don't overflow.
+- The **Problem Statement** grid (line 1823) uses `grid-cols-2 md:grid-cols-4` which is already decent but may need `grid-cols-1 md:grid-cols-4` for very narrow screens.
+- The **stats grid** (line 2000) `grid-cols-3` may need font size reduction on mobile.
+- The **Target Users** grid (line 2044) `md:grid-cols-3` already collapses to 1 column -- correct.
+
+---
+
+## Technical Summary
 
 ### Files to modify:
-1. **`src/components/landing/orchid-hero.tsx`** -- Remove placeholder, fix tagline positioning, add touch swipe, fix annotation on mobile
-2. **`src/components/ui/back-button.tsx`** -- Add `hidden md:block` for mobile hiding
-3. **`src/components/landing/identify-feature.tsx`** -- Responsive flex direction, padding, font sizes
-4. **`src/components/landing/diagnosis-feature.tsx`** -- Same responsive pattern
-5. **`src/components/landing/memory-feature.tsx`** -- Same responsive pattern
-6. **`src/components/landing/proactive-feature.tsx`** -- Same responsive pattern
-7. **`src/components/landing/shopping-feature.tsx`** -- Same responsive pattern
-8. **`src/components/landing/guides-feature.tsx`** -- Same responsive pattern
-9. **`src/components/landing/live-feature.tsx`** -- Same responsive pattern
-10. **`src/components/landing/cta-feature.tsx`** -- Same responsive pattern
-11. **`src/components/landing/start-page.tsx`** -- Mobile font size adjustments
+1. `src/components/landing/orchid-hero.tsx` -- Restore annotation visibility, move tagline to bottom-center
+2. `src/components/landing/identify-feature.tsx` -- Swap mobile order so description comes first
+3. `src/components/landing/diagnosis-feature.tsx` -- Swap mobile order so description comes first
+4. `src/components/landing/proactive-feature.tsx` -- Swap mobile order so description comes first
+5. `src/components/landing/shopping-feature.tsx` -- Move PixelMap after user message on mobile, fix title overlap
+6. `src/pages/Proposal.tsx` -- Make bento grid responsive, fix col-span on mobile
 
 ### Approach:
-- All changes use responsive Tailwind classes or `isMobile` checks
-- Desktop layout is never touched -- all mobile styles are additive via breakpoint prefixes
-- The 768px breakpoint is used consistently (matching existing `MOBILE_BREAKPOINT`)
-
+- Only CSS/order class changes and minor JSX restructuring
+- Desktop layout remains completely unchanged
+- All changes use Tailwind responsive prefixes (`md:`)

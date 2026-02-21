@@ -1,62 +1,63 @@
 
 
-# Airtight Walkie-Talkie Audio Gate
+# Fix: Surface Pet Info in Agent System Prompts
 
 ## Problem
+Your profile stores `pets: ["cat"]`, but the system prompt builder (`buildUserIdentitySection` in `context.ts`) never reads the `pets` field. The agents (voice calls, text chat, orchid-agent) don't know you have a pet, so they can't factor in toxicity warnings or pet-safe recommendations.
 
-Two issues cause accidental interruptions:
+Additionally, no `user_insights` rows exist for `has_pets`/`pet_type`, which is the secondary path for surfacing this info.
 
-1. **Stale closure**: `playback.isSpeaking` on line 374 of `useGeminiLive.ts` is captured once at connect-time and never updates inside the `onAudioData` callback. The gate is always "open."
-2. **Missing activity signals**: With `automaticActivityDetection.disabled: true`, the Gemini docs require the client to send `activityStart` before audio and `activityEnd` when the user stops speaking. We currently send neither -- raw media chunks arrive with no turn framing.
+## Fix
 
-## Changes
+### 1. Update `buildUserIdentitySection` in `supabase/functions/_shared/context.ts`
 
-### 1. Add `isSpeakingRef` to `useAudioPlayback.ts`
-
-Add a `useRef<boolean>(false)` that stays in sync with every `setIsSpeaking` call. Expose it in the return value so `useGeminiLive` can read it synchronously.
-
-### 2. Fix the audio gate in `useGeminiLive.ts`
-
-Replace the stale state check:
+Add `profile.pets` to the user identity section so it appears in the system prompt for all agents (voice, text, orchid-agent):
 
 ```
-// Before (broken — stale closure)
-if (sessionRef.current && !playback.isSpeaking)
-
-// After (always-current ref)
-if (sessionRef.current && !playback.isSpeakingRef.current)
+## ABOUT THIS USER
+Name: eml
+Experience Level: Beginner - ...
+Pets: cat - ALWAYS consider pet toxicity. Flag any plant or product that could be harmful.
 ```
 
-### 3. Add `activityStart` / `activityEnd` framing
+This single change fixes it everywhere since both `buildEnrichedSystemPrompt` (text/orchid-agent) and `buildVoiceSystemPrompt` (voice calls) call the same `buildUserIdentitySection` function.
 
-Track an `isUserSpeaking` ref. When the gate allows audio through:
+### 2. Backfill `user_insights` for existing profiles with pets
 
-- On the **first chunk** after silence (or after playback ends), send `activityStart` before the media chunk
-- When the model starts speaking (isSpeakingRef flips to true), send `activityEnd` to close the user's turn
+Insert `has_pets` and `pet_type` insight rows for your profile so the "USER FACTS" section also reflects this. This is a one-time data fix via a database migration.
 
-This matches the documented protocol for disabled-VAD mode and gives the model clean turn boundaries.
+## Technical Details
 
-### 4. Fix `interruptModel` stale ref
+**File: `supabase/functions/_shared/context.ts`** (line ~134-152)
 
-`interruptModel` (line 506) also checks `playback.isSpeaking` which has the same stale-closure risk. Update to use the ref.
+In `buildUserIdentitySection`, after the `primary_concerns` line, add:
 
-## Files Modified
+```typescript
+const userPets = profile?.pets || [];
+// ...
+return `## ABOUT THIS USER
+${userName ? `Name: ${userName} ...` : "Name: Not provided"}
+Experience Level: ${experienceLevelGuide[userExperience] || ...}
+${userConcerns.length > 0 ? `Primary Interests: ...` : ""}
+${userPets.length > 0 ? `Pets in home: ${userPets.join(", ")} - ALWAYS consider pet toxicity when recommending plants or products. Proactively flag anything potentially harmful to ${userPets.join("/")}s.` : ""}`;
+```
 
-| File | Change |
-|------|--------|
-| `src/hooks/call/useAudioPlayback.ts` | Add `isSpeakingRef` kept in sync with state; expose in return |
-| `src/hooks/useGeminiLive.ts` | Use `isSpeakingRef.current` for gate; add `activityStart`/`activityEnd` signaling; fix `interruptModel` |
+**Database migration**: Insert missing insight rows:
 
-## What We Are NOT Doing
+```sql
+INSERT INTO user_insights (profile_id, insight_key, insight_value)
+VALUES
+  ('62dca5ae-a71e-403f-b805-0d17c017a7cb', 'has_pets', 'yes'),
+  ('62dca5ae-a71e-403f-b805-0d17c017a7cb', 'pet_type', 'cat')
+ON CONFLICT DO NOTHING;
+```
 
-- **Buffering audio during agent speech**: Unnecessary complexity. The gate simply blocks mic data while the model speaks. When it finishes, the user's next utterance flows naturally as a new turn.
-- **Energy-threshold VAD**: The activity framing (start/end signals) gives the model enough information. No need for client-side speech detection.
+**Redeploy**: `call-session`, `orchid-agent`, `pwa-agent`, and `demo-agent` (all consumers of the shared context).
 
-## Confidence
+## Scope of Impact
+- Voice calls (call-session) -- fixed
+- Text chat (orchid-agent) -- fixed  
+- PWA agent (pwa-agent) -- fixed
+- Demo agent (demo-agent) -- fixed
 
-| Aspect | Confidence | Reason |
-|--------|-----------|--------|
-| Ref-based gate closes the race window | ~95% | Synchronous ref vs async React state -- well-understood pattern |
-| Activity framing improves turn handling | ~85% | Docs explicitly require it for disabled-VAD mode; aligns with SDK examples |
-| No buffering needed | ~90% | Clean gate + activity signals give the model clear turn boundaries |
-
+All four use `buildUserIdentitySection` from the shared `context.ts`.

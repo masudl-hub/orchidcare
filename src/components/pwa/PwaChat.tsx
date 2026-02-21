@@ -4,11 +4,6 @@ import { PixelCanvas } from '@/lib/pixel-canvas/PixelCanvas';
 import type { Formation } from '@/lib/pixel-canvas/types';
 import { DemoInputBar } from '@/components/demo/DemoInputBar';
 import { DemoArtifactStack, type ArtifactEntry } from '@/components/demo/DemoArtifactStack';
-import { IdentificationCard } from '@/components/demo/artifacts/IdentificationCard';
-import { DiagnosisCard } from '@/components/demo/artifacts/DiagnosisCard';
-import { CareGuideCard } from '@/components/demo/artifacts/CareGuideCard';
-import { StoreListCard } from '@/components/demo/artifacts/StoreListCard';
-import { VisualGuideCard } from '@/components/demo/artifacts/VisualGuideCard';
 import { ChatResponse } from '@/components/demo/artifacts/ChatResponse';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -108,22 +103,8 @@ export function PwaChat() {
 
   // Render artifact from type
   const renderArtifact = useCallback(
-    (type: string, data: Record<string, unknown>, message: string, images?: { url: string; title: string }[]): React.ReactNode => {
-      switch (type) {
-        case 'identification':
-          return <IdentificationCard data={data as any} message={message} />;
-        case 'diagnosis':
-          return <DiagnosisCard data={data as any} message={message} onFindSupplies={(location) => sendMessageRef.current(`find treatment supplies for ${(data as any).issue || 'this issue'} near ${location}`)} />;
-        case 'care_guide':
-          return <CareGuideCard data={data as any} message={message} />;
-        case 'store_list':
-          return <StoreListCard data={data as any} message={message} />;
-        case 'visual_guide':
-          return <VisualGuideCard data={data as any} images={images} message={message} />;
-        case 'chat':
-        default:
-          return <ChatResponse text={message} images={images?.map(img => ({ url: img.url, title: img.title }))} />;
-      }
+    (_type: string, _data: Record<string, unknown>, message: string, images?: { url: string; title: string }[]): React.ReactNode => {
+      return <ChatResponse text={message} images={images?.map(img => ({ url: img.url, title: img.title }))} />;
     },
     [],
   );

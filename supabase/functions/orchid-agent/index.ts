@@ -881,6 +881,32 @@ Use when:
       },
     },
   },
+  {
+    type: "function",
+    function: {
+      name: "recall_media",
+      description: "Retrieve previously stored images for this user. Use to show plant snapshot history, past visual guides, or any stored media. Useful when user asks to 'show me again', 'compare photos', 'show my plant history', or references past guides.",
+      parameters: {
+        type: "object",
+        properties: {
+          source: {
+            type: "string",
+            enum: ["plant_snapshots", "generated_guides"],
+            description: "Where to look: plant_snapshots for plant photos, generated_guides for previously created visual guides",
+          },
+          plant_identifier: {
+            type: "string",
+            description: "Plant name/nickname (required for plant_snapshots, optional for guides)",
+          },
+          limit: {
+            type: "number",
+            description: "Max images to return (default 3, max 5)",
+          },
+        },
+        required: ["source"],
+      },
+    },
+  },
 ];
 
 // Combine all tools
@@ -1604,6 +1630,7 @@ CRITICAL REQUIREMENTS:
                 step,
                 description: messageContent || `Step ${step}`,
                 imageUrl: imageUrl,
+                storagePath: fileName,
               };
             }
           }
@@ -3259,6 +3286,102 @@ ${proactiveContext.events.map((e: any) => `- ${e.message_hint}`).join("\n")}
                 functionName,
                 { plant: toolResult.plantName, snapshotCount: toolResult.snapshotCount },
               );
+            }
+          } else if (functionName === "recall_media") {
+            const source = args.source;
+            const limit = Math.min(args.limit || 3, 5);
+
+            if (source === "plant_snapshots") {
+              if (!args.plant_identifier) {
+                toolResult = { success: false, error: "Need a plant name to look up snapshots" };
+              } else {
+                const resolution = await resolvePlants(supabase, profileId, args.plant_identifier);
+                if (resolution.plants.length === 0) {
+                  toolResult = { success: false, error: `No plant found matching "${args.plant_identifier}"` };
+                } else {
+                  const plant = resolution.plants[0];
+                  const { data: snapshots } = await supabase
+                    .from("plant_snapshots")
+                    .select("image_path, description, created_at, context")
+                    .eq("plant_id", plant.id)
+                    .eq("profile_id", profileId)
+                    .order("created_at", { ascending: false })
+                    .limit(limit);
+
+                  const images: { url: string; caption: string }[] = [];
+                  for (const snap of (snapshots || [])) {
+                    if (snap.image_path) {
+                      const { data: signed } = await supabase.storage
+                        .from("plant-photos")
+                        .createSignedUrl(snap.image_path, 3600);
+                      if (signed?.signedUrl) {
+                        const date = new Date(snap.created_at).toLocaleDateString();
+                        const caption = `${date}: ${snap.description || snap.context}`;
+                        images.push({ url: signed.signedUrl, caption });
+                        mediaToSend.push({ url: signed.signedUrl, caption });
+                      }
+                    }
+                  }
+                  toolResult = {
+                    success: true,
+                    retrieved: images.length,
+                    plantName: plant.nickname || plant.species || plant.name,
+                  };
+                  await logAgentOperation(
+                    supabase,
+                    profile?.id,
+                    correlationId,
+                    "read",
+                    "plant_snapshots",
+                    null,
+                    functionName,
+                    { plant: toolResult.plantName, retrieved: images.length },
+                  );
+                }
+              }
+            } else if (source === "generated_guides") {
+              const { data: guides } = await supabase
+                .from("generated_content")
+                .select("content, task_description, created_at")
+                .eq("profile_id", profileId)
+                .eq("content_type", "image_guide")
+                .order("created_at", { ascending: false })
+                .limit(1);
+
+              const images: { url: string; caption: string }[] = [];
+              for (const guide of (guides || [])) {
+                const steps = (guide.content as any)?.steps || [];
+                for (const step of steps.slice(0, limit)) {
+                  const path = step.storagePath;
+                  if (path) {
+                    const { data: signed } = await supabase.storage
+                      .from("generated-guides")
+                      .createSignedUrl(path, 3600);
+                    if (signed?.signedUrl) {
+                      const caption = step.description || `Step ${step.step}`;
+                      images.push({ url: signed.signedUrl, caption });
+                      mediaToSend.push({ url: signed.signedUrl, caption });
+                    }
+                  }
+                }
+              }
+              toolResult = {
+                success: true,
+                retrieved: images.length,
+                task: guides?.[0]?.task_description || "unknown",
+              };
+              await logAgentOperation(
+                supabase,
+                profile?.id,
+                correlationId,
+                "read",
+                "generated_content",
+                null,
+                functionName,
+                { retrieved: images.length },
+              );
+            } else {
+              toolResult = { success: false, error: "Invalid source. Use 'plant_snapshots' or 'generated_guides'" };
             }
           }
           // Maps and Store verification tools

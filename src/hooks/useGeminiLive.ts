@@ -368,20 +368,41 @@ export function useGeminiLive() {
       } catch { /* chime is non-critical */ }
 
       // 4. Wire capture output -> Gemini via SDK
-      // Google's example uses `media` key (not `audio`) for sendRealtimeInput
+      // Uses ref-based gate to block audio while model is speaking (walkie-talkie).
+      // With automaticActivityDetection.disabled, we must send activityStart/End.
       let audioChunkCount = 0;
+      const userActivityActiveRef = { current: false };
+
       capture.onAudioData.current = (base64: string) => {
-        if (sessionRef.current && !playback.isSpeaking) {
-          audioChunkCount++;
-          if (audioChunkCount <= 3 || audioChunkCount % 50 === 0) {
-            log(`Sending audio chunk #${audioChunkCount} (${base64.length} chars)`);
+        if (!sessionRef.current) return;
+
+        // Gate: block mic audio while model is speaking
+        if (playback.isSpeakingRef.current) {
+          // If we were in an active user turn, close it
+          if (userActivityActiveRef.current) {
+            userActivityActiveRef.current = false;
+            sessionRef.current.sendRealtimeInput({ activityEnd: {} });
+            log('activityEnd (model started speaking)');
           }
-          sessionRef.current.sendRealtimeInput({
-            media: { data: base64, mimeType: 'audio/pcm;rate=16000' },
-          });
+          return;
         }
+
+        // Start a new user turn if not already active
+        if (!userActivityActiveRef.current) {
+          userActivityActiveRef.current = true;
+          sessionRef.current.sendRealtimeInput({ activityStart: {} });
+          log('activityStart');
+        }
+
+        audioChunkCount++;
+        if (audioChunkCount <= 3 || audioChunkCount % 50 === 0) {
+          log(`Sending audio chunk #${audioChunkCount} (${base64.length} chars)`);
+        }
+        sessionRef.current.sendRealtimeInput({
+          media: { data: base64, mimeType: 'audio/pcm;rate=16000' },
+        });
       };
-      log('Audio capture wired to session');
+      log('Audio capture wired to session (ref-gated + activity framing)');
 
     } catch (err) {
       const detail = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
@@ -503,7 +524,7 @@ export function useGeminiLive() {
   // interruptModel — manual interrupt: flush audio + send user turn
   // ---------------------------------------------------------------------------
   const interruptModel = useCallback(() => {
-    if (!sessionRef.current || !playback.isSpeaking) return;
+    if (!sessionRef.current || !playback.isSpeakingRef.current) return;
     log('User triggered manual interrupt');
 
     // 1. Silence the audio output immediately

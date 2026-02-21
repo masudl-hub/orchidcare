@@ -267,15 +267,15 @@ export function GuidesFeature({
         FIG 2.6 — VISUAL PROTOCOL
       </div>
 
-      <div className="w-full px-10 md:px-16 lg:px-24 z-10 relative">
+      <div className="w-full px-4 md:px-16 lg:px-24 z-10 relative">
         <div className="max-w-[1400px] mx-auto">
           {/* Top: Description */}
           <div className="text-center mb-12">
             <h2
+              className="text-[22px] md:text-[32px]"
               style={{
                 ...revealStyle(0),
                 fontFamily: '"Press Start 2P", cursive',
-                fontSize: "32px",
                 lineHeight: 1.4,
                 color: "white",
               }}
@@ -314,7 +314,7 @@ export function GuidesFeature({
           </div>
 
           {/* Bottom: Horizontal steps */}
-          <div className="grid grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
             {GUIDE_STEPS.map((step, i) => (
               <GuideStepCard key={i} step={step} index={i} visible={isVisible} />
             ))}

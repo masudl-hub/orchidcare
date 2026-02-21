@@ -17,7 +17,7 @@ export function BackButton({ onClick, theme = 'dark', className }: BackButtonPro
   return (
     <button
       onClick={onClick ?? (() => navigate(-1))}
-      className={`absolute top-8 left-8 md:left-16 transition-colors duration-300 cursor-pointer z-30 ${colorClass} ${className ?? ''}`}
+      className={`absolute top-8 left-8 md:left-16 transition-colors duration-300 cursor-pointer z-30 hidden md:block ${colorClass} ${className ?? ''}`}
       style={{
         fontFamily: 'ui-monospace, monospace',
         fontSize: '14px',

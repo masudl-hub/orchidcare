@@ -20,31 +20,6 @@ const CANVAS_HEIGHT_SM = 140;
 // De-pixelation steps — pixel widths from super blocky to full res
 const PIXEL_STEPS = [3, 4, 6, 8, 12, 16, 24, 32, 48, 72, 100, 140, CANVAS_WIDTH_LG];
 
-/**
- * Build a tiny ~3×5 placeholder Image synchronously using canvas.
- * Returns an Image whose src is a data URI — loads instantly, no network.
- * The colors approximate the orchid: purple flowers, green leaves, brown pot.
- */
-function createPlaceholderImage(): HTMLImageElement {
-  const w = 3, h = 5;
-  const c = document.createElement("canvas");
-  c.width = w;
-  c.height = h;
-  const ctx = c.getContext("2d")!;
-  // Purple flowers (top 2 rows)
-  ctx.fillStyle = "#9B6DB0";
-  ctx.fillRect(0, 0, w, 2);
-  // Green leaves / stem (middle 2 rows)
-  ctx.fillStyle = "#5A8A4A";
-  ctx.fillRect(0, 2, w, 2);
-  // Terracotta pot (bottom row)
-  ctx.fillStyle = "#B87A4A";
-  ctx.fillRect(0, 4, w, 1);
-  const img = new Image();
-  img.src = c.toDataURL();
-  return img;
-}
-
 const DEEP_LINK = "https://t.me/orchidcare_bot?start=web";
 
 type Phase = "depixelating" | "revealing" | "ready";
@@ -149,39 +124,29 @@ export function OrchidHero({ onStartClick, onLoginClick, onDemoClick }: OrchidHe
       }, stepDurations[currentStep]);
     };
 
-    // --- Placeholder: draw first frame instantly via data URI ---
-    const placeholder = createPlaceholderImage();
-    // Data URI images decode nearly instantly but still need onload
-    placeholder.onload = () => {
+    // --- Load the real image, then start de-pixelation from step 0 ---
+    const fullImg = new Image();
+    fullImg.crossOrigin = "anonymous";
+    fullImg.onload = () => {
       if (cancelled) return;
-      imgRef.current = placeholder;
+      imgRef.current = fullImg;
       drawAtResolution(PIXEL_STEPS[0]);
       setCanvasReady(true);
       scheduleNext();
     };
-    // Safety: if already decoded (some browsers), fire manually
-    if (placeholder.complete && placeholder.naturalWidth > 0) {
-      imgRef.current = placeholder;
-      drawAtResolution(PIXEL_STEPS[0]);
-      setCanvasReady(true);
-      scheduleNext();
-    }
-
-    // --- Async: load full-res image in parallel, swap when ready ---
-    const fullImg = new Image();
-    fullImg.crossOrigin = "anonymous";
-    fullImg.onload = () => {
-      imgRef.current = fullImg;
-      drawAtResolution(PIXEL_STEPS[Math.min(currentStep, stepCount - 1)]);
+    fullImg.onerror = () => {
+      // If image fails, skip animation and go straight to ready
+      if (cancelled) return;
+      setCanvasFading(true);
+      setPhase("ready");
+      setLoadingProgress(100);
     };
     fullImg.src = purpleOrchidSrc;
 
     return () => { cancelled = true; };
   }, [drawAtResolution, fromApp]);
 
-  // --- Wheel handler ---
-  // Must be attached via ref with { passive: false } so preventDefault() works.
-  // React's onWheel is passive and cannot prevent default scrolling.
+  // --- Wheel handler (desktop only) ---
   const containerRef = useRef<HTMLDivElement>(null);
 
   const handleWheel = useCallback(
@@ -189,15 +154,14 @@ export function OrchidHero({ onStartClick, onLoginClick, onDemoClick }: OrchidHe
       e.preventDefault();
       if (phase !== "ready") return;
 
-      // Normalise across pixel / line / page delta modes
       const raw = e.deltaMode === 1 ? e.deltaY * 20
                 : e.deltaMode === 2 ? e.deltaY * 400
                 : e.deltaY;
 
       scrollAccum.current += raw;
 
-      const THRESHOLD = 140;    // px of accumulated delta per step
-      const MIN_INTERVAL = 250; // ms minimum between steps
+      const THRESHOLD = 140;
+      const MIN_INTERVAL = 250;
 
       const now = Date.now();
       if (
@@ -205,7 +169,7 @@ export function OrchidHero({ onStartClick, onLoginClick, onDemoClick }: OrchidHe
         now - lastStepTime.current >= MIN_INTERVAL
       ) {
         const dir = scrollAccum.current > 0 ? 1 : -1;
-        scrollAccum.current = 0; // reset so bursts don't queue multiple steps
+        scrollAccum.current = 0;
         lastStepTime.current = now;
         setActiveIndex((i) => (i + dir + plants.length) % plants.length);
       }
@@ -213,14 +177,50 @@ export function OrchidHero({ onStartClick, onLoginClick, onDemoClick }: OrchidHe
     [phase]
   );
 
+  // Only attach wheel on non-touch devices
   useEffect(() => {
     const el = containerRef.current;
-    if (!el) return;
+    if (!el || isTouch) return;
     el.addEventListener("wheel", handleWheel, { passive: false });
     return () => el.removeEventListener("wheel", handleWheel);
-  }, [handleWheel]);
+  }, [handleWheel, isTouch]);
 
-  // --- Carousel click handler — navigates to the active plant's route ---
+  // --- Touch swipe handler (mobile) ---
+  const touchStartY = useRef<number | null>(null);
+  const touchStartTime = useRef(0);
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el || !isTouch) return;
+
+    const onTouchStart = (e: TouchEvent) => {
+      if (phase !== "ready") return;
+      touchStartY.current = e.touches[0].clientY;
+      touchStartTime.current = Date.now();
+    };
+
+    const onTouchEnd = (e: TouchEvent) => {
+      if (phase !== "ready" || touchStartY.current === null) return;
+      const deltaY = touchStartY.current - e.changedTouches[0].clientY;
+      const elapsed = Date.now() - touchStartTime.current;
+      touchStartY.current = null;
+
+      // Require minimum 40px swipe within 500ms
+      if (Math.abs(deltaY) > 40 && elapsed < 500) {
+        const dir = deltaY > 0 ? 1 : -1;
+        setActiveIndex((i) => (i + dir + plants.length) % plants.length);
+      }
+    };
+
+    el.addEventListener("touchstart", onTouchStart, { passive: true });
+    el.addEventListener("touchend", onTouchEnd, { passive: true });
+    return () => {
+      el.removeEventListener("touchstart", onTouchStart);
+      el.removeEventListener("touchend", onTouchEnd);
+    };
+  }, [isTouch, phase]);
+
+  // --- Carousel click handler ---
   const handleCarouselClick = useCallback(() => {
     if (phase !== "ready") return;
 
@@ -228,7 +228,6 @@ export function OrchidHero({ onStartClick, onLoginClick, onDemoClick }: OrchidHe
 
     if (plant.action === "start") {
       if (isTouch) {
-        // Mobile: try Telegram deep link, fall back to web signup
         const start = Date.now();
         const handleVisibility = () => {
           if (document.hidden) {
@@ -253,9 +252,6 @@ export function OrchidHero({ onStartClick, onLoginClick, onDemoClick }: OrchidHe
 
   const isRevealing = phase === "revealing" || phase === "ready";
 
-  // Staggered reveal helpers
-  // Opacity is controlled via inline style (not Tailwind class) to prevent FOUC on cold page load.
-  // Tailwind classes can flash briefly before CSS is processed; inline styles are immediate.
   const revealClass = (delayMs: number) =>
     isRevealing
       ? "translate-y-0 transition-all duration-700 ease-out"
@@ -300,10 +296,10 @@ export function OrchidHero({ onStartClick, onLoginClick, onDemoClick }: OrchidHe
 
       {/* Main content container */}
       <div className="relative px-8 md:px-16 pt-[24px]">
-        {/* Tagline */}
+        {/* Tagline — smaller on mobile, tighter margin */}
         <div
-          className={`font-mono text-sm mb-[-40px] md:mb-[-100px] ${revealClass(0)}`}
-          style={{ ...revealStyle(0), fontSize: "16px" }}
+          className={`font-mono text-[13px] md:text-[16px] mb-[-12px] md:mb-[-100px] ${revealClass(0)}`}
+          style={{ ...revealStyle(0) }}
         >
           plant care made easy
         </div>
@@ -325,9 +321,9 @@ export function OrchidHero({ onStartClick, onLoginClick, onDemoClick }: OrchidHe
           <div
             className="inline-flex items-end mx-[-12px] sm:mx-[-20px] md:mx-[-30px] lg:mx-[-40px] mb-[-2px] md:mb-[-4px] relative z-10"
           >
-            {/* Annotation callout — anchored top-left of carousel, extends left */}
+            {/* Annotation callout — hidden on mobile */}
             <div
-              className={`absolute z-30 pointer-events-none ${
+              className={`absolute z-30 pointer-events-none hidden md:block ${
                 isRevealing ? "translate-y-0" : "translate-y-2"
               }`}
               style={{
@@ -348,7 +344,6 @@ export function OrchidHero({ onStartClick, onLoginClick, onDemoClick }: OrchidHe
                   fill="none"
                   className="absolute top-0 left-0"
                 >
-                  {/* Horizontal line from text, then diagonal kick down-right toward carousel */}
                   <path
                     d="M 2,12 L 98,12 L 128,34"
                     stroke="black"
@@ -358,7 +353,6 @@ export function OrchidHero({ onStartClick, onLoginClick, onDemoClick }: OrchidHe
                     strokeLinejoin="round"
                   />
                 </svg>
-                {/* Route labels — left-aligned above the line, one at a time */}
                 <div className="absolute" style={{ left: 0, top: -6 }}>
                   {plants.map((plant, i) => {
                     const p = plant as any;
@@ -398,7 +392,7 @@ export function OrchidHero({ onStartClick, onLoginClick, onDemoClick }: OrchidHe
               </div>
             </div>
 
-            {/* Real carousel — always rendered for pre-loading, but invisible until canvas fades */}
+            {/* Real carousel */}
             <div
               style={{
                 opacity: canvasFading ? 1 : 0,
@@ -410,7 +404,7 @@ export function OrchidHero({ onStartClick, onLoginClick, onDemoClick }: OrchidHe
               <PlantCarousel activeIndex={activeIndex} width={canvasW} height={canvasH} />
             </div>
 
-            {/* De-pixelating canvas — overlays the carousel, fades out when done */}
+            {/* De-pixelating canvas */}
             <canvas
               ref={canvasRef}
               width={CANVAS_WIDTH_LG}

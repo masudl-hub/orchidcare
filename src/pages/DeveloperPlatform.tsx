@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { BackButton } from "@/components/ui/back-button";
 import { DeveloperDashboard } from "@/components/developers/DeveloperDashboard";
 import { DeveloperDocs } from "@/components/developers/DeveloperDocs";
@@ -95,7 +95,8 @@ function useDecryptText(text: string, visible: boolean, charDelay = 1.5) {
 
 export default function DeveloperPlatform() {
     const navigate = useNavigate();
-    const [activeTab, setActiveTab] = useState<Tab>("dashboard");
+    const location = useLocation();
+    const [activeTab, setActiveTab] = useState<Tab>(location.pathname === "/developer/docs" ? "docs" : "dashboard");
     const [scrollProgress, setScrollProgress] = useState(0);
     const scrollRef = useRef<HTMLDivElement>(null);
 

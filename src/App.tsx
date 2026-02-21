@@ -67,6 +67,7 @@ const App = () => (
             <Route path="/privacy" element={<Privacy />} />
             <Route path="/app" element={<AppPage />} />
             <Route path="/developer" element={<ProtectedRoute><DeveloperPlatform /></ProtectedRoute>} />
+            <Route path="/developer/docs" element={<ProtectedRoute><DeveloperPlatform /></ProtectedRoute>} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>

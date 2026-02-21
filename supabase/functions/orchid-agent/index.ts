@@ -2691,6 +2691,9 @@ ${proactiveContext.events.map((e: any) => `- ${e.message_hint}`).join("\n")}
 
     let aiReply: string;
     let mediaToSend: Array<{ url: string; caption?: string }> = [];
+    // Storage paths for DB persistence (format: "bucket:path" or full URL for external).
+    // These are resolved to fresh signed URLs on load, avoiding 1-hour expiry issues.
+    let mediaPathsForDB: string[] = [];
     const toolsUsed: string[] = [];
 
     if (!orchestratorResponse.ok) {
@@ -3067,6 +3070,7 @@ ${proactiveContext.events.map((e: any) => `- ${e.message_hint}`).join("\n")}
               if (toolResult.success && toolResult.images) {
                 for (const img of toolResult.images) {
                   mediaToSend.push({ url: img.imageUrl, caption: img.description });
+                  mediaPathsForDB.push(`generated-guides:${img.storagePath}`);
                 }
                 await logAgentOperation(
                   supabase,
@@ -3343,6 +3347,7 @@ ${proactiveContext.events.map((e: any) => `- ${e.message_hint}`).join("\n")}
                           const caption = `${date}: ${snap.description || snap.context}`;
                           images.push({ url: signed.signedUrl, caption });
                           mediaToSend.push({ url: signed.signedUrl, caption });
+                          mediaPathsForDB.push(`plant-photos:${snap.image_path}`);
                         }
                       }
                     }
@@ -3385,6 +3390,7 @@ ${proactiveContext.events.map((e: any) => `- ${e.message_hint}`).join("\n")}
                         const caption = step.description || `Step ${step.step}`;
                         images.push({ url: signed.signedUrl, caption });
                         mediaToSend.push({ url: signed.signedUrl, caption });
+                        mediaPathsForDB.push(`generated-guides:${path}`);
                       }
                     }
                   }
@@ -3656,8 +3662,10 @@ ${proactiveContext.events.map((e: any) => `- ${e.message_hint}`).join("\n")}
                   const imageUrl = data.choices?.[0]?.message?.images?.[0]?.image_url?.url;
                   toolResult = imageUrl ? { success: true, imageUrl } : { success: false, error: "No image generated" };
                   // Push generated image to mediaToSend so it reaches the client
+                  // External URL stored as-is (no Supabase bucket to re-sign from)
                   if (imageUrl) {
                     mediaToSend.push({ url: imageUrl, caption: args.prompt || "" });
+                    mediaPathsForDB.push(imageUrl);
                   }
                 } catch (err) {
                   toolResult = { success: false, error: String(err) };
@@ -3921,7 +3929,9 @@ ${proactiveContext.events.map((e: any) => `- ${e.message_hint}`).join("\n")}
       channel,
       direction: "outbound",
       content: aiReply,
-      media_urls: mediaToSend.length > 0 ? mediaToSend.map(m => m.url) : null,
+      // Store storage paths (bucket:path) so they can be re-signed on reload.
+      // Falls back to raw signed URLs for any legacy/external images not in our storage.
+      media_urls: mediaPathsForDB.length > 0 ? mediaPathsForDB : (mediaToSend.length > 0 ? mediaToSend.map(m => m.url) : null),
     });
 
     // Trigger background compression check

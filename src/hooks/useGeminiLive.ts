@@ -276,16 +276,19 @@ export function useGeminiLive() {
   // ---------------------------------------------------------------------------
   // connect — orchestrates playback, capture, and SDK session setup
   // ---------------------------------------------------------------------------
-  const connect = useCallback(async (token: string, sessionId: string, initData: string, options?: { toolsUrl?: string; extraAuth?: Record<string, unknown>; toolsAuthHeader?: string; onReconnectNeeded?: () => Promise<string | null> }) => {
+  const connect = useCallback(async (token: string, sessionId: string, initData: string, options?: { toolsUrl?: string; extraAuth?: Record<string, unknown>; toolsAuthHeader?: string; onReconnectNeeded?: () => Promise<string | null> }, isReconnect?: boolean) => {
     // Re-entrancy guard
     if (connectingRef.current || sessionRef.current) {
       log('connect() skipped — already connecting or connected');
       return;
     }
     userDisconnectedRef.current = false;
-    // Check BEFORE resetting — distinguishes fresh call vs reconnect
-    const isFreshConnection = reconnectAttemptsRef.current === 0;
-    reconnectAttemptsRef.current = 0;
+    // Fresh connections reset the attempt counter and clear the transcript.
+    // Reconnects preserve both so the 3-attempt limit and accumulated transcript survive.
+    const isFreshConnection = !isReconnect;
+    if (isFreshConnection) {
+      reconnectAttemptsRef.current = 0;
+    }
     connectOptionsRef.current = options;
     connectingRef.current = true;
     greetingSentRef.current = false;
@@ -407,12 +410,16 @@ export function useGeminiLive() {
               connectedRef.current = false;
               setStatus('ended');
             } else if (connectedRef.current) {
-              // Unexpected disconnect while connected — clean up resources, then reconnect
+              // Unexpected disconnect while connected — keep audio alive, attempt reconnect.
+              // Do NOT stop mic or playback AudioContext: reconnect reuses the same streams,
+              // and creating new AudioContexts / calling getUserMedia from a setTimeout
+              // (non-user-gesture) may leave iOS/Safari permanently suspended.
+              // startCapture() and startPlayback() are idempotent, so the next connect()
+              // call will just re-wire the existing streams.
               connectedRef.current = false;
-              capture.onAudioData.current = null;
-              capture.stopCapture();
-              playback.stopPlayback();
-              log('Cleaned up audio resources before reconnect');
+              capture.onAudioData.current = null; // Detach callbacks from dead session
+              playback.flush(); // Clear any queued audio
+              log('Unexpected disconnect — attempting reconnect (audio resources preserved)');
               attemptReconnectRef.current();
             } else {
               setErrorDetail(`Connection closed (code=${e.code}, reason="${e.reason || 'none'}")`);
@@ -533,8 +540,8 @@ export function useGeminiLive() {
         connectedRef.current = false;
         sessionRef.current = null;
         greetingSentRef.current = false;
-        // Reconnect using same session/initData but new token
-        await connect(newToken, sessionIdRef.current, initDataRef.current, opts);
+        // Reconnect using same session/initData but new token (isReconnect=true preserves attempt counter)
+        await connect(newToken, sessionIdRef.current, initDataRef.current, opts, true);
       } catch (err) {
         const detail = err instanceof Error ? err.message : String(err);
         log(`Reconnect attempt ${attempt + 1} failed: ${detail}`);

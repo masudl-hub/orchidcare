@@ -110,6 +110,11 @@ export function useAudioCapture(options?: UseAudioCaptureOptions): UseAudioCaptu
   // so capture runs independently of the playback context (24kHz).
   // -----------------------------------------------------------------------
   const startCapture = useCallback(async () => {
+    // Idempotent: reuse existing mic stream if still alive (e.g. during reconnect)
+    if (streamRef.current && streamRef.current.active) {
+      return;
+    }
+
     const audioContext = new AudioContext({ sampleRate });
     audioContextRef.current = audioContext;
 

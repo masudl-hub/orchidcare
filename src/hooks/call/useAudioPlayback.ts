@@ -81,6 +81,14 @@ export function useAudioPlayback(): UseAudioPlaybackReturn {
   // startPlayback — creates AudioContext (24 kHz), AnalyserNode, level loop
   // -----------------------------------------------------------------------
   const startPlayback = useCallback((): AudioContext => {
+    // Idempotent: reuse existing context if still alive (e.g. during reconnect)
+    if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
+      if (audioContextRef.current.state === 'suspended') {
+        audioContextRef.current.resume();
+      }
+      return audioContextRef.current;
+    }
+
     const audioContext = new AudioContext({ sampleRate: 24000 });
     audioContextRef.current = audioContext;
 

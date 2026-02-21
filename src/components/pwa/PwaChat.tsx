@@ -13,6 +13,35 @@ import { WifiOff } from 'lucide-react';
 
 const mono = 'ui-monospace, monospace';
 
+// Resolve a media URL from storage, always generating a fresh signed URL.
+// New format: "bucket:path" (e.g. "plant-photos:snapshots/abc/def/123.jpg")
+// Legacy format: full Supabase signed URL (expired after 1h — extract path and refresh)
+// External URLs (Telegram CDN, etc.) are returned as-is.
+async function resolveMediaUrl(url: string): Promise<string> {
+  if (!url) return '';
+
+  // New bucket:path format
+  if (!url.startsWith('https://') && url.includes(':')) {
+    const colonIdx = url.indexOf(':');
+    const bucket = url.slice(0, colonIdx);
+    const path = url.slice(colonIdx + 1);
+    const { data } = await supabase.storage.from(bucket).createSignedUrl(path, 3600);
+    return data?.signedUrl || '';
+  }
+
+  // Legacy Supabase signed URL — extract bucket + path and regenerate
+  const storageMatch = url.match(/\/storage\/v1\/object\/sign\/([^/]+)\/([^?]+)/);
+  if (storageMatch) {
+    const bucket = storageMatch[1];
+    const path = decodeURIComponent(storageMatch[2]);
+    const { data } = await supabase.storage.from(bucket).createSignedUrl(path, 3600);
+    return data?.signedUrl ?? url;
+  }
+
+  // External URL (Telegram CDN, etc.) — return as-is
+  return url;
+}
+
 interface PwaMessage {
   id: string;
   role: 'user' | 'assistant';
@@ -95,7 +124,10 @@ export function PwaChat() {
         for (let i = 0; i < data.length; i++) {
           if (data[i].direction === 'outbound') {
             const userMsg = i > 0 && data[i - 1].direction === 'inbound' ? data[i - 1].content : undefined;
-            const images = data[i].media_urls?.map((url: string) => ({ url, title: 'Image' }));
+            const rawUrls: string[] = data[i].media_urls || [];
+            const images = rawUrls.length > 0
+              ? (await Promise.all(rawUrls.map(async (url) => ({ url: await resolveMediaUrl(url), title: 'Image' })))).filter(img => img.url)
+              : undefined;
 
             historyArtifacts.push({
               id: data[i].id, // Use DB id instead of counter

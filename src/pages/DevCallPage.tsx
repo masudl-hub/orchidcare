@@ -9,6 +9,18 @@ const mono = 'ui-monospace, monospace';
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const GEMINI_MODEL = 'models/gemini-2.5-flash-native-audio-preview-12-2025';
 
+function blobToBase64(blob: Blob): Promise<string> {
+  return blob.arrayBuffer().then(buf => {
+    const bytes = new Uint8Array(buf);
+    let binary = '';
+    const chunk = 8192;
+    for (let i = 0; i < bytes.length; i += chunk) {
+      binary += String.fromCharCode(...bytes.subarray(i, Math.min(i + chunk, bytes.length)));
+    }
+    return btoa(binary);
+  });
+}
+
 const VOICES = ['Aoede', 'Charon', 'Fenrir', 'Kore', 'Puck'] as const;
 
 const DEFAULT_SYSTEM_PROMPT = `You are Orchid, a warm and knowledgeable plant care assistant.
@@ -216,6 +228,33 @@ function DevCallPageInner() {
             transcript: gemini.transcript.current,
           }),
         });
+
+        // Fire-and-forget: send recorded audio for summarization
+        const blobs = gemini.callRecording.getBlobs();
+        if (blobs.userBlob || blobs.agentBlob) {
+          (async () => {
+            try {
+              const [userB64, agentB64] = await Promise.all([
+                blobs.userBlob ? blobToBase64(blobs.userBlob) : null,
+                blobs.agentBlob ? blobToBase64(blobs.agentBlob) : null,
+              ]);
+              console.log('[DevCall] Sending call audio for summarization...');
+              fetch(`${SUPABASE_URL}/functions/v1/summarise-call`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  sessionId: sessionIdRef.current,
+                  devSecret: devSecret.trim(),
+                  telegramChatId: Number(chatId.trim()),
+                  userAudio: userB64,
+                  agentAudio: agentB64,
+                }),
+              }).catch(() => {});
+            } catch (err) {
+              console.warn('[DevCall] Failed to send call audio:', err);
+            }
+          })();
+        }
       } catch { /* best effort */ }
     }
     setInCall(false);

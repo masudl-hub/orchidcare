@@ -11,6 +11,8 @@ interface UseAudioPlaybackReturn {
   enqueueAudio: (pcmData: Float32Array) => void;
   /** Flush queue and stop all active sources (for interruption handling). */
   flush: () => void;
+  /** MediaStream carrying agent audio — available after startPlayback(), for recording. */
+  recordingStream: React.MutableRefObject<MediaStreamAudioDestinationNode | null>;
 }
 
 export function useAudioPlayback(): UseAudioPlaybackReturn {
@@ -26,6 +28,7 @@ export function useAudioPlayback(): UseAudioPlaybackReturn {
 
   const audioContextRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
+  const recordDestRef = useRef<MediaStreamAudioDestinationNode | null>(null);
   const animationFrameRef = useRef<number>(0);
 
   // Audio playback — scheduled gapless approach (like Google's example)
@@ -91,6 +94,11 @@ export function useAudioPlayback(): UseAudioPlaybackReturn {
     analyser.connect(audioContext.destination);
     analyserRef.current = analyser;
 
+    // Create a MediaStreamDestination for recording agent audio
+    const recordDest = audioContext.createMediaStreamDestination();
+    analyser.connect(recordDest);
+    recordDestRef.current = recordDest;
+
     // Start analyser animation loop for avatar visualization
     const dataArray = new Uint8Array(analyser.frequencyBinCount);
     const loop = () => {
@@ -122,6 +130,7 @@ export function useAudioPlayback(): UseAudioPlaybackReturn {
       animationFrameRef.current = 0;
     }
     analyserRef.current = null;
+    recordDestRef.current = null;
     setOutputAudioLevel(0);
   }, [flush]);
 
@@ -141,5 +150,6 @@ export function useAudioPlayback(): UseAudioPlaybackReturn {
     stopPlayback,
     enqueueAudio,
     flush,
+    recordingStream: recordDestRef,
   };
 }

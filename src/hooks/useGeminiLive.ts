@@ -4,6 +4,7 @@ import type { Session, LiveServerMessage } from '@google/genai';
 import { useAudioPlayback } from './call/useAudioPlayback';
 import { useAudioCapture } from './call/useAudioCapture';
 import { useVideoCapture } from './call/useVideoCapture';
+import { useCallRecorder } from './call/useCallRecorder';
 import type { ConnectionStatus, AnnotationSet, AnnotationMarker } from './call/types';
 import type { Formation, TransitionType } from '@/lib/pixel-canvas/types';
 
@@ -47,6 +48,7 @@ export function useGeminiLive() {
   const playback = useAudioPlayback();
   const capture = useAudioCapture();
   const video = useVideoCapture();
+  const recorder = useCallRecorder();
 
   // ---------------------------------------------------------------------------
   // Debug logger — writes to both console and in-app debug log
@@ -433,7 +435,15 @@ export function useGeminiLive() {
         }
       } catch { /* chime is non-critical */ }
 
-      // 4. Wire capture output -> Gemini via SDK
+      // 4. Start recording (non-fatal — call continues if this fails)
+      try {
+        recorder.startRecording(
+          capture.stream.current,
+          playback.recordingStream.current?.stream ?? null,
+        );
+      } catch { /* recording is best-effort */ }
+
+      // 5. Wire capture output -> Gemini via SDK
       // isSpeakingRef is a synchronous ref (kept in sync with isSpeaking state) —
       // prevents the React re-render lag that let chunks slip through mid-speech.
       let audioChunkCount = 0;
@@ -610,6 +620,9 @@ export function useGeminiLive() {
       reconnectTimerRef.current = null;
     }
 
+    // Stop recording BEFORE killing streams (stopCapture destroys the mic stream)
+    recorder.stopRecording().catch(() => { /* best-effort */ });
+
     // Only transition to 'ended' if we actually had a live session.
     // This prevents StrictMode's unmount→remount from falsely ending
     // the overlay before the connection is even established.
@@ -695,5 +708,6 @@ export function useGeminiLive() {
     facingMode: video.facingMode,
     toggleFacingMode,
     captureSnapshot,
+    callRecording: recorder,
   };
 }

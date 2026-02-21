@@ -6,6 +6,18 @@ import { supabase } from '@/integrations/supabase/client';
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 
+function blobToBase64(blob: Blob): Promise<string> {
+  return blob.arrayBuffer().then(buf => {
+    const bytes = new Uint8Array(buf);
+    let binary = '';
+    const chunk = 8192;
+    for (let i = 0; i < bytes.length; i += chunk) {
+      binary += String.fromCharCode(...bytes.subarray(i, Math.min(i + chunk, bytes.length)));
+    }
+    return btoa(binary);
+  });
+}
+
 import { useNavigate } from 'react-router-dom';
 import { BackButton } from '@/components/ui/back-button';
 import { RefreshCcw, ArrowLeft } from 'lucide-react';
@@ -170,6 +182,32 @@ function LiveCallPageInner() {
             transcript: gemini.transcript.current,
           }),
         });
+
+        // Fire-and-forget: send recorded audio for summarization
+        const blobs = gemini.callRecording.getBlobs();
+        if (blobs.userBlob || blobs.agentBlob) {
+          (async () => {
+            try {
+              const [userB64, agentB64] = await Promise.all([
+                blobs.userBlob ? blobToBase64(blobs.userBlob) : null,
+                blobs.agentBlob ? blobToBase64(blobs.agentBlob) : null,
+              ]);
+              console.log('[LiveCall] Sending call audio for summarization...');
+              fetch(`${SUPABASE_URL}/functions/v1/summarise-call`, {
+                method: 'POST',
+                headers,
+                body: JSON.stringify({
+                  sessionId,
+                  initData: initData || undefined,
+                  userAudio: userB64,
+                  agentAudio: agentB64,
+                }),
+              }).catch(() => {});
+            } catch (err) {
+              console.warn('[LiveCall] Failed to send call audio:', err);
+            }
+          })();
+        }
       } catch (err) {
         console.error('[LiveCall] End session error:', err);
       }

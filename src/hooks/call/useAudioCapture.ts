@@ -64,6 +64,8 @@ interface UseAudioCaptureReturn {
   stopCapture: () => void;
   /** Parent sets this ref to receive PCM audio as base64. */
   onAudioData: React.MutableRefObject<((base64: string) => void) | null>;
+  /** Raw mic MediaStream — available after startCapture(), null after stopCapture(). */
+  stream: React.MutableRefObject<MediaStream | null>;
 }
 
 export function useAudioCapture(options?: UseAudioCaptureOptions): UseAudioCaptureReturn {
@@ -174,5 +176,5 @@ export function useAudioCapture(options?: UseAudioCaptureOptions): UseAudioCaptu
     });
   }, []);
 
-  return { isMuted, toggleMic, startCapture, stopCapture, onAudioData };
+  return { isMuted, toggleMic, startCapture, stopCapture, onAudioData, stream: streamRef };
 }

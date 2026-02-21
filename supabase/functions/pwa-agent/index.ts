@@ -138,6 +138,21 @@ serve(async (req: Request) => {
       });
     }
 
+    // Validate content-type before parsing -- orchid-agent's catch block
+    // may return XML on crash (Telegram legacy), or Deno runtime may return HTML
+    const responseContentType = agentResponse.headers.get("content-type") || "";
+    if (!responseContentType.includes("application/json")) {
+      const rawBody = await agentResponse.text();
+      console.error(`[pwa-agent] orchid-agent returned non-JSON (${responseContentType}): ${rawBody.substring(0, 300)}`);
+      return new Response(JSON.stringify({
+        error: "Unexpected response format from agent",
+        detail: `Got ${responseContentType} instead of JSON`,
+      }), {
+        status: 502,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     // ---------------------------------------------------------------------------
     // 5. Stream NDJSON back to the client
     //    orchid-agent returns { reply, mediaToSend } as JSON.

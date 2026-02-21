@@ -170,13 +170,18 @@ export async function executeTool(
       if (!LOVABLE_API_KEY) {
         result = { success: false, error: "Image generation not configured" };
       } else {
-        const resp = await fetch("https://ai.gateway.lovable.dev/v1/images/generations", {
+        const styledPrompt = `${args.prompt}\n\nVISUAL STYLE — "Botanical Pixels":\n- Clean WHITE background for maximum legibility\n- Illustrated botanical plants and foliage (detailed, lush, naturalistic — NOT pixel art for the plants themselves)\n- Typography: "Press Start 2P" style pixel font for headers, monospace for labels\n- Layout: grid-based, structured information design with clear visual hierarchy\n- Annotations: thin dark lines, small monospace labels, well-placed arrows\n- Color palette: rich botanical greens and earth tones, black text, subtle gray grid lines\n- NO watercolor washes, NO cream/beige backgrounds\n- Keep all text highly legible — avoid placing text over busy illustration areas`;
+        const resp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
           method: "POST",
           headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
-          body: JSON.stringify({ model: "dall-e-3", prompt: args.prompt, n: 1, size: "1024x1024" }),
+          body: JSON.stringify({
+            model: "google/gemini-3-pro-image-preview",
+            modalities: ["image", "text"],
+            messages: [{ role: "user", content: styledPrompt }],
+          }),
         });
         const data = await resp.json();
-        const imageUrl = data.data?.[0]?.url;
+        const imageUrl = data.choices?.[0]?.message?.images?.[0]?.image_url?.url;
         result = imageUrl ? { success: true, imageUrl } : { success: false, error: "No image generated" };
       }
       break;

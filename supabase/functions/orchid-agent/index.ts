@@ -3501,6 +3501,10 @@ ${proactiveContext.events.map((e: any) => `- ${e.message_hint}`).join("\n")}
                 const data = await response.json();
                 const imageUrl = data.data?.[0]?.url || data.data?.[0]?.b64_json;
                 toolResult = imageUrl ? { success: true, imageUrl } : { success: false, error: "No image generated" };
+                // Push generated image to mediaToSend so it reaches the client
+                if (imageUrl) {
+                  mediaToSend.push({ url: imageUrl, caption: args.prompt || "" });
+                }
               } catch (err) {
                 toolResult = { success: false, error: String(err) };
               }

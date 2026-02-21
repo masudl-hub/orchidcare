@@ -1,147 +1,44 @@
 
+# Fix Developer Bottom Nav + Add /developer/docs Route
 
-# Disable Auto-Interruption + Add Manual Interrupt Button
+## Problem
+The developer context bottom nav currently shows: **LayoutDashboard, Terminal, | FileText, Leaf, Chat, Call** -- which reads as two "dashboard-like" icons before the separator. It should mirror the desktop header: **Dashboard, Docs | Collection, Chat, Call**.
 
-## What This Does
+Also, `/developer/docs` doesn't exist as a route yet.
 
-Two changes working together:
+## Changes
 
-1. **Disable automatic barge-in** -- the model will no longer get cut off by background noise, bumps, or accidental sounds. It always finishes its thought.
-2. **Add a manual "interrupt" button** -- appears only while the model is speaking, letting users intentionally cut in when needed.
+### 1. Fix BottomNav developer items (`src/components/navigation/BottomNav.tsx`)
 
-The tradeoff: users must tap the button to interrupt. For a plant care assistant with tool-heavy flows, this is the right call -- losing a tool chain mid-execution is far worse than waiting a few seconds.
+Replace the developer nav items to match the header exactly:
 
----
-
-## Technical Changes
-
-### 1. Disable Server-Side VAD + Client-Side Audio Gating
-
-**File:** `src/hooks/useGeminiLive.ts`
-
-**a) Replace VAD config (lines 252-259)** with disabled automatic activity detection:
-
-```typescript
-realtimeInputConfig: {
-  automaticActivityDetection: {
-    disabled: true,
-  },
-},
+```
+LayoutDashboard (/developer)  FileText (/developer/docs)  |  Leaf (/dashboard/collection)  MessageSquare (/chat)  Phone (/call)
 ```
 
-**b) Gate outgoing audio (lines 363-372)** -- stop sending audio chunks while the model is speaking:
+- Remove the redundant Terminal icon -- the LayoutDashboard icon already represents the developer dashboard
+- Move the separator to after FileText (docs), before Leaf (collection)
 
-```typescript
-capture.onAudioData.current = (base64: string) => {
-  if (sessionRef.current && !playback.isSpeaking) {
-    audioChunkCount++;
-    if (audioChunkCount <= 3 || audioChunkCount % 50 === 0) {
-      log(`Sending audio chunk #${audioChunkCount} (${base64.length} chars)`);
-    }
-    sessionRef.current.sendRealtimeInput({
-      media: { data: base64, mimeType: 'audio/pcm;rate=16000' },
-    });
-  }
-};
+### 2. Add `/developer/docs` route (`src/App.tsx`)
+
+Add a new route that renders `DeveloperPlatform` with the docs tab active:
+
+```
+<Route path="/developer/docs" element={<ProtectedRoute><DeveloperPlatform /></ProtectedRoute>} />
 ```
 
-**c) Neuter interruption handler (lines 180-183)** -- log-only, no flush:
+### 3. Make DeveloperPlatform respond to URL (`src/pages/DeveloperPlatform.tsx`)
 
-```typescript
-if (message.serverContent?.interrupted) {
-  log('Received interrupted signal (VAD disabled -- unexpected)');
-}
-```
+Read the current path to set the initial tab:
+- `/developer/docs` opens the "docs" tab
+- `/developer` opens the "dashboard" tab
 
-**d) Remove `vadConfig` from connect signature and refs** (lines 37, 214) -- the option no longer exists.
-
-### 2. Add `interruptModel` Method
-
-**File:** `src/hooks/useGeminiLive.ts`
-
-New callback alongside `disconnect`, `toggleMic`, etc.:
-
-```typescript
-const interruptModel = useCallback(() => {
-  if (!sessionRef.current || !playback.isSpeaking) return;
-  log('User triggered manual interrupt');
-
-  // 1. Silence the audio output immediately
-  playback.flush();
-
-  // 2. Send a client turn so the model stops generating and listens
-  sessionRef.current.sendClientContent({
-    turns: [{ role: 'user', parts: [{ text: '(user interrupted -- listening now)' }] }],
-    turnComplete: true,
-  });
-
-  setIsListening(true);
-}, [playback, log]);
-```
-
-Expose in the return object alongside other methods.
-
-### 3. Add Interrupt Button to CallScreen
-
-**File:** `src/components/call/CallScreen.tsx`
-
-New prop `onInterrupt`. Renders a button in the top-left corner, visible only when `isSpeaking` is true:
-
-```typescript
-{isSpeaking && onInterrupt && (
-  <button
-    onClick={onInterrupt}
-    style={{
-      position: 'absolute',
-      top: '16px',
-      left: '16px',
-      zIndex: 20,
-      backgroundColor: 'rgba(0,0,0,0.4)',
-      border: '1px solid rgba(255,255,255,0.25)',
-      borderRadius: '0',
-      padding: '8px 14px',
-      cursor: 'pointer',
-      display: 'flex',
-      alignItems: 'center',
-      gap: '6px',
-      fontFamily: 'ui-monospace, monospace',
-      fontSize: '11px',
-      color: 'rgba(255,255,255,0.8)',
-      letterSpacing: '0.05em',
-    }}
-    aria-label="Interrupt"
-  >
-    interrupt
-  </button>
-)}
-```
-
-Matches the existing visual language (semi-transparent background, monospace, no border-radius) -- same as the flip-camera and snapshot buttons.
-
-### 4. Wire Through Call Pages
-
-**Files:** `src/pages/LiveCallPage.tsx`, `src/pages/DevCallPage.tsx`, `src/components/demo/DemoVoiceOverlay.tsx`
-
-One-liner each: pass `onInterrupt={gemini.interruptModel}` to `CallScreen`.
-
-### 5. Clean Up DevCallPage VAD Controls
-
-**File:** `src/pages/DevCallPage.tsx`
-
-Remove the now-unused state variables and UI controls:
-- `vadEndSensitivity` state and buttons (lines 68, 396-410)
-- `vadSilenceMs` state and slider (lines 69, 412-428)
-- `vadConfig` spread in `startQuick` and `startFull` calls (lines 129-137, 182-188)
-
----
+This way the page responds to direct navigation from the bottom nav instead of relying only on internal tab state.
 
 ## Files Modified
 
-| File | Changes |
-|------|---------|
-| `src/hooks/useGeminiLive.ts` | Disable server VAD, gate outgoing audio, neuter interrupt handler, add `interruptModel` method, remove `vadConfig` option |
-| `src/components/call/CallScreen.tsx` | Add `onInterrupt` prop, render conditional interrupt button top-left |
-| `src/pages/LiveCallPage.tsx` | Pass `onInterrupt` prop |
-| `src/pages/DevCallPage.tsx` | Pass `onInterrupt` prop, remove VAD controls and state |
-| `src/components/demo/DemoVoiceOverlay.tsx` | Pass `onInterrupt` prop |
-
+| File | Change |
+|------|--------|
+| `src/components/navigation/BottomNav.tsx` | Fix developer nav: 5 items (Dashboard, Docs, \|, Collection, Chat, Call) |
+| `src/App.tsx` | Add `/developer/docs` route |
+| `src/pages/DeveloperPlatform.tsx` | Read URL path to set initial active tab |

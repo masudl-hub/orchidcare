@@ -175,13 +175,10 @@ async function handleToken(
               parts: [{ text: systemPrompt }],
             },
             tools: voiceToolDeclarations,
-            thinkingConfig: {
-              thinkingBudget: 512,
-            },
-            contextWindowCompression: {
-              triggerTokens: 25600,
-              slidingWindow: { targetTokens: 12800 },
-            },
+            // thinkingConfig: { thinkingBudget: 512 },
+            // ↑ Not supported on BidiGenerateContentConstrained (ephemeral token endpoint) — causes 1008
+            // contextWindowCompression: { triggerTokens: 25600, slidingWindow: { targetTokens: 12800 } },
+            // ↑ Same — constrained endpoint doesn't support sliding window compression
           },
         },
         httpOptions: { apiVersion: "v1alpha" },

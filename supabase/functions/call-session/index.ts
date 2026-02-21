@@ -306,7 +306,12 @@ async function handleToken(
       },
     };
     console.log(`[CallSession] /token: calling genai.authTokens.create()...`);
-    const token = await genai.authTokens.create(tokenConfig);
+    const token = await Promise.race([
+      genai.authTokens.create(tokenConfig),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error("Ephemeral token request timed out after 10s")), 10_000)
+      ),
+    ]);
     console.log(`[CallSession] /token: SDK returned — token.name=${token.name ? token.name.substring(0, 40) + "..." : "EMPTY"}, token keys=${Object.keys(token).join(",")} (${Date.now() - tokenStart}ms)`);
 
     ephemeralToken = token.name!;

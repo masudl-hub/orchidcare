@@ -109,6 +109,7 @@ export function DeveloperDashboard() {
     const [confirmRevoke, setConfirmRevoke] = useState(false);
     const [stats, setStats] = useState({ total: 0, last7d: 0, last30d: 0, errorRate: 0 });
     const [visible, setVisible] = useState(false);
+    const [profileId, setProfileId] = useState<string | null>(null);
 
     // Trigger reveal after data loads
     useEffect(() => {
@@ -128,10 +129,18 @@ export function DeveloperDashboard() {
         if (!user) return;
         setLoading(true);
 
+        const { data: profile } = await supabase
+            .from("profiles")
+            .select("id")
+            .eq("user_id", user.id)
+            .single();
+        if (!profile) { setLoading(false); return; }
+        setProfileId(profile.id);
+
         const { data: keys } = await supabase
             .from("developer_api_keys")
             .select("*")
-            .eq("profile_id", user.id)
+            .eq("profile_id", profile.id)
             .eq("status", "active")
             .limit(1) as any;
 
@@ -189,13 +198,13 @@ export function DeveloperDashboard() {
 
     // ── Generate ──
     const handleGenerate = async () => {
-        if (!user) return;
+        if (!user || !profileId) return;
         const plainKey = generateApiKey();
         const hash = await hashApiKey(plainKey);
         const prefix = plainKey.slice(0, 12) + "...";
 
         const { error } = await supabase.from("developer_api_keys").insert({
-            profile_id: user.id,
+            profile_id: profileId,
             key_hash: hash,
             key_prefix: prefix,
             name: "Default",

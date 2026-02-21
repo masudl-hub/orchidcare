@@ -1,169 +1,151 @@
 
 
-# Implement `recall_media` Tool + Fix Storage Paths
+# Fix: Handler Scoping + Error Response Architecture in orchid-agent
 
-## Summary
+## Root Cause Analysis
 
-Add a new tool that lets Orchid resurface stored images (plant snapshots and generated guides) for the current user, and fix the underlying storage path issue that would prevent guide recall from working.
+This is not a simple "move a variable" problem. There are two architectural flaws working together:
 
----
+### Flaw 1: orchid-agent's catch block is Telegram-only
 
-## Change 1: Fix `callImageGenerationAgent` to store raw file paths
+The top-level `catch` block (line 3988-3995) **always** returns TwiML XML with HTTP 200 -- because it was originally designed for Twilio/Telegram webhooks, where you must return valid XML even on failure.
 
-**File:** `supabase/functions/orchid-agent/index.ts` (lines 1600-1607)
+But now orchid-agent serves **three callers**: Telegram, pwa-agent, and proactive-agent. When an internal JSON caller triggers an error, the catch block still returns XML with a 200 status.
 
-Currently, the function returns only `{ step, description, imageUrl }` where `imageUrl` is a 1-hour signed URL. When this gets saved to `generated_content`, the URL expires and the image is unretrievable.
+### Flaw 2: Response-level variables declared inside nested blocks
 
-**Fix:** Also return the raw `storagePath` (the `fileName` variable from line 1575) in each step result:
+`toolsUsed` is declared at line 2727, deep inside:
 
-```typescript
-return {
-  step,
-  description: messageContent || `Step ${step}`,
-  imageUrl: imageUrl,
-  storagePath: fileName,  // raw path for future re-signing
-};
+```text
+if (orchestratorResponse.ok)          // line 2695
+  else (choices exist)                // line 2707
+    const toolsUsed = []              // line 2727
 ```
 
-This requires no schema changes -- the `content` column is JSONB, so the extra field is stored automatically.
+But it's consumed at line 3972 at the handler's top level. When the orchestrator returns an error (429, 402, etc.) or malformed data, `toolsUsed` is never declared, so line 3972 throws `ReferenceError`.
 
----
+### The crash chain
 
-## Change 2: Add `recall_media` tool declaration
-
-**File:** `supabase/functions/orchid-agent/index.ts` -- insert before the closing `];` of `functionTools` (line 884)
-
-```typescript
-{
-  type: "function",
-  function: {
-    name: "recall_media",
-    description: "Retrieve previously stored images for this user. Use to show plant snapshot history, past visual guides, or any stored media. Useful when user asks to 'show me again', 'compare photos', 'show my plant history', or references past guides.",
-    parameters: {
-      type: "object",
-      properties: {
-        source: {
-          type: "string",
-          enum: ["plant_snapshots", "generated_guides"],
-          description: "Where to look: plant_snapshots for plant photos, generated_guides for previously created visual guides",
-        },
-        plant_identifier: {
-          type: "string",
-          description: "Plant name/nickname (required for plant_snapshots, optional for guides)",
-        },
-        limit: {
-          type: "number",
-          description: "Max images to return (default 3, max 5)",
-        },
-      },
-      required: ["source"],
-    },
-  },
-},
+```text
+1. User sends message via PWA
+2. pwa-agent forwards to orchid-agent (X-Internal-Agent-Call: true)
+3. orchid-agent processes, hits line 3972: toolsUsed is not defined
+4. ReferenceError thrown, caught by catch block (line 3988)
+5. catch block returns XML with HTTP 200 (Telegram pattern)
+6. pwa-agent sees HTTP 200, skips error check (line 132)
+7. pwa-agent calls .json() on XML body -> SyntaxError: "<?xml vers..."
+8. pwa-agent's own catch returns 500 to frontend
 ```
 
+The pwa-agent's `!agentResponse.ok` check at line 132 is correct -- but useless here because orchid-agent returns 200 with XML on crash.
+
 ---
 
-## Change 3: Add `recall_media` execution logic
+## Fix 1: Mode-aware error handling in orchid-agent's catch block
 
-**File:** `supabase/functions/orchid-agent/index.ts` -- in the tool execution `if/else` chain (after `compare_plant_snapshots`, before `generate_image`)
+**File:** `supabase/functions/orchid-agent/index.ts` (lines 3988-3995)
 
-Security note: All queries filter by `profileId` which is resolved from the authenticated user's session or Telegram identity at the top of the handler. The service role key bypasses RLS, but the explicit `profileId` filter ensures user isolation at the application level -- matching the exact same pattern used by every other tool (`savePlant`, `capturePlantSnapshot`, etc.).
+The catch block must check whether this is an internal agent call and return the appropriate format:
 
 ```typescript
-else if (functionName === "recall_media") {
-  const source = args.source;
-  const limit = Math.min(args.limit || 3, 5);
+} catch (error) {
+  console.error("Webhook error:", error);
 
-  if (source === "plant_snapshots") {
-    if (!args.plant_identifier) {
-      toolResult = { success: false, error: "Need a plant name to look up snapshots" };
-    } else {
-      const resolution = await resolvePlants(supabase, profileId, args.plant_identifier);
-      if (resolution.plants.length === 0) {
-        toolResult = { success: false, error: `No plant found matching "${args.plant_identifier}"` };
-      } else {
-        const plant = resolution.plants[0];
-        const { data: snapshots } = await supabase
-          .from("plant_snapshots")
-          .select("image_path, description, created_at, context")
-          .eq("plant_id", plant.id)
-          .eq("profile_id", profileId)
-          .order("created_at", { ascending: false })
-          .limit(limit);
+  // Determine if this was an internal agent call by checking the request header
+  // (isInternalAgentCall is declared earlier in the try block and may not be in scope here,
+  // so we re-check the original request header)
+  const wasInternalCall = req.headers.get("X-Internal-Agent-Call") === "true";
 
-        const images = [];
-        for (const snap of (snapshots || [])) {
-          if (snap.image_path) {
-            const { data: signed } = await supabase.storage
-              .from("plant-photos")
-              .createSignedUrl(snap.image_path, 3600);
-            if (signed?.signedUrl) {
-              const date = new Date(snap.created_at).toLocaleDateString();
-              const caption = `${date}: ${snap.description || snap.context}`;
-              images.push({ url: signed.signedUrl, caption });
-              mediaToSend.push({ url: signed.signedUrl, caption });
-            }
-          }
-        }
-        toolResult = {
-          success: true,
-          retrieved: images.length,
-          plantName: plant.nickname || plant.species || plant.name
-        };
-      }
-    }
-  } else if (source === "generated_guides") {
-    const { data: guides } = await supabase
-      .from("generated_content")
-      .select("content, task_description, created_at")
-      .eq("profile_id", profileId)
-      .eq("content_type", "image_guide")
-      .order("created_at", { ascending: false })
-      .limit(1);
-
-    const images = [];
-    for (const guide of (guides || [])) {
-      const steps = guide.content?.steps || [];
-      for (const step of steps.slice(0, limit)) {
-        const path = step.storagePath;
-        if (path) {
-          const { data: signed } = await supabase.storage
-            .from("generated-guides")
-            .createSignedUrl(path, 3600);
-          if (signed?.signedUrl) {
-            const caption = step.description || `Step ${step.step}`;
-            images.push({ url: signed.signedUrl, caption });
-            mediaToSend.push({ url: signed.signedUrl, caption });
-          }
-        }
-      }
-    }
-    toolResult = {
-      success: true,
-      retrieved: images.length,
-      task: guides?.[0]?.task_description || "unknown"
-    };
-  } else {
-    toolResult = { success: false, error: "Invalid source. Use 'plant_snapshots' or 'generated_guides'" };
+  if (wasInternalCall) {
+    return new Response(JSON.stringify({
+      error: "Internal agent error",
+      detail: String(error).substring(0, 200),
+      reply: "I had a little hiccup! Could you try again? 🌱",
+      mediaToSend: [],
+      toolsUsed: [],
+    }), {
+      status: 500,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
   }
+
+  return new Response('<?xml version="1.0" encoding="UTF-8"?><Response></Response>', {
+    headers: {
+      ...corsHeaders,
+      "Content-Type": "application/xml",
+    },
+  });
 }
 ```
 
+This ensures internal callers always get JSON errors with proper HTTP status codes, while Telegram callers still get valid TwiML.
+
 ---
 
-## Change 4: Clean up dead imports in PwaChat
+## Fix 2: Hoist `toolsUsed` to handler scope
 
-**File:** `src/components/pwa/PwaChat.tsx` (lines 8-12)
+**File:** `supabase/functions/orchid-agent/index.ts`
 
-Remove unused artifact component imports:
-- `IdentificationCard`
-- `DiagnosisCard`
-- `CareGuideCard`
-- `StoreListCard`
-- `VisualGuideCard`
+Move `toolsUsed` declaration from line 2727 (inside nested else block) to line 2682, alongside `aiReply` and `mediaToSend` -- the other response-level variables:
 
-Simplify `renderArtifact` to only handle the `'chat'` path since the PWA never receives structured artifact types from `orchid-agent`.
+```typescript
+let aiReply: string;
+let mediaToSend: Array<{ url: string; caption?: string }> = [];
+const toolsUsed: string[] = [];   // <-- moved here from line 2727
+```
+
+Remove the declaration at line 2727. The `.push(functionName)` calls inside the tool loop continue to work because they reference the same array.
+
+This follows the same pattern as `aiReply` and `mediaToSend`, which are already declared at this scope level.
+
+---
+
+## Fix 3: Content-type validation in pwa-agent
+
+**File:** `supabase/functions/pwa-agent/index.ts` (lines 132-147)
+
+Even with Fix 1, pwa-agent should defend against unexpected response formats from any upstream service:
+
+```typescript
+if (!agentResponse.ok) {
+  const errorText = await agentResponse.text();
+  console.error(`[pwa-agent] orchid-agent error: ${agentResponse.status} ${errorText.substring(0, 500)}`);
+  return new Response(JSON.stringify({ error: "Agent error", detail: errorText.substring(0, 200) }), {
+    status: agentResponse.status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
+
+// Validate content-type before parsing -- orchid-agent's catch block
+// may return XML on crash (Telegram legacy), or Deno runtime may return HTML
+const responseContentType = agentResponse.headers.get("content-type") || "";
+if (!responseContentType.includes("application/json")) {
+  const rawBody = await agentResponse.text();
+  console.error(`[pwa-agent] orchid-agent returned non-JSON (${responseContentType}): ${rawBody.substring(0, 300)}`);
+  return new Response(JSON.stringify({
+    error: "Unexpected response format from agent",
+    detail: `Got ${responseContentType} instead of JSON`,
+  }), {
+    status: 502,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
+
+const agentResult = await agentResponse.json();
+```
+
+---
+
+## Why this is architectural, not a patch
+
+| Aspect | Patch approach | This approach |
+|--------|---------------|---------------|
+| `toolsUsed` scoping | Move variable up | Move variable up (same, because this IS the correct fix) |
+| Catch block | Leave as-is | Make mode-aware: JSON for internal callers, XML for Telegram |
+| pwa-agent parsing | Wrap in try/catch | Validate content-type before parsing (fail fast with clear error) |
+| Future callers | Would hit same XML-on-crash bug | All internal callers automatically get JSON errors |
+
+The variable hoisting is simple because it's the right thing to do. The real architectural work is making the error boundaries mode-aware so the system degrades gracefully regardless of which caller path triggered the failure.
 
 ---
 
@@ -171,9 +153,6 @@ Simplify `renderArtifact` to only handle the `'chat'` path since the PWA never r
 
 | File | Changes |
 |------|---------|
-| `supabase/functions/orchid-agent/index.ts` | (1) Add `storagePath` to guide step results. (2) Add `recall_media` tool declaration. (3) Add execution logic. |
-| `src/components/pwa/PwaChat.tsx` | Remove 5 unused imports, simplify `renderArtifact`. |
+| `supabase/functions/orchid-agent/index.ts` | (1) Hoist `toolsUsed` to handler scope at line 2682. (2) Make catch block mode-aware for internal vs Telegram callers. |
+| `supabase/functions/pwa-agent/index.ts` | Add content-type validation before `.json()` parsing. |
 
-## Note on generated guides created before this fix
-
-Guides generated before the `storagePath` fix will not have the field stored, so `recall_media` will skip those steps gracefully (the `if (path)` check handles it). Only newly generated guides will be fully recallable.

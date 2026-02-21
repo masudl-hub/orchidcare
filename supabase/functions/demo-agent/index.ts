@@ -277,7 +277,8 @@ You have tools available:
 - find_stores: Find local plant supply stores
 - verify_store_inventory: Check if a store carries a product
 - deep_think: Get expert analysis for complex questions
-- show_visual: Display formations on the pixel canvas (use templates for plants/tools, text for key info)
+- show_visual: Display plant/tool silhouettes on the pixel canvas (always type='template', 1-2 per response)
+- annotate_view: Mark up the camera feed on a 10×10 grid (rows A-J, cols 1-10)
 - generate_image: Generate botanical illustrations
 
 Always acknowledge before using a tool ("Let me look that up..." / "One sec...").
@@ -1429,14 +1430,12 @@ async function handleVoiceToken(
                 },
                 {
                   name: "show_visual",
-                  description: "Display a visual formation on the pixel canvas. Use for plant silhouettes, text, lists.",
+                  description: "Display a plant or tool silhouette on the pixel canvas. Always use type='template' with an id from the asset library. Animations queue — keep to 1-2 per response.",
                   parameters: {
                     type: "OBJECT",
                     properties: {
-                      type: { type: "STRING", description: "Formation type: 'template' for plant/tool art, 'text' for pixel text, 'list' for items" },
-                      id: { type: "STRING", description: "Template ID for type='template'. E.g. 'monstera_deliciosa', 'watering_can'" },
-                      text: { type: "STRING", description: "Text for type='text'. Max ~11 chars/line, all caps." },
-                      items: { type: "ARRAY", items: { type: "STRING" }, description: "List items for type='list'. Max 5." },
+                      type: { type: "STRING", description: "Always use 'template'" },
+                      id: { type: "STRING", description: "Template ID. E.g. 'monstera_deliciosa', 'watering_can', 'pruning_shears'" },
                       transition: { type: "STRING", description: "Animation: 'morph', 'dissolve', 'scatter', 'ripple'" },
                       hold: { type: "INTEGER", description: "Seconds to hold. 0 = stay. Default: 8" },
                     },
@@ -1445,7 +1444,7 @@ async function handleVoiceToken(
                 },
                 {
                   name: "annotate_view",
-                  description: "Draw pixel-art annotations on the user's camera feed. Use when video is active to point out features — leaf damage, pests, good placement spots, soil issues. Places markers on a 5x5 grid.",
+                  description: "Draw pixel-art annotations on the user's camera feed. Use when video is active to point out features — leaf damage, pests, placement spots, soil issues. Places markers on a 10×10 grid. Pass empty markers array to dismiss.",
                   parameters: {
                     type: "OBJECT",
                     properties: {
@@ -1454,7 +1453,7 @@ async function handleVoiceToken(
                         items: {
                           type: "OBJECT",
                           properties: {
-                            region: { type: "STRING", description: "Grid region (5x5): T1 T2 T3 T4 T5 / U1 U2 U3 U4 U5 / M1 M2 M3 M4 M5 / L1 L2 L3 L4 L5 / B1 B2 B3 B4 B5" },
+                            region: { type: "STRING", description: "Grid region (10×10): rows A (top) to J (bottom), cols 1 (left) to 10 (right). E.g. A1 (top-left), E5 (center), J10 (bottom-right)" },
                             type: { type: "STRING", description: "Marker type: arrow, circle, x, or label" },
                             label: { type: "STRING", description: "Short text label (max 12 chars). Required for label type." },
                             direction: { type: "STRING", description: "For arrows only: up, down, left, right, up-left, up-right, down-left, down-right" },

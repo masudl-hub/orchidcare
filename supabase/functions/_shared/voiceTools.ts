@@ -154,23 +154,21 @@ export const voiceToolDeclarations = [
       },
       {
         name: "show_visual",
-        description: "Display a visual formation on the pixel canvas during the call. Use this to show plant silhouettes, tool images, text messages, lists, or icons. The pixels will animate from their current shape to the new formation. Available formations include 82 plant species and 37 gardening tools from the asset library, plus dynamic text, lists, and icons.",
+        description: "Display a plant or tool silhouette on the pixel canvas. Use type='template' with an id from the asset library (82 plant species, 37 gardening tools). Each call animates for ~1-3 seconds then holds; multiple calls queue up and play in sequence — don't fire more than 2-3 per response.",
         parameters: {
           type: "OBJECT",
           properties: {
-            type: { type: "STRING", description: "Formation type: 'template' for plant/tool art, 'text' for pixel text, 'list' for numbered items" },
-            id: { type: "STRING", description: "Template ID for type='template'. Examples: 'monstera_deliciosa', 'watering_can', 'phalaenopsis_orchid'. Use the closest match to what you're discussing." },
-            text: { type: "STRING", description: "Text to display for type='text'. Keep SHORT — max ~11 chars per line, ~10 lines. All caps recommended." },
-            items: { type: "ARRAY", items: { type: "STRING" }, description: "List items for type='list'. Max 5 items, keep each SHORT." },
-            transition: { type: "STRING", description: "Animation style: 'morph' (smooth curves, default), 'dissolve' (fade), 'scatter' (explode+reform), 'ripple' (wave from center)" },
-            hold: { type: "INTEGER", description: "Seconds to hold formation before returning to orchid. 0 = stay until next show_visual. Default: 8" },
+            type: { type: "STRING", description: "Always use 'template'" },
+            id: { type: "STRING", description: "Template ID. Examples: 'monstera_deliciosa', 'watering_can', 'phalaenopsis_orchid', 'pruning_shears'. Use the closest match to what you're discussing." },
+            transition: { type: "STRING", description: "Animation style: 'morph' (default), 'dissolve', 'scatter', 'ripple'" },
+            hold: { type: "INTEGER", description: "Seconds to hold before returning to orchid. 0 = stay until next show_visual. Default: 8" },
           },
           required: ["type"],
         },
       },
       {
         name: "annotate_view",
-        description: "Draw pixel-art annotations on the user's camera feed. Use when video is active to point out features — leaf damage, pests, good placement spots, soil issues. Places markers on a 5x5 grid.",
+        description: "Draw pixel-art annotations on the user's camera feed. Use when video is active to point out features — leaf damage, pests, placement spots, soil issues. Places markers on a 10×10 grid. Pass empty markers array to dismiss current annotations.",
         parameters: {
           type: "OBJECT",
           properties: {
@@ -179,7 +177,7 @@ export const voiceToolDeclarations = [
               items: {
                 type: "OBJECT",
                 properties: {
-                  region: { type: "STRING", description: "Grid region (5x5): T1 T2 T3 T4 T5 / U1 U2 U3 U4 U5 / M1 M2 M3 M4 M5 / L1 L2 L3 L4 L5 / B1 B2 B3 B4 B5" },
+                  region: { type: "STRING", description: "Grid region (10×10): rows A (top) to J (bottom), cols 1 (left) to 10 (right). Examples: A1 (top-left), E5 (center-left), J10 (bottom-right)" },
                   type: { type: "STRING", description: "Marker type: arrow, circle, x, or label" },
                   label: { type: "STRING", description: "Short text label (max 12 chars). Required for label type." },
                   direction: { type: "STRING", description: "For arrows only: up, down, left, right, up-left, up-right, down-left, down-right" },

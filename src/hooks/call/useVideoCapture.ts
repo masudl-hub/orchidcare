@@ -95,10 +95,20 @@ export function useVideoCapture(): UseVideoCaptureReturn {
     await video.play();
     videoElRef.current = video;
 
-    // Create offscreen canvas for JPEG encoding (portrait dimensions)
+    // Create offscreen canvas matching the actual display aspect ratio.
+    // This ensures the frame sent to the LLM looks exactly like what the user sees
+    // (objectFit:cover on the viewport), so annotation grid positions are accurate.
     const canvas = document.createElement('canvas');
-    canvas.width = 480;
-    canvas.height = 854;
+    const displayAspect = window.innerWidth / window.innerHeight;
+    if (displayAspect >= 1) {
+      // Landscape (laptop / desktop)
+      canvas.width = 640;
+      canvas.height = Math.round(640 / displayAspect);
+    } else {
+      // Portrait (phone)
+      canvas.height = 640;
+      canvas.width = Math.round(640 * displayAspect);
+    }
     canvasRef.current = canvas;
 
     // Capture frames at ~1fps

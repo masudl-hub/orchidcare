@@ -70,7 +70,7 @@ function UserBubble({
       <div
         style={{
           fontFamily: mono,
-          fontSize: '12px',
+          fontSize: '15px',
           color: 'rgba(255,255,255,0.5)',
           backgroundColor: 'rgba(255,255,255,0.05)',
           border: '1px solid rgba(255,255,255,0.08)',
@@ -96,16 +96,16 @@ function UserBubble({
         width: '100%',
       }} className="user-action-row">
         {timestamp && (
-          <span style={{ fontSize: '10px', fontFamily: mono, color: 'rgba(255,255,255,0.5)' }}>{formatTime(timestamp)}</span>
+          <span style={{ fontSize: '12px', fontFamily: mono, color: 'rgba(255,255,255,0.5)' }}>{formatTime(timestamp)}</span>
         )}
         {onCopy && (
           <button onClick={handleCopy} title="Copy message" style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: copied ? '#4ade80' : 'rgba(255,255,255,0.5)', display: 'flex', alignItems: 'center', transition: 'color 0.2s' }}>
-            <Copy size={11} />
+            <Copy size={13} />
           </button>
         )}
         {onResend && (
           <button onClick={() => onResend(text)} title="Resend message" style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'rgba(255,255,255,0.5)', display: 'flex', alignItems: 'center' }}>
-            <RefreshCcw size={11} />
+            <RefreshCcw size={13} />
           </button>
         )}
       </div>
@@ -157,22 +157,22 @@ function AgentActionRow({
       }}
     >
       {timestamp && (
-        <span style={{ fontSize: '10px', fontFamily: mono, color: 'rgba(255,255,255,0.5)' }}>
+        <span style={{ fontSize: '12px', fontFamily: mono, color: 'rgba(255,255,255,0.5)' }}>
           {formatTime(timestamp)}
         </span>
       )}
       {onCopy && (
         <button onClick={handleCopy} title="Copy response" style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: copied ? '#4ade80' : 'rgba(255,255,255,0.5)', display: 'flex', alignItems: 'center', transition: 'color 0.2s' }}>
-          <Copy size={11} />
+          <Copy size={13} />
         </button>
       )}
       {onRate && (
         <>
           <button onClick={() => onRate(entryId, 1)} title="Helpful" style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: rating === 1 ? '#4ade80' : 'rgba(255,255,255,0.5)', display: 'flex', alignItems: 'center', transition: 'color 0.2s' }}>
-            <ThumbsUp size={11} />
+            <ThumbsUp size={13} />
           </button>
           <button onClick={() => onRate(entryId, -1)} title="Not helpful" style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: rating === -1 ? '#ef4444' : 'rgba(255,255,255,0.5)', display: 'flex', alignItems: 'center', transition: 'color 0.2s' }}>
-            <ThumbsDown size={11} />
+            <ThumbsDown size={13} />
           </button>
         </>
       )}

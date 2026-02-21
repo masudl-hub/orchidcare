@@ -268,7 +268,7 @@ export default function DashboardShell() {
             </div>
 
             {/* Content area */}
-            <div className="h-full w-full overflow-y-auto pt-16 pb-12 px-6 md:px-16" style={{ scrollbarWidth: 'none' }}>
+            <div className="h-full w-full overflow-y-auto pt-16 pb-28 px-6 md:px-16" style={{ scrollbarWidth: 'none' }}>
                 <div className="max-w-[900px] mx-auto">
                     {/* Section title */}
                     <h1

@@ -23,6 +23,10 @@ export function useGeminiLive() {
   const [currentFormation, setCurrentFormation] = useState<Formation | null>(null);
   const [currentAnnotations, setCurrentAnnotations] = useState<AnnotationSet | null>(null);
 
+  // Formation queue — LLM may fire show_visual multiple times; we play them in sequence.
+  const formationQueueRef = useRef<Formation[]>([]);
+  const formationBusyRef = useRef(false);
+
   const sessionRef = useRef<Session | null>(null);
   const sessionIdRef = useRef<string>('');
   const initDataRef = useRef<string>('');
@@ -71,7 +75,8 @@ export function useGeminiLive() {
 
       for (const fc of functionCalls) {
         if (fc.name === 'show_visual') {
-          // Handle client-side — no network round-trip
+          // Handle client-side — no network round-trip.
+          // If a formation is already animating, queue this one; otherwise show immediately.
           const args = fc.args as Record<string, unknown>;
           const formation: Formation = {
             type: (args.type as Formation['type']) || 'template',
@@ -82,19 +87,32 @@ export function useGeminiLive() {
             duration: args.duration != null ? Number(args.duration) : undefined,
             hold: args.hold != null ? Number(args.hold) : undefined,
           };
-          setCurrentFormation(formation);
+          if (formationBusyRef.current) {
+            formationQueueRef.current.push(formation);
+            log(`show_visual queued (queue depth: ${formationQueueRef.current.length})`);
+          } else {
+            formationBusyRef.current = true;
+            setCurrentFormation(formation);
+            log(`show_visual: type=${formation.type}, id=${formation.id || 'n/a'}`);
+          }
           clientResponses.push({ id: fc.id!, name: fc.name!, response: { displayed: true } });
-          log(`show_visual handled client-side: type=${formation.type}, id=${formation.id || 'n/a'}`);
         } else if (fc.name === 'annotate_view') {
-          // Handle client-side — no network round-trip
+          // Handle client-side — no network round-trip.
+          // Empty markers = explicit dismiss.
           const aArgs = fc.args as Record<string, unknown>;
-          const annotationSet: AnnotationSet = {
-            markers: (aArgs.markers as AnnotationMarker[]) || [],
-            hold: aArgs.hold != null ? Number(aArgs.hold) : undefined,
-          };
-          setCurrentAnnotations(annotationSet);
+          const markers = (aArgs.markers as AnnotationMarker[]) || [];
+          if (markers.length === 0) {
+            setCurrentAnnotations(null);
+            log('annotate_view: dismissed');
+          } else {
+            const annotationSet: AnnotationSet = {
+              markers,
+              hold: aArgs.hold != null ? Number(aArgs.hold) : undefined,
+            };
+            setCurrentAnnotations(annotationSet);
+            log(`annotate_view: ${markers.length} markers`);
+          }
           clientResponses.push({ id: fc.id!, name: fc.name!, response: { displayed: true } });
-          log(`annotate_view handled client-side: ${annotationSet.markers.length} markers`);
         } else {
           serverCalls.push(fc);
         }
@@ -245,13 +263,15 @@ export function useGeminiLive() {
       return;
     }
     userDisconnectedRef.current = false;
+    // Check BEFORE resetting — distinguishes fresh call vs reconnect
+    const isFreshConnection = reconnectAttemptsRef.current === 0;
     reconnectAttemptsRef.current = 0;
     connectOptionsRef.current = options;
     connectingRef.current = true;
     greetingSentRef.current = false;
     // Only reset transcript on fresh connections, not reconnects.
     // Reconnects reuse the same sessionId — preserve accumulated transcript.
-    if (reconnectAttemptsRef.current === 0) {
+    if (isFreshConnection) {
       transcriptRef.current = [];
     }
     // Always flush any buffered utterance from a prior connection into the transcript
@@ -295,9 +315,11 @@ export function useGeminiLive() {
               disabled: true,
             },
           },
-          // Request transcription events alongside audio — accumulation handled in handleMessageRef
-          inputAudioTranscription: {},
-          outputAudioTranscription: {},
+          // inputAudioTranscription: {},
+          // outputAudioTranscription: {},
+          // ↑ Disabled: causes connection stall on BidiGenerateContentConstrained endpoint.
+          //   Transcription not yet supported via ephemeral-token flow.
+          //   Transcript capture will need an alternative approach (e.g., post-call Whisper).
         } as any,
         callbacks: {
           onopen: () => {
@@ -631,6 +653,20 @@ export function useGeminiLive() {
   }, [disconnect]);
 
   // ---------------------------------------------------------------------------
+  // Formation queue advancement — called by CallScreen when a formation finishes.
+  // Pops the next queued formation or clears the canvas if the queue is empty.
+  // ---------------------------------------------------------------------------
+  const advanceFormationQueue = useCallback(() => {
+    const next = formationQueueRef.current.shift();
+    if (next) {
+      setCurrentFormation(next);
+    } else {
+      formationBusyRef.current = false;
+      setCurrentFormation(null);
+    }
+  }, []);
+
+  // ---------------------------------------------------------------------------
   // Public API
   // ---------------------------------------------------------------------------
   return {
@@ -648,7 +684,7 @@ export function useGeminiLive() {
     errorDetail,
     debugLog,
     currentFormation,
-    setCurrentFormation,
+    advanceFormationQueue,
     currentAnnotations,
     setCurrentAnnotations,
     connect,

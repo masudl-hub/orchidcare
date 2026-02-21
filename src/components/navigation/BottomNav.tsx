@@ -53,11 +53,11 @@ export function BottomNav() {
                             )}
                             <button
                                 onClick={() => navigate(item.path)}
-                                className="flex items-center justify-center flex-1 min-w-0"
+                                className="flex items-center justify-center flex-1 min-w-0 min-h-[44px]"
                                 style={{ WebkitTapHighlightColor: 'transparent' }}
                             >
                                 <item.icon
-                                    size={22}
+                                    size={24}
                                     strokeWidth={isActive ? 2.5 : 1.5}
                                     className={`transition-colors ${isActive ? 'text-white' : 'text-white/40'}`}
                                 />

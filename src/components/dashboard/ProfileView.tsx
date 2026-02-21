@@ -87,7 +87,7 @@ function QuietHoursClock({
                         const idx = h === 12 ? 0 : h;
                         const angle = (idx * 30) - 90;
                         const rad = (angle * Math.PI) / 180;
-                        return <text key={h} x={50 + 32 * Math.cos(rad)} y={50 + 32 * Math.sin(rad)} textAnchor="middle" dominantBaseline="middle" fill="rgba(255,255,255,0.5)" style={{ fontFamily: mono, fontSize: '7px', fontWeight: 'bold' }}>{h}</text>;
+                        return <text key={h} x={50 + 32 * Math.cos(rad)} y={50 + 32 * Math.sin(rad)} textAnchor="middle" dominantBaseline="middle" fill="rgba(255,255,255,0.5)" style={{ fontFamily: mono, fontSize: '11px', fontWeight: 'bold' }}>{h}</text>;
                     })}
                     <path d={getArcPath()} fill="rgba(255,255,255,0.08)" />
                     {/* Start hand */}
@@ -104,10 +104,10 @@ function QuietHoursClock({
                     </g>
                 </svg>
             </div>
-            <div style={{ marginTop: '10px', fontFamily: mono, fontSize: '11px', color: 'rgba(255,255,255,0.4)' }}>
+            <div style={{ marginTop: '10px', fontFamily: mono, fontSize: '12px', color: 'rgba(255,255,255,0.4)' }}>
                 {formatHour(startHour)} — {formatHour(endHour)}
             </div>
-            {!disabled && <div style={{ fontFamily: mono, fontSize: '9px', color: 'rgba(255,255,255,0.2)', marginTop: '4px' }}>drag hands to adjust</div>}
+            {!disabled && <div style={{ fontFamily: mono, fontSize: '11px', color: 'rgba(255,255,255,0.2)', marginTop: '4px' }}>drag hands to adjust</div>}
         </div>
     );
 }
@@ -281,7 +281,7 @@ export function ProfileView() {
     };
 
     const labelStyle: React.CSSProperties = {
-        fontFamily: mono, fontSize: '9px', textTransform: 'uppercase',
+        fontFamily: mono, fontSize: '11px', textTransform: 'uppercase',
         letterSpacing: '0.1em', color: 'rgba(255,255,255,0.25)', marginBottom: '6px',
     };
 
@@ -301,7 +301,7 @@ export function ProfileView() {
             {/* ── Profile card ── */}
             <div style={{ ...cardStyle, ...revealStyle(visible, 0) }}>
                 {/* ID badge */}
-                <div style={{ fontSize: '9px', color: 'rgba(255,255,255,0.2)', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: '20px' }}>
+                <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.2)', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: '20px' }}>
                     {authProfile?.id ? `user_id: ${authProfile.id.slice(0, 8)}` : 'user_id: ---'}
                 </div>
 
@@ -452,12 +452,12 @@ export function ProfileView() {
             {/* ── AI Insights ── */}
             <div style={{ ...cardStyle, ...revealStyle(visible, 400) }}>
                 <div className="flex items-center gap-2 mb-4" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '10px' }}>
-                    <div style={{ width: 16, height: 16, backgroundColor: 'rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '8px', fontWeight: 'bold' }}>AI</div>
+                    <div style={{ width: 16, height: 16, backgroundColor: 'rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 'bold' }}>AI</div>
                     <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.5)' }}>behavioral insights</span>
                 </div>
                 <div className="flex flex-col gap-2">
                     {insightsLoading ? (
-                        <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.25)', padding: '8px 0' }} className="flex items-center gap-2">
+                        <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.25)', padding: '8px 0' }} className="flex items-center gap-2">
                             <Loader2 size={12} className="animate-spin" /> loading...
                         </div>
                     ) : userInsights.length > 0 ? (
@@ -481,7 +481,7 @@ export function ProfileView() {
                             );
                         })
                     ) : (
-                        <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.2)', padding: '8px 0' }}>no insights generated yet</div>
+                        <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.2)', padding: '8px 0' }}>no insights generated yet</div>
                     )}
                 </div>
             </div>
@@ -491,7 +491,7 @@ export function ProfileView() {
             <div style={{ ...revealStyle(visible, 800), border: '1px solid rgba(255,255,255,0.08)', padding: '24px' }}>
                 <div className="flex flex-col gap-3">
                     <button onClick={handleSignOut} className="focus:outline-none cursor-pointer flex items-center justify-center gap-2 transition-all" style={{
-                        width: '100%', padding: '10px', fontFamily: mono, fontSize: '11px', letterSpacing: '0.06em',
+                        width: '100%', padding: '10px', fontFamily: mono, fontSize: '12px', letterSpacing: '0.06em',
                         border: '1px solid rgba(255,255,255,0.08)', backgroundColor: 'transparent', color: 'rgba(255,255,255,0.5)',
                     }}>
                         <LogOut size={12} /> sign out

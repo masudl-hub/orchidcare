@@ -191,7 +191,7 @@ export function DemoInputBar({ onSend, onGoLive, isLoading, disabled }: DemoInpu
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
-                          fontSize: '12px',
+                          fontSize: '14px',
                           fontWeight: 'bold',
                           cursor: 'pointer',
                           lineHeight: 1,
@@ -224,7 +224,6 @@ export function DemoInputBar({ onSend, onGoLive, isLoading, disabled }: DemoInpu
             ref={fileInputRef}
             type="file"
             accept="image/*"
-            capture="environment"
             onChange={handleFileChange}
             style={{ display: 'none' }}
           />
@@ -269,7 +268,7 @@ export function DemoInputBar({ onSend, onGoLive, isLoading, disabled }: DemoInpu
               border: '1px solid rgba(255,255,255,0.15)',
               padding: '0 12px',
               fontFamily: mono,
-              fontSize: '12px',
+              fontSize: '16px',
               color: 'white',
               outline: 'none',
               minWidth: 0,
@@ -309,7 +308,7 @@ export function DemoInputBar({ onSend, onGoLive, isLoading, disabled }: DemoInpu
             style={{
               height: '36px',
               fontFamily: mono,
-              fontSize: '11px',
+              fontSize: '14px',
               color: 'white',
               letterSpacing: '0.06em',
               padding: '0 14px',

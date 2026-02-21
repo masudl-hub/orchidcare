@@ -480,6 +480,7 @@ export function ProfileConfig({ onComplete, onBack, isLoading = false, error = n
             })()}
           </form>
         </div>
+        <div className="h-28 shrink-0" aria-hidden="true" />
       </motion.div>
     </div>
   );

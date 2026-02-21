@@ -156,6 +156,21 @@ export function QROrchid({ visible = false, className = "" }: QROrchidProps) {
           >
             or continue on web
           </div>
+          <div
+            onClick={(e) => {
+              e.stopPropagation();
+              if (morphActive) navigate("/developer");
+            }}
+            style={{
+              opacity: morphActive ? 0.6 : 0,
+              marginTop: 4,
+              cursor: morphActive ? "pointer" : "default",
+              pointerEvents: morphActive ? "auto" : "none",
+            }}
+            className={morphActive ? "hover:underline" : ""}
+          >
+            developer platform
+          </div>
         </div>
       </div>
 
@@ -262,6 +277,29 @@ export function QROrchid({ visible = false, className = "" }: QROrchidProps) {
               }}
             >
               continue on web
+            </button>
+
+            {/* Developer Platform */}
+            <button
+              onClick={() => {
+                setShowMobileSheet(false);
+                navigate("/developer");
+              }}
+              style={{
+                width: "100%",
+                padding: "12px 16px",
+                border: "none",
+                backgroundColor: "transparent",
+                color: "rgba(255,255,255,0.4)",
+                fontFamily: "ui-monospace, monospace",
+                fontSize: "11px",
+                letterSpacing: "0.06em",
+                textTransform: "uppercase",
+                cursor: "pointer",
+                textAlign: "left",
+              }}
+            >
+              developer platform →
             </button>
           </div>
         </div>

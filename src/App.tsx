@@ -4,10 +4,11 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import Onboarding from "./pages/Onboarding";
 import LoginPage from "./pages/LoginPage";
+import ChatPage from "./pages/ChatPage";
 
 import Dashboard from "./pages/Dashboard";
 import Settings from "./pages/Settings";
@@ -23,13 +24,15 @@ import NamerPage from "./pages/NamerPage";
 import DogerPage from "./pages/DogerPage";
 import Privacy from "./pages/Privacy";
 import AppPage from "./pages/AppPage";
+import DeveloperPlatform from "./pages/DeveloperPlatform";
 
 const queryClient = new QueryClient();
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
+  const location = useLocation();
   if (loading) return null;
-  if (!user) return <Navigate to="/login" replace />;
+  if (!user) return <Navigate to="/login" state={{ from: location.pathname }} replace />;
   return <>{children}</>;
 }
 
@@ -46,6 +49,7 @@ const App = () => (
             <Route path="/login" element={<LoginPage />} />
             <Route path="/begin" element={<Navigate to="/login" replace />} />
             <Route path="/signup" element={<Navigate to="/login" replace />} />
+            <Route path="/chat" element={<ProtectedRoute><ChatPage /></ProtectedRoute>} />
             <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
             <Route path="/dashboard/collection" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
             <Route path="/dashboard/profile" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
@@ -62,6 +66,7 @@ const App = () => (
             <Route path="/doger" element={<DogerPage />} />
             <Route path="/privacy" element={<Privacy />} />
             <Route path="/app" element={<AppPage />} />
+            <Route path="/developer" element={<ProtectedRoute><DeveloperPlatform /></ProtectedRoute>} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>

@@ -273,8 +273,8 @@ export function StartPage({ visible, onClose }: StartPageProps) {
                     ? "absolute"
                     : "relative",
                 pointerEvents: "none",
-                 fontFamily: '"Press Start 2P", cursive',
-                 fontSize: "clamp(14px, 4vw, 22px)",
+                fontFamily: '"Press Start 2P", cursive',
+                fontSize: "clamp(14px, 4vw, 22px)",
                 color: "white",
                 height:
                   phase === "decrypting" || phase === "done" ? 0 : "auto",
@@ -301,6 +301,21 @@ export function StartPage({ visible, onClose }: StartPageProps) {
             {/* Orchid pixel art — appears after text resolves */}
             <div className="mt-10">
               <QROrchid visible={showQR} />
+            </div>
+
+            {/* Developer platform link — appears with QR */}
+            <div
+              className="mt-4 cursor-pointer hover:underline transition-opacity duration-700 ease-out"
+              onClick={() => window.location.href = "/developer"}
+              style={{
+                opacity: showQR ? 0.4 : 0,
+                fontFamily: "ui-monospace, monospace",
+                fontSize: "12px",
+                color: "white",
+                pointerEvents: showQR ? "auto" : "none",
+              }}
+            >
+              or continue on developer platform
             </div>
           </div>
 

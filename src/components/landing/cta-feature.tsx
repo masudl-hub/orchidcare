@@ -34,31 +34,31 @@ export function CTAFeature({
     const animate = () => {
       frameRef.current++;
       const frame = frameRef.current;
-      
+
       let allDone = true;
       const newText = chars.map((char, i) => {
         if (char === ' ') return ' ';
-        
+
         const charDelay = i * 1.5;
         const charFrames = frame - charDelay;
-        
+
         if (charFrames < 0) {
           allDone = false;
           return DENSITY_STEPS[0];
         }
-        
+
         const cycles = Math.floor(charFrames / DECRYPT_SPEED);
-        
+
         if (cycles >= DENSITY_STEPS.length) {
           return char;
         }
-        
+
         allDone = false;
         return DENSITY_STEPS[Math.min(cycles, DENSITY_STEPS.length - 1)];
       }).join('');
-      
+
       setDecryptedTitle(newText);
-      
+
       if (!allDone) {
         animationId = requestAnimationFrame(animate);
       }
@@ -170,7 +170,7 @@ export function CTAFeature({
               marginTop: '40px',
             }}
           >
-            On Telegram. Grow healthier plants through conversation.
+            On Telegram, web, mobile, and REST API. Grow healthier plants through conversation.
           </motion.p>
         </div>
       </div>

@@ -159,8 +159,8 @@ export function OrchidHero({ onStartClick, onLoginClick, onDemoClick }: OrchidHe
       if (phase !== "ready") return;
 
       const raw = e.deltaMode === 1 ? e.deltaY * 20
-                : e.deltaMode === 2 ? e.deltaY * 400
-                : e.deltaY;
+        : e.deltaMode === 2 ? e.deltaY * 400
+          : e.deltaY;
 
       scrollAccum.current += raw;
 
@@ -288,9 +288,8 @@ export function OrchidHero({ onStartClick, onLoginClick, onDemoClick }: OrchidHe
 
       {/* Noise grain overlay */}
       <div
-        className={`absolute inset-0 pointer-events-none ${
-          isRevealing ? "transition-opacity duration-1000 ease-out" : ""
-        }`}
+        className={`absolute inset-0 pointer-events-none ${isRevealing ? "transition-opacity duration-1000 ease-out" : ""
+          }`}
         style={{
           opacity: isRevealing ? 0.04 : 0,
           transitionDelay: isRevealing ? "300ms" : "0ms",
@@ -328,9 +327,8 @@ export function OrchidHero({ onStartClick, onLoginClick, onDemoClick }: OrchidHe
           >
             {/* Annotation callout — hidden on mobile */}
             <div
-              className={`absolute z-30 pointer-events-none ${
-                isRevealing ? "translate-y-0" : "translate-y-2"
-              }`}
+              className={`absolute z-30 pointer-events-none ${isRevealing ? "translate-y-0" : "translate-y-2"
+                }`}
               style={{
                 top: 8,
                 right: "100%",
@@ -414,9 +412,8 @@ export function OrchidHero({ onStartClick, onLoginClick, onDemoClick }: OrchidHe
               ref={canvasRef}
               width={CANVAS_WIDTH_LG}
               height={CANVAS_HEIGHT_LG}
-              className={`absolute inset-0 z-20 transition-opacity duration-500 ease-out ${
-                canvasFading ? "opacity-0 pointer-events-none" : ""
-              }`}
+              className={`absolute inset-0 z-20 transition-opacity duration-500 ease-out ${canvasFading ? "opacity-0 pointer-events-none" : ""
+                }`}
               style={{
                 ...{
                   width: canvasW,
@@ -453,8 +450,9 @@ export function OrchidHero({ onStartClick, onLoginClick, onDemoClick }: OrchidHe
           <div
             className="cursor-pointer hover:underline"
             onClick={onDemoClick}
-          >/get-demo</div>
+          >/demo</div>
           <div className="cursor-pointer hover:underline" onClick={onLoginClick}>/login</div>
+          <div className="cursor-pointer hover:underline" onClick={() => navigate("/developer")}>/developer</div>
           {!isStandalone && (
             <div
               className="cursor-pointer hover:underline md:hidden"

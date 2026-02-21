@@ -1,85 +1,93 @@
 
 
-# Mobile Refinements -- Round 2
+# PWA Install Flow & Mobile Tap-to-Start Overhaul
 
-## 1. Restore annotations on mobile in orchid-hero.tsx
+## Audit Findings
 
-The previous change added `hidden md:block` to the annotation callout. This should be reverted -- the annotation should be visible on all screen sizes.
+### Why "Add to Home Screen" isn't appearing:
+1. **Service worker is fine** -- `public/sw.js` exists, registers on load, handles `/~oauth` correctly
+2. **Manifest is fine** -- has `name`, `short_name`, `start_url`, `display: standalone`, icons at 192 and 512
+3. **The `InstallPrompt` component exists** but it only renders at the bottom of the `/app` auth screen (inside `AppPage.tsx`). It's never shown on the homepage or start page
+4. **On iOS Safari**, there is no `beforeinstallprompt` event -- the only way to install is via Share > Add to Home Screen. The current code shows a hint for this, but only on `/app`
+5. **On Chrome/Android**, the `beforeinstallprompt` event fires but the `InstallPrompt` component captures it only if the user is on `/app`
 
-**File:** `src/components/landing/orchid-hero.tsx`
-- Remove `hidden md:block` from the annotation div (line 326)
-- Keep all other annotation logic as-is
-
----
-
-## 2. Move "plant care made easy" to bottom-center of page
-
-Currently the tagline sits above the ORCHID text. Per the user's screenshot reference, it should be at the **bottom center** of the viewport, a few pixels above the bottom edge.
-
-**File:** `src/components/landing/orchid-hero.tsx`
-- Remove the tagline from its current position (above ORCHID, lines 299-305)
-- Add it as an absolutely positioned element at the bottom of the container: `absolute bottom-6 left-0 right-0 text-center`
-- Keep the reveal animation behavior
+### Current "tap to start" behavior on mobile:
+- On touch devices, tapping the orchid in the start page immediately opens `t.me/orchidcare_bot` via deep link
+- No option to install PWA or choose between Telegram/web
+- QR morph is desktop-only (correct)
 
 ---
 
-## 3. Reorder feature sections: text/headers BEFORE mockups on mobile
+## Plan
 
-Currently, several features show the mockup first on mobile (via `order-1` on the mockup div), then the text description. The user wants the header/description to come first on mobile for the following features:
+### 1. Create a shared PWA install hook
 
-### identify-feature.tsx (lines 974-988)
-- Currently: MockChat is first in DOM, FeatureDescription second. On mobile they stack in that order.
-- Fix: Add `order-2 md:order-1` to MockChat div, `order-1 md:order-2` to FeatureDescription div -- so description appears first on mobile.
+Extract the `beforeinstallprompt` capture logic from `InstallPrompt.tsx` into a reusable hook: `src/hooks/use-pwa-install.ts`
 
-### diagnosis-feature.tsx (lines 814-838)
-- Currently has `order-2 md:order-1` on description (correct on desktop, but on mobile order-2 means it comes second).
-- Fix: Swap to `order-1 md:order-2` for description, `order-2 md:order-1` for mockup -- so description appears first on mobile.
+This hook will:
+- Listen for `beforeinstallprompt` globally and store the deferred prompt
+- Detect iOS Safari for the manual hint
+- Detect if already installed as standalone
+- Expose `canInstall`, `isIos`, `isStandalone`, and `triggerInstall()` function
+- Be usable from any component (start page, login page, orchid hero)
 
-### proactive-feature.tsx (lines 709-728)
-- Currently has `order-2 md:order-1` on description, `order-1 md:order-2` on notifications.
-- Fix: Same swap -- description gets `order-1 md:order-2`, notifications get `order-2 md:order-1`.
+### 2. Redesign mobile "tap to start" in QROrchid
 
-### live-feature.tsx (lines 162-340)
-- Uses `grid grid-cols-1 md:grid-cols-2`. Description is first in DOM, video second. On mobile this should already be correct (description first). Verify no order classes are backwards.
+Currently on mobile tap: immediately opens Telegram deep link.
 
-### shopping-feature.tsx (lines 316-415)
-- Currently: description is first (left), store listings second (right). On mobile with `grid-cols-1`, description comes first naturally. This is already correct order-wise.
-- However, the PixelMap is currently inside the description column (left side). On mobile, the user wants the map to appear AFTER the "Where can I get neem oil nearby?" user message.
-- Fix: Move the PixelMap from the left (description) column into the right (store listings) column, placed after the user message bubble and before the store results.
+New behavior on mobile tap: show a small action sheet / modal with two options:
+- **"Open in Telegram"** -- opens the deep link (current behavior)
+- **"Add to Home Screen"** -- if Chrome/Android, triggers the native install prompt via `triggerInstall()`. If iOS, shows the Share hint
+- **"Continue on web"** -- navigates to `/begin` (sign up flow)
+
+On desktop: keep the existing QR morph behavior unchanged.
+
+**File:** `src/components/landing/qr-orchid.tsx`
+- Import `usePwaInstall` hook
+- Replace the direct `window.location.href = DEEP_LINK` with showing a choice modal
+- Create a simple inline action sheet component (styled to match the dark monospace aesthetic)
+
+### 3. Wire mobile login to surface PWA install
+
+On the orchid hero page, when a mobile user taps "Login" or "welcome back":
+- Navigate to `/login` as usual (this already works)
+- But also show the install prompt on the login page
+
+**File:** `src/pages/LoginPage.tsx` (or `src/components/Login.tsx`)
+- Add `InstallPrompt` at the bottom of the login page, similar to how it's on `/app`
+- Use the shared `usePwaInstall` hook
+
+### 4. Update `InstallPrompt` to use the shared hook
+
+Refactor `src/components/pwa/InstallPrompt.tsx` to use `usePwaInstall` instead of duplicating the logic. This keeps it DRY.
+
+### 5. Show install prompt on the homepage too
+
+Add the `InstallPrompt` banner to the orchid hero page on mobile so users see it when they first land.
+
+**File:** `src/components/landing/orchid-hero.tsx` or `src/pages/OrchidPage.tsx`
+- Render `InstallPrompt` fixed at the bottom on mobile only
 
 ---
 
-## 4. Fix "Local Shopping" title overlap with "LOCAL COMMERCE"
+## Technical Details
 
-From the screenshot, the "Local Shopping" pixel heading is overlapping with the "FIG 2.5 -- LOCAL COMMERCE" annotation. On mobile, the heading text may collide with the figure annotation.
-
-- Add `mt-8 md:mt-0` to the description heading to push it down on mobile, giving the annotation room.
-
----
-
-## 5. Apply same patterns to /proposal page
-
-The proposal page at `src/pages/Proposal.tsx` uses similar layouts. Key fixes:
-
-- The **bento grid** (AI Technologies section, line 1870) uses `gridTemplateColumns: 'repeat(4, 1fr)'` which creates 4 narrow columns on mobile. Fix: change to `grid-cols-1 md:grid-cols-4` or use responsive classes.
-- The `col-span-2` cells need to become `col-span-1 md:col-span-2` on mobile so they don't overflow.
-- The **Problem Statement** grid (line 1823) uses `grid-cols-2 md:grid-cols-4` which is already decent but may need `grid-cols-1 md:grid-cols-4` for very narrow screens.
-- The **stats grid** (line 2000) `grid-cols-3` may need font size reduction on mobile.
-- The **Target Users** grid (line 2044) `md:grid-cols-3` already collapses to 1 column -- correct.
-
----
-
-## Technical Summary
+### New file: `src/hooks/use-pwa-install.ts`
+```typescript
+// Returns: { canInstall, isIos, isStandalone, triggerInstall }
+// canInstall = true when beforeinstallprompt was captured (Chrome/Android)
+// isIos = true on iOS Safari (manual Add to Home Screen)
+// triggerInstall() calls deferredPrompt.prompt()
+```
 
 ### Files to modify:
-1. `src/components/landing/orchid-hero.tsx` -- Restore annotation visibility, move tagline to bottom-center
-2. `src/components/landing/identify-feature.tsx` -- Swap mobile order so description comes first
-3. `src/components/landing/diagnosis-feature.tsx` -- Swap mobile order so description comes first
-4. `src/components/landing/proactive-feature.tsx` -- Swap mobile order so description comes first
-5. `src/components/landing/shopping-feature.tsx` -- Move PixelMap after user message on mobile, fix title overlap
-6. `src/pages/Proposal.tsx` -- Make bento grid responsive, fix col-span on mobile
+1. `src/hooks/use-pwa-install.ts` -- New shared hook
+2. `src/components/landing/qr-orchid.tsx` -- Mobile tap shows choice modal instead of auto-opening Telegram
+3. `src/components/pwa/InstallPrompt.tsx` -- Refactor to use shared hook
+4. `src/pages/LoginPage.tsx` -- Add InstallPrompt at bottom
+5. `src/pages/OrchidPage.tsx` -- Add InstallPrompt at bottom on mobile
 
 ### Approach:
-- Only CSS/order class changes and minor JSX restructuring
-- Desktop layout remains completely unchanged
-- All changes use Tailwind responsive prefixes (`md:`)
+- Desktop behavior is completely unchanged (QR morph, no install prompts)
+- All new UI follows the existing monospace/dark aesthetic
+- The choice modal on mobile is minimal: dark background, white mono text, two/three tappable options

@@ -1,8 +1,34 @@
 # Voice Call Transcript Capture — Implementation Plan
 
-## Validation Status
+## Implementation Status: COMPLETE (with post-deploy fixes)
 
-Every line number, code reference, and assumption has been verified against the codebase.
+All phases implemented and pushed. Two post-deploy bugs found and fixed:
+
+### Bug 1: 1008 disconnect from token config
+- `inputAudioTranscription`/`outputAudioTranscription` in the ephemeral token causes 1008 on BidiGenerateContentConstrained — same pattern as `thinkingConfig` and `contextWindowCompression`
+- **Fix (commit db3ceaf):** Commented out transcription config from token, moved it to client-side `ai.live.connect()` config in `useGeminiLive.ts:280-290` with `as any` cast (types may not include it yet)
+- Transcription events were flowing BEFORE the 1008, confirming the feature works — the constrained endpoint just rejects the config eventually
+
+### Bug 2: Transcript wiped on reconnect → transcriptTurns=0
+- When 1008 triggered reconnect, `connect()` reset `transcriptRef.current = []`, wiping all accumulated transcript
+- Server logs showed `transcriptTurns=0` and `no transcript provided — skipping transcript processing`
+- **Fix (commit db3ceaf):** Only reset transcript on fresh connections (`reconnectAttemptsRef.current === 0`), flush buffered utterances from crashed connection before clearing buffers
+
+### Current state of code after fixes:
+- **Token config** (`call-session/index.ts`): transcription fields COMMENTED OUT with explanation
+- **Client config** (`useGeminiLive.ts`): transcription fields in `ai.live.connect()` config
+- **Reconnect** (`useGeminiLive.ts`): preserves transcript across reconnects, flushes buffers on reconnect
+- **Still needs testing:** whether client-side config actually produces transcription events without the token config
+
+### Commits:
+1. `62b0fd5` — Main implementation (all 5 phases)
+2. `db3ceaf` — Fix 1008 + reconnect transcript wipe
+
+---
+
+## Validation Status (original plan review — line numbers now outdated after edits)
+
+Every line number, code reference, and assumption was verified against the codebase before implementation.
 
 | Claim | Verified? | Notes |
 |---|---|---|
@@ -585,9 +611,12 @@ This is lower priority — the production path is `LiveCallPage.tsx` → `call-s
 1. **Preview API** — The Gemini Live API transcription is not GA. It works but is in preview.
 2. **Fragment quality** — Long speech (30-60s+) can cause delayed/missing transcription events. Most voice calls are conversational (short turns), so this is low risk.
 3. **No ordering guarantee** — Transcription events arrive independently from audio. We use `turnComplete` as a flush boundary, which handles this well for logging purposes.
-4. **Type safety** — `inputTranscription.text` and `outputTranscription` may not be in the `@google/genai` TypeScript types yet. We use targeted `as any` casts.
+4. **Type safety** — `inputTranscription.text` and `outputTranscription` may not be in the `@google/genai` TypeScript types yet. We use targeted `as any` casts in two places: client-side connect config (`useGeminiLive.ts`) and message handler.
 5. **Payload size** — A 10-minute call might produce ~2000 words of transcript. At ~10KB, this is well within HTTP body limits.
 6. **Best-effort** — If transcript processing fails on the server, the call still ends successfully. Summary/insights are non-blocking.
+7. **Constrained endpoint limitation (DISCOVERED POST-DEPLOY)** — `inputAudioTranscription`/`outputAudioTranscription` in the ephemeral token config causes 1008 disconnect on `BidiGenerateContentConstrained`. Config must live in client-side `ai.live.connect()` only. Same pattern as `thinkingConfig` and `contextWindowCompression`.
+8. **Reconnect wipes state (FIXED POST-DEPLOY)** — Original `connect()` always reset `transcriptRef.current = []`. Fixed: only reset on fresh connections (`reconnectAttemptsRef.current === 0`), flush buffers from crashed connection before clearing.
+9. **Needs verification** — Whether client-side transcription config (without token config) actually produces transcription events. If not, an alternative approach may be needed (e.g., post-call Whisper transcription of recorded audio).
 
 ## Data Flow After Implementation
 

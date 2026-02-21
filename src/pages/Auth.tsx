@@ -5,6 +5,7 @@ import { Login } from '@/components/Login';
 import { CreateAccount } from '@/components/CreateAccount';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
+import { lovable } from '@/integrations/lovable/index';
 
 export default function Auth() {
   const navigate = useNavigate();
@@ -88,20 +89,27 @@ export default function Auth() {
   const handleGoogleAuth = async () => {
     setError(null);
     setIsSubmitting(true);
-    
     try {
-      // Google OAuth is handled by Supabase redirect flow
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-          redirectTo: `${window.location.origin}/auth`,
-        },
+      const { error } = await lovable.auth.signInWithOAuth("google", {
+        redirect_uri: `${window.location.origin}/auth`,
       });
-      
       if (error) throw error;
-      // OAuth redirects, so we don't need to do anything else here
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to sign in with Google');
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleAppleAuth = async () => {
+    setError(null);
+    setIsSubmitting(true);
+    try {
+      const { error } = await lovable.auth.signInWithOAuth("apple", {
+        redirect_uri: `${window.location.origin}/auth`,
+      });
+      if (error) throw error;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to sign in with Apple');
       setIsSubmitting(false);
     }
   };
@@ -151,6 +159,7 @@ export default function Auth() {
           onBack={handleBackToLogin}
           onComplete={handleAccountCreated}
           onGoogleSignup={handleGoogleAuth}
+          onAppleSignup={handleAppleAuth}
           isLoading={isSubmitting}
           error={error}
         />
@@ -160,6 +169,7 @@ export default function Auth() {
           onCreateAccount={handleCreateAccount}
           onLogin={handleLogin}
           onGoogleLogin={handleGoogleAuth}
+          onAppleLogin={handleAppleAuth}
           isLoading={isSubmitting}
           error={error}
         />

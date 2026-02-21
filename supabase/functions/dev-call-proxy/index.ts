@@ -217,6 +217,7 @@ async function handleTools(
   body: ToolsBody,
   perplexityApiKey?: string,
   lovableApiKey?: string,
+  geminiApiKey?: string,
 ) {
   const profile = await getProfile(supabase, body.telegramChatId);
   if (!profile) return json({ error: "Profile not found" }, 404);
@@ -231,6 +232,7 @@ async function handleTools(
     body.toolArgs || {},
     perplexityApiKey,
     lovableApiKey,
+    geminiApiKey,
   );
 
   console.log(`[DevProxy] /tools: ${body.toolName} complete (${Date.now() - toolStart}ms) — result keys=${Object.keys(result).join(",")}`);
@@ -318,7 +320,7 @@ serve(async (req: Request) => {
         response = await handleToken(supabase, body as unknown as TokenBody, GEMINI_API_KEY);
         break;
       case "tools":
-        response = await handleTools(supabase, body as unknown as ToolsBody, PERPLEXITY_API_KEY, LOVABLE_API_KEY);
+        response = await handleTools(supabase, body as unknown as ToolsBody, PERPLEXITY_API_KEY, LOVABLE_API_KEY, GEMINI_API_KEY);
         break;
       case "end":
         response = await handleEnd(supabase, body as unknown as EndBody);

@@ -170,7 +170,7 @@ serve(async (req: Request) => {
   }
 
   // ---------------------------------------------------------------------------
-  // Audio → Summary via Gemini
+  // Audio → Summary via Gemini (with retry)
   // ---------------------------------------------------------------------------
   const geminiStart = Date.now();
   console.log(`[SummariseCall] Sending audio to Gemini for summarization...`);
@@ -197,12 +197,35 @@ Return JSON: {"summary": "3-5 sentence summary", "key_topics": ["topic1", "topic
       parts.push({ inlineData: { mimeType: "audio/webm", data: agentAudio } });
     }
 
-    const result = await genai.models.generateContent({
-      model: "gemini-2.0-flash",
-      contents: [{ role: "user", parts }],
-    });
+    // Retry up to 3 times with exponential backoff (2s, 4s, 8s)
+    const MAX_RETRIES = 3;
+    let lastError: unknown = null;
+    let responseText = "";
 
-    const responseText = result.text || "";
+    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+      try {
+        const result = await genai.models.generateContent({
+          model: "gemini-3-flash-preview",
+          contents: [{ role: "user", parts }],
+        });
+        responseText = result.text || "";
+        lastError = null;
+        break;
+      } catch (err) {
+        lastError = err;
+        const errStr = err instanceof Error ? err.message : String(err);
+        console.warn(`[SummariseCall] Gemini attempt ${attempt}/${MAX_RETRIES} failed (${Date.now() - geminiStart}ms): ${errStr}`);
+        if (attempt < MAX_RETRIES) {
+          const backoffMs = 2000 * Math.pow(2, attempt - 1); // 2s, 4s, 8s
+          await new Promise((r) => setTimeout(r, backoffMs));
+        }
+      }
+    }
+
+    if (lastError) {
+      throw lastError;
+    }
+
     console.log(`[SummariseCall] Gemini response (${Date.now() - geminiStart}ms): ${responseText.substring(0, 300)}`);
 
     let summaryJson: { summary: string; key_topics: string[] };

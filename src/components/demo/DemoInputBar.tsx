@@ -235,8 +235,9 @@ export function DemoInputBar({ onSend, onGoLive, isLoading, disabled }: DemoInpu
             disabled={isDisabled}
             className="transition-colors duration-150 hover:bg-white hover:text-black"
             style={{
-              padding: '8px',
-              border: '1px solid rgba(255,255,255,0.2)',
+              height: '36px',
+              width: '36px',
+              border: '1px solid rgba(255,255,255,0.15)',
               backgroundColor: 'transparent',
               color: 'white',
               cursor: isDisabled ? 'default' : 'pointer',
@@ -263,9 +264,10 @@ export function DemoInputBar({ onSend, onGoLive, isLoading, disabled }: DemoInpu
             className="demo-input-field"
             style={{
               flex: 1,
+              height: '36px',
               backgroundColor: 'transparent',
-              border: '1px solid rgba(255,255,255,0.12)',
-              padding: '8px 12px',
+              border: '1px solid rgba(255,255,255,0.15)',
+              padding: '0 12px',
               fontFamily: mono,
               fontSize: '12px',
               color: 'white',
@@ -281,15 +283,17 @@ export function DemoInputBar({ onSend, onGoLive, isLoading, disabled }: DemoInpu
             disabled={isDisabled}
             className="transition-colors duration-150 hover:bg-white hover:text-black"
             style={{
-              fontSize: '16px',
-              padding: '6px 10px',
-              border: '1px solid rgba(255,255,255,0.2)',
+              height: '36px',
+              width: '36px',
+              border: '1px solid rgba(255,255,255,0.15)',
               backgroundColor: 'transparent',
               color: 'white',
               cursor: isDisabled ? 'default' : 'pointer',
               opacity: isDisabled ? 0.3 : 1,
               flexShrink: 0,
-              lineHeight: 1,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
               transition: 'opacity 200ms ease-out, background-color 150ms ease-out, color 150ms ease-out',
             }}
             aria-label="Start voice call"
@@ -303,17 +307,21 @@ export function DemoInputBar({ onSend, onGoLive, isLoading, disabled }: DemoInpu
             disabled={isDisabled || !canSend}
             className="transition-colors duration-150 hover:bg-white hover:text-black"
             style={{
+              height: '36px',
               fontFamily: mono,
               fontSize: '11px',
               color: 'white',
               letterSpacing: '0.06em',
-              padding: '8px 14px',
-              border: '1px solid rgba(255,255,255,0.2)',
+              padding: '0 14px',
+              border: '1px solid rgba(255,255,255,0.15)',
               backgroundColor: 'transparent',
               whiteSpace: 'nowrap',
               cursor: isDisabled || !canSend ? 'default' : 'pointer',
               opacity: isDisabled || !canSend ? 0.3 : 1,
               flexShrink: 0,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
               transition: 'opacity 200ms ease-out, background-color 150ms ease-out, color 150ms ease-out',
             }}
           >

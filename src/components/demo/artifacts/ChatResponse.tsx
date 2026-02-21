@@ -32,9 +32,9 @@ export function ChatResponse({ text, images }: ChatResponseProps) {
             p: ({ children }) => <p style={{ margin: '0 0 8px 0', color: 'rgba(255,255,255,0.7)' }}>{children}</p>,
             strong: ({ children }) => <strong style={{ color: 'rgba(255,255,255,0.9)' }}>{children}</strong>,
             em: ({ children }) => <em style={{ color: 'rgba(255,255,255,0.6)' }}>{children}</em>,
-            ul: ({ children }) => <ul style={{ margin: '4px 0', paddingLeft: '16px', color: 'rgba(255,255,255,0.7)' }}>{children}</ul>,
-            ol: ({ children }) => <ol style={{ margin: '4px 0', paddingLeft: '16px', color: 'rgba(255,255,255,0.7)' }}>{children}</ol>,
-            li: ({ children }) => <li style={{ margin: '2px 0' }}>{children}</li>,
+            ul: ({ children }) => <ul style={{ margin: '4px 0', paddingLeft: '16px', color: 'rgba(255,255,255,0.7)', listStyleType: 'disc' }}>{children}</ul>,
+            ol: ({ children }) => <ol style={{ margin: '4px 0', paddingLeft: '16px', color: 'rgba(255,255,255,0.7)', listStyleType: 'decimal' }}>{children}</ol>,
+            li: ({ children }) => <li style={{ margin: '2px 0', display: 'list-item' }}>{children}</li>,
             a: ({ href, children }) => <a href={href} target="_blank" rel="noopener noreferrer" style={{ color: 'rgba(255,255,255,0.5)', textDecoration: 'underline' }}>{children}</a>,
           }}
         >

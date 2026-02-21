@@ -38,7 +38,7 @@ export function PwaChat() {
   const [canvasHeightPct, setCanvasHeightPct] = useState(getCanvasHeightPercent);
 
   const artifactIdCounter = useRef(0);
-  const sendMessageRef = useRef<(text: string) => void>(() => {});
+  const sendMessageRef = useRef<(text: string) => void>(() => { });
 
   // Online/offline detection
   useEffect(() => {
@@ -116,7 +116,15 @@ export function PwaChat() {
       case 'diagnose_plant': return 'diagnosing';
       case 'research': return 'researching';
       case 'find_stores': return 'finding stores';
+      case 'verify_store_inventory': return 'checking inventory';
       case 'generate_image': return 'generating image';
+      case 'generate_visual_guide': return 'drawing illustrations';
+      case 'analyze_environment': return 'analyzing environment';
+      case 'analyze_video': return 'analyzing video';
+      case 'save_plant': return 'saving plant';
+      case 'modify_plant': return 'updating plant';
+      case 'create_reminder': return 'setting reminder';
+      case 'deep_think': return 'reasoning';
       default: return 'working';
     }
   }, []);
@@ -153,9 +161,40 @@ export function PwaChat() {
           body.mediaMimeType = media[0].type;
         }
 
-        const response = await supabase.functions.invoke('pwa-agent', {
-          body,
-        });
+        // Start polling agent_operations for live tool updates
+        const startedAt = new Date().toISOString();
+        let pollInterval: number | ReturnType<typeof setInterval>;
+
+        const startPolling = () => {
+          pollInterval = setInterval(async () => {
+            if (!profile?.id) return;
+            const { data } = await supabase.from('agent_operations')
+              .select('tool_name, operation_type')
+              .eq('profile_id', profile.id)
+              .gte('created_at', startedAt)
+              .order('created_at', { ascending: false })
+              .limit(1)
+              .maybeSingle();
+
+            if (data) {
+              const name = data.tool_name || data.operation_type;
+              if (name) {
+                setLoadingLabel(toolLabel(name));
+              }
+            }
+          }, 1500);
+        };
+
+        startPolling();
+
+        let response: any;
+        try {
+          response = await supabase.functions.invoke('pwa-agent', {
+            body,
+          });
+        } finally {
+          if (pollInterval) clearInterval(pollInterval);
+        }
 
         if (response.error) {
           throw new Error(response.error.message || 'Request failed');
@@ -164,7 +203,7 @@ export function PwaChat() {
         // Parse NDJSON response
         const responseText = typeof response.data === 'string' ? response.data : JSON.stringify(response.data);
         const lines = responseText.split('\n').filter((l: string) => l.trim());
-        
+
         let replyData: { reply: string; mediaToSend: any[] } | null = null;
 
         for (const line of lines) {
@@ -325,7 +364,7 @@ export function PwaChat() {
               outputAudioLevel={0}
               isThinking={false}
               formation={currentFormation}
-              onFormationComplete={() => {}}
+              onFormationComplete={() => { }}
               heightPx={pixelCanvasHeight}
             />
           </motion.div>
@@ -447,6 +486,7 @@ export function PwaChat() {
         style={{
           flexGrow: hasSentMessage ? 0 : 1.6,
           flexBasis: 0,
+          minHeight: 'max(64px, env(safe-area-inset-bottom, 64px))',
           flexShrink: 0,
           transition: 'flex-grow 500ms cubic-bezier(0.22, 1, 0.36, 1)',
         }}

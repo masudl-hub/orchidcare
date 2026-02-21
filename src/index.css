@@ -353,3 +353,12 @@ html.lenis, html.lenis body {
   background: hsl(var(--primary) / 0.3);
   color: hsl(var(--foreground));
 }
+
+/* Suppress focus rings globally */
+*:focus {
+  outline: none !important;
+}
+button:focus-visible {
+  outline: none !important;
+}
+

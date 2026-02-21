@@ -148,87 +148,90 @@ export function CallScreen({
         <AnnotationOverlay annotations={annotations} onComplete={onAnnotationsComplete} />
       )}
 
-      {/* Top-right video overlay buttons (flip + capture) */}
-      {isVideoActive && (
-        <div style={{
+
+
+      {/* Canvas + Secondary Controls area */}
+      <div style={{
+        flex: 1,
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 10,
+        width: '100%',
+        gap: '24px',
+        ...(isVideoActive ? {
           position: 'absolute',
-          top: '16px',
+          top: '50%',
+          transform: 'translateY(-50%)',
           right: '16px',
-          zIndex: 20,
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '8px',
-        }}>
-          <button
-            onClick={onToggleFacingMode}
-            disabled={status !== 'connected'}
-            style={{
-              width: '36px',
-              height: '36px',
-              backgroundColor: 'rgba(0,0,0,0.4)',
-              border: '1px solid rgba(255,255,255,0.25)',
-              borderRadius: '0',
-              cursor: status !== 'connected' ? 'default' : 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              opacity: status !== 'connected' ? 0.3 : 0.8,
-              transition: 'all 150ms',
-            }}
-            aria-label="Flip camera"
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="square">
-              <path d="M1 4v6h6" />
-              <path d="M23 20v-6h-6" />
-              <path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15" />
-            </svg>
-          </button>
-          {onCaptureSnapshot && (
+          width: 'auto',
+          flex: 'none',
+          justifyContent: 'flex-start',
+        } : {}),
+      }}>
+        {/* Secondary Secondary controls block (above canvas if video mode) */}
+        {isVideoActive && (
+          <div style={{
+            display: 'flex',
+            gap: '12px',
+          }}>
             <button
-              onClick={onCaptureSnapshot}
+              onClick={onToggleFacingMode}
               disabled={status !== 'connected'}
               style={{
-                width: '36px',
-                height: '36px',
+                width: '44px',
+                height: '44px',
                 backgroundColor: 'rgba(0,0,0,0.4)',
                 border: '1px solid rgba(255,255,255,0.25)',
-                borderRadius: '0',
+                borderRadius: '50%',
                 cursor: status !== 'connected' ? 'default' : 'pointer',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 opacity: status !== 'connected' ? 0.3 : 0.8,
+                backdropFilter: 'blur(4px)',
                 transition: 'all 150ms',
               }}
-              aria-label="Capture plant snapshot"
+              aria-label="Flip camera"
             >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="square">
-                <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
-                <circle cx="12" cy="13" r="4" />
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M1 4v6h6" />
+                <path d="M23 20v-6h-6" />
+                <path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15" />
               </svg>
             </button>
-          )}
-        </div>
-      )}
+            {onCaptureSnapshot && (
+              <button
+                onClick={onCaptureSnapshot}
+                disabled={status !== 'connected'}
+                style={{
+                  width: '44px',
+                  height: '44px',
+                  backgroundColor: 'rgba(0,0,0,0.4)',
+                  border: '1px solid rgba(255,255,255,0.25)',
+                  borderRadius: '50%',
+                  cursor: status !== 'connected' ? 'default' : 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  opacity: status !== 'connected' ? 0.3 : 0.8,
+                  backdropFilter: 'blur(4px)',
+                  transition: 'all 150ms',
+                }}
+                aria-label="Capture plant snapshot"
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+                  <circle cx="12" cy="13" r="4" />
+                </svg>
+              </button>
+            )}
+          </div>
+        )}
 
-      {/* Canvas area — 80% of viewport height */}
-      <div style={{
-        flex: 1,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        zIndex: 10,
-        width: '100%',
-        ...(isVideoActive ? {
-          position: 'absolute',
-          top: '100px',
-          right: '16px',
-          width: 'auto',
-          flex: 'none',
-        } : {}),
-      }}>
         <div style={{
-          transform: isVideoActive ? 'scale(0.3)' : 'scale(1)',
+          transform: isVideoActive ? 'scale(0.4)' : 'scale(1)',
           transformOrigin: 'top right',
           transition: 'transform 300ms ease',
         }}>
@@ -248,12 +251,10 @@ export function CallScreen({
         zIndex: 15,
         textAlign: 'center',
         padding: '8px 16px',
-        ...(isVideoActive ? {
-          position: 'absolute',
-          bottom: '100px',
-          left: 0,
-          right: 0,
-        } : {}),
+        position: 'absolute',
+        bottom: '100px',
+        left: 0,
+        right: 0,
       }}>
         <p style={{
           fontFamily: mono,
@@ -269,13 +270,16 @@ export function CallScreen({
 
       {/* Bottom bar: controls + timer */}
       <div style={{
+        position: 'absolute',
+        bottom: 0,
+        left: 0,
+        right: 0,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
         gap: '16px',
         padding: '16px 16px 32px',
-        zIndex: 10,
-        width: '100%',
+        zIndex: 15,
       }}>
         <CallControls
           isMuted={isMuted}

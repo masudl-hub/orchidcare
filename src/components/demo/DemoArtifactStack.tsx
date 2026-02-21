@@ -64,7 +64,7 @@ function SmallCanvas({ formation, isThinking }: { formation: Formation | null; i
         outputAudioLevel={0}
         isThinking={isThinking}
         formation={formation}
-        onFormationComplete={() => {}}
+        onFormationComplete={() => { }}
         heightPx={48}
       />
     </div>
@@ -95,7 +95,7 @@ export function DemoArtifactStack({
       style={{
         flex: 1,
         overflowY: 'auto',
-        padding: '0 16px',
+        padding: 'max(64px, env(safe-area-inset-top, 64px)) 16px 0',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',

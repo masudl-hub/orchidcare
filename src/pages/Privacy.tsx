@@ -465,7 +465,7 @@ export default function Privacy() {
                 Data Deletion
               </div>
               <p style={{ fontFamily: mono, fontSize: '14px', color: 'rgba(255,255,255,0.6)', lineHeight: 1.8 }}>
-                Ask Orchid to forget specific plants, clear conversation history, or delete your entire account. When we delete, we delete — no shadow profiles, no lingering backups.
+                Ask Orchid to forget specific plants or clear conversation history.
               </p>
             </div>
             <div style={revealStyle(s6.visible, 400)}>

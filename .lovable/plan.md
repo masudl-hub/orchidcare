@@ -1,38 +1,34 @@
 
 
-## Fix: Developer API Key Foreign Key Violation
+## Fix: Developer API Key Foreign Key and RLS Violation
 
 ### Problem
-The `DeveloperDashboard` component uses `user.id` (the auth user ID) directly as `profile_id` when inserting into `developer_api_keys`. However, the `profiles` table has its own `id` column (a separate UUID) that differs from `user_id`. The foreign key `developer_api_keys_profile_id_fkey` references `profiles.id`, not `profiles.user_id`.
-
-For example, a user might have:
-- `auth.uid()` = `511860c0-...`
-- `profiles.id` = `0312d930-...`
-
-The code currently passes `511860c0-...` as `profile_id`, which doesn't exist in `profiles.id`.
+The code in `DeveloperDashboard.tsx` uses `user.id` (which is `auth.uid()`) directly as `profile_id` when querying and inserting into `developer_api_keys`. But `profile_id` references `profiles.id`, which is a **different UUID** from `profiles.user_id`. The RLS policies are already correct -- they check ownership via `profiles.user_id = auth.uid()` -- but the wrong value is being passed.
 
 ### Solution
-Update `DeveloperDashboard.tsx` to first look up the user's `profiles.id` from their `user_id`, then use that profile ID for all queries.
+No database changes needed. Only update `DeveloperDashboard.tsx`:
 
 ### Technical Details
 
 **File: `src/components/developers/DeveloperDashboard.tsx`**
 
-1. In `fetchData`, add a query to get the profile record first:
+1. Add a `profileId` state variable to store the actual `profiles.id`.
+
+2. At the start of `fetchData`, look up the profile:
    ```typescript
    const { data: profile } = await supabase
      .from("profiles")
      .select("id")
      .eq("user_id", user.id)
      .single();
-   if (!profile) return;
+   if (!profile) { setLoading(false); return; }
+   setProfileId(profile.id);
    ```
 
-2. Store the `profileId` in component state or a ref.
+3. Replace `user.id` with `profile.id` in two places:
+   - **Line 134**: `.eq("profile_id", user.id)` changes to `.eq("profile_id", profile.id)`
+   - **Line 198**: `profile_id: user.id` changes to `profile_id: profileId` (using the stored state)
 
-3. Replace all instances of `user.id` used as `profile_id` with `profile.id` -- this affects:
-   - The `developer_api_keys` SELECT query (line 134)
-   - The `developer_api_keys` INSERT in `handleGenerate` (line 198)
+4. Update `handleGenerate` to use the stored `profileId` state instead of `user.id`.
 
-4. Remove `as any` type casts where possible now that the types are properly generated.
-
+This is a single-file fix with no database migration required.

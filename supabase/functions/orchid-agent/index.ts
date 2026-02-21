@@ -2680,6 +2680,7 @@ ${proactiveContext.events.map((e: any) => `- ${e.message_hint}`).join("\n")}
 
     let aiReply: string;
     let mediaToSend: Array<{ url: string; caption?: string }> = [];
+    const toolsUsed: string[] = [];
 
     if (!orchestratorResponse.ok) {
       const errorText = await orchestratorResponse.text();
@@ -2724,7 +2725,7 @@ ${proactiveContext.events.map((e: any) => `- ${e.message_hint}`).join("\n")}
       // Bounded tool loop: max 3 iterations for multi-step workflows
       const MAX_TOOL_ITERATIONS = 3;
       let toolIteration = 0;
-      const toolsUsed: string[] = [];
+      // toolsUsed is declared at handler scope (line 2683)
 
       while (currentToolCalls && currentToolCalls.length > 0 && toolIteration < MAX_TOOL_ITERATIONS) {
         toolIteration++;
@@ -3987,6 +3988,23 @@ ${proactiveContext.events.map((e: any) => `- ${e.message_hint}`).join("\n")}
     });
   } catch (error) {
     console.error("Webhook error:", error);
+
+    // Mode-aware error response: JSON for internal callers, XML for Telegram
+    const wasInternalCall = req.headers.get("X-Internal-Agent-Call") === "true";
+
+    if (wasInternalCall) {
+      return new Response(JSON.stringify({
+        error: "Internal agent error",
+        detail: String(error).substring(0, 200),
+        reply: "I had a little hiccup! Could you try again? 🌱",
+        mediaToSend: [],
+        toolsUsed: [],
+      }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     return new Response('<?xml version="1.0" encoding="UTF-8"?><Response></Response>', {
       headers: {
         ...corsHeaders,

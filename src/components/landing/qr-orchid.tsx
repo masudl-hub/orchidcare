@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useIsTouch } from "@/hooks/use-mobile";
+import { usePwaInstall } from "@/hooks/use-pwa-install";
 import { QRMorphCanvas } from "./qr-morph-canvas";
 import { generateQRMatrix } from "@/lib/qr-matrix";
 import { sampleOrchidGrid } from "@/lib/orchid-grid";
@@ -18,11 +19,13 @@ interface QROrchidProps {
 export function QROrchid({ visible = false, className = "" }: QROrchidProps) {
   const navigate = useNavigate();
   const isTouch = useIsTouch();
+  const { canInstall, isIos, isStandalone, triggerInstall } = usePwaInstall();
   const [morphActive, setMorphActive] = useState(false);
   const [morphComplete, setMorphComplete] = useState(false);
   const [orchidData, setOrchidData] = useState<{ grid: boolean[][]; cols: number; rows: number } | null>(null);
   const [qrData, setQrData] = useState<{ grid: boolean[][]; moduleCount: number } | null>(null);
   const [showFallback, setShowFallback] = useState(false);
+  const [showMobileSheet, setShowMobileSheet] = useState(false);
 
   // Preload grids on mount
   useEffect(() => {
@@ -35,34 +38,37 @@ export function QROrchid({ visible = false, className = "" }: QROrchidProps) {
 
   const handleClick = useCallback(() => {
     if (morphActive) {
-      // Dismiss
       setMorphActive(false);
       setMorphComplete(false);
       return;
     }
 
     if (isTouch) {
-      // Mobile: open Telegram deep link
-      const start = Date.now();
-      const handleVisibility = () => {
-        if (document.hidden) {
-          clearTimeout(timer);
-          document.removeEventListener("visibilitychange", handleVisibility);
-        }
-      };
-      document.addEventListener("visibilitychange", handleVisibility);
-      window.location.href = DEEP_LINK;
-      const timer = setTimeout(() => {
-        document.removeEventListener("visibilitychange", handleVisibility);
-        if (!document.hidden && Date.now() - start >= 1800) {
-          setShowFallback(true);
-        }
-      }, 2000);
+      // Mobile: show choice sheet instead of auto-opening Telegram
+      setShowMobileSheet(true);
     } else {
       // Desktop: morph to QR
       setMorphActive(true);
     }
   }, [morphActive, isTouch]);
+
+  const handleOpenTelegram = useCallback(() => {
+    setShowMobileSheet(false);
+    window.location.href = DEEP_LINK;
+  }, []);
+
+  const handleAddToHome = useCallback(async () => {
+    if (canInstall) {
+      await triggerInstall();
+      setShowMobileSheet(false);
+    }
+    // iOS hint stays visible via the sheet
+  }, [canInstall, triggerInstall]);
+
+  const handleContinueWeb = useCallback(() => {
+    setShowMobileSheet(false);
+    navigate("/begin");
+  }, [navigate]);
 
   return (
     <div
@@ -150,6 +156,111 @@ export function QROrchid({ visible = false, className = "" }: QROrchidProps) {
           </div>
         </div>
       </div>
+
+      {/* Mobile action sheet */}
+      {showMobileSheet && (
+        <div
+          onClick={(e) => e.stopPropagation()}
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 60,
+            display: "flex",
+            alignItems: "flex-end",
+            justifyContent: "center",
+            backgroundColor: "rgba(0,0,0,0.7)",
+          }}
+        >
+          {/* Backdrop dismiss */}
+          <div
+            style={{ position: "absolute", inset: 0 }}
+            onClick={() => setShowMobileSheet(false)}
+          />
+
+          {/* Sheet */}
+          <div
+            style={{
+              position: "relative",
+              width: "100%",
+              maxWidth: 360,
+              margin: "0 16px 32px",
+              border: "1px solid rgba(255,255,255,0.12)",
+              backgroundColor: "rgba(10,10,10,0.95)",
+              padding: "20px 16px",
+              display: "flex",
+              flexDirection: "column",
+              gap: 12,
+              fontFamily: "ui-monospace, monospace",
+            }}
+          >
+            {/* Open Telegram */}
+            <button
+              onClick={handleOpenTelegram}
+              style={{
+                width: "100%",
+                padding: "12px 16px",
+                border: "1px solid rgba(255,255,255,0.2)",
+                backgroundColor: "transparent",
+                color: "white",
+                fontFamily: "ui-monospace, monospace",
+                fontSize: "12px",
+                letterSpacing: "0.06em",
+                textTransform: "uppercase",
+                cursor: "pointer",
+                textAlign: "left",
+              }}
+            >
+              open in telegram →
+            </button>
+
+            {/* Add to Home Screen */}
+            {(canInstall || isIos) && !isStandalone && (
+              <button
+                onClick={isIos ? undefined : handleAddToHome}
+                style={{
+                  width: "100%",
+                  padding: "12px 16px",
+                  border: "1px solid rgba(255,255,255,0.2)",
+                  backgroundColor: "white",
+                  color: "black",
+                  fontFamily: "ui-monospace, monospace",
+                  fontSize: "12px",
+                  letterSpacing: "0.06em",
+                  textTransform: "uppercase",
+                  cursor: "pointer",
+                  textAlign: "left",
+                }}
+              >
+                {isIos ? (
+                  <>tap ⬆ share → "add to home screen"</>
+                ) : (
+                  <>add to home screen</>
+                )}
+              </button>
+            )}
+
+            {/* Continue on web */}
+            <button
+              onClick={handleContinueWeb}
+              style={{
+                width: "100%",
+                padding: "12px 16px",
+                border: "none",
+                backgroundColor: "transparent",
+                color: "rgba(255,255,255,0.4)",
+                fontFamily: "ui-monospace, monospace",
+                fontSize: "11px",
+                letterSpacing: "0.06em",
+                textTransform: "uppercase",
+                cursor: "pointer",
+                textAlign: "left",
+              }}
+            >
+              continue on web
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

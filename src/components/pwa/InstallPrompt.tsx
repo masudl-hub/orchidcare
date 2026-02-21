@@ -1,49 +1,18 @@
-import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-
-interface BeforeInstallPromptEvent extends Event {
-  prompt(): Promise<void>;
-  userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>;
-}
+import { usePwaInstall } from '@/hooks/use-pwa-install';
+import { useState } from 'react';
 
 export function InstallPrompt() {
-  const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
-  const [showIosHint, setShowIosHint] = useState(false);
+  const { canInstall, isIos, isStandalone, triggerInstall } = usePwaInstall();
   const [dismissed, setDismissed] = useState(false);
 
-  useEffect(() => {
-    // Check if already installed as standalone
-    if (window.matchMedia('(display-mode: standalone)').matches) return;
-
-    // Chrome/Android: capture beforeinstallprompt
-    const handler = (e: Event) => {
-      e.preventDefault();
-      setDeferredPrompt(e as BeforeInstallPromptEvent);
-    };
-    window.addEventListener('beforeinstallprompt', handler);
-
-    // iOS Safari detection
-    const isIos = /iphone|ipad|ipod/i.test(navigator.userAgent);
-    const isSafari = /safari/i.test(navigator.userAgent) && !/chrome|crios|fxios/i.test(navigator.userAgent);
-    if (isIos && isSafari) {
-      setShowIosHint(true);
-    }
-
-    return () => window.removeEventListener('beforeinstallprompt', handler);
-  }, []);
+  if (dismissed || isStandalone) return null;
+  if (!canInstall && !isIos) return null;
 
   const handleInstall = async () => {
-    if (!deferredPrompt) return;
-    await deferredPrompt.prompt();
-    const { outcome } = await deferredPrompt.userChoice;
-    if (outcome === 'accepted') {
-      setDeferredPrompt(null);
-    }
+    await triggerInstall();
     setDismissed(true);
   };
-
-  if (dismissed) return null;
-  if (!deferredPrompt && !showIosHint) return null;
 
   return (
     <AnimatePresence>
@@ -65,7 +34,7 @@ export function InstallPrompt() {
           gap: '12px',
         }}
       >
-        {deferredPrompt ? (
+        {canInstall ? (
           <>
             <span>Install Orchid for quick access</span>
             <div style={{ display: 'flex', gap: '8px' }}>
@@ -101,7 +70,7 @@ export function InstallPrompt() {
               </button>
             </div>
           </>
-        ) : showIosHint ? (
+        ) : isIos ? (
           <>
             <span>
               Tap{' '}

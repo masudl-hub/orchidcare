@@ -34,6 +34,7 @@ interface ToolsBody extends DevBody {
 interface EndBody extends DevBody {
   sessionId: string;
   durationSeconds?: number;
+  transcript?: { role: 'user' | 'agent'; text: string }[];
 }
 
 interface Profile {
@@ -259,10 +260,13 @@ async function handleEnd(supabase: SupabaseClient, body: EndBody) {
       status: "ended",
       ended_at: new Date().toISOString(),
       duration_seconds: body.durationSeconds ?? null,
+      summary: body.transcript?.length
+        ? body.transcript.map(t => `[${t.role}]: ${t.text}`).join('\n').substring(0, 2000)
+        : null,
     })
     .eq("id", body.sessionId);
 
-  console.log(`[DevProxy] /end: session ${body.sessionId} ended`);
+  console.log(`[DevProxy] /end: session ${body.sessionId} ended, transcriptTurns=${body.transcript?.length || 0}`);
   return json({ ok: true });
 }
 

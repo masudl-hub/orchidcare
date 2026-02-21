@@ -36,6 +36,9 @@ export function useGeminiLive() {
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const connectOptionsRef = useRef<{ toolsUrl?: string; extraAuth?: Record<string, unknown>; onReconnectNeeded?: () => Promise<string | null> } | undefined>(undefined);
   const attemptReconnectRef = useRef<() => void>(() => { });
+  const transcriptRef = useRef<{ role: 'user' | 'agent'; text: string }[]>([]);
+  const currentUserUtterance = useRef('');
+  const currentAgentUtterance = useRef('');
 
   const playback = useAudioPlayback();
   const capture = useAudioCapture();
@@ -187,10 +190,34 @@ export function useGeminiLive() {
         handleToolCallRef.current(message);
       }
 
-      // Detect user speaking (VAD)
-      if (message.serverContent?.inputTranscription) {
+      // Accumulate user speech transcript
+      if ((message.serverContent as any)?.inputTranscription) {
         setIsListening(true);
         setTimeout(() => setIsListening(false), 500);
+        const text = (message.serverContent as any).inputTranscription.text;
+        if (text) {
+          currentUserUtterance.current += text;
+        }
+      }
+
+      // Accumulate agent speech transcript
+      if ((message.serverContent as any)?.outputTranscription) {
+        const text = (message.serverContent as any).outputTranscription.text;
+        if (text) {
+          currentAgentUtterance.current += text;
+        }
+      }
+
+      // On turn complete, flush accumulated utterances into the transcript log
+      if (message.serverContent?.turnComplete) {
+        if (currentUserUtterance.current.trim()) {
+          transcriptRef.current.push({ role: 'user', text: currentUserUtterance.current.trim() });
+          currentUserUtterance.current = '';
+        }
+        if (currentAgentUtterance.current.trim()) {
+          transcriptRef.current.push({ role: 'agent', text: currentAgentUtterance.current.trim() });
+          currentAgentUtterance.current = '';
+        }
       }
 
       // On setupComplete — send a minimal turn to trigger the model's greeting.
@@ -222,6 +249,9 @@ export function useGeminiLive() {
     connectOptionsRef.current = options;
     connectingRef.current = true;
     greetingSentRef.current = false;
+    transcriptRef.current = [];
+    currentUserUtterance.current = '';
+    currentAgentUtterance.current = '';
 
     sessionIdRef.current = sessionId;
     initDataRef.current = initData;
@@ -529,6 +559,15 @@ export function useGeminiLive() {
   // ---------------------------------------------------------------------------
   const disconnect = useCallback(() => {
     userDisconnectedRef.current = true;
+    // Flush any remaining buffered utterances
+    if (currentUserUtterance.current.trim()) {
+      transcriptRef.current.push({ role: 'user', text: currentUserUtterance.current.trim() });
+      currentUserUtterance.current = '';
+    }
+    if (currentAgentUtterance.current.trim()) {
+      transcriptRef.current.push({ role: 'agent', text: currentAgentUtterance.current.trim() });
+      currentAgentUtterance.current = '';
+    }
     // Cancel any pending reconnect
     if (reconnectTimerRef.current) {
       clearTimeout(reconnectTimerRef.current);
@@ -584,6 +623,7 @@ export function useGeminiLive() {
     status,
     isSpeaking: playback.isSpeaking,
     isListening,
+    transcript: transcriptRef,
     isMuted: capture.isMuted,
     isVideoActive: video.isActive,
     videoStream: video.videoStream,

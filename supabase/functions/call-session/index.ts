@@ -32,6 +32,7 @@ interface EndBody {
   sessionId: string;
   initData: string;
   durationSeconds?: number;
+  transcript?: { role: 'user' | 'agent'; text: string }[];
 }
 
 interface CallSession {
@@ -277,6 +278,8 @@ async function handleToken(
           model,
           config: {
             responseModalities: ["AUDIO"],
+            inputAudioTranscription: {},
+            outputAudioTranscription: {},
             speechConfig: {
               voiceConfig: {
                 prebuiltVoiceConfig: { voiceName: voice },
@@ -411,11 +414,12 @@ async function handleEnd(
   body: EndBody,
   authHeader: string | null,
   botToken: string,
+  lovableApiKey?: string,
 ) {
   const routeStart = Date.now();
-  console.log(`[CallSession] /end: sessionId=${body.sessionId}, durationSeconds=${body.durationSeconds}`);
+  console.log(`[CallSession] /end: sessionId=${body.sessionId}, durationSeconds=${body.durationSeconds}, transcriptTurns=${body.transcript?.length || 0}`);
 
-  const { sessionId, initData, durationSeconds } = body;
+  const { sessionId, initData, durationSeconds, transcript } = body;
   if (!sessionId || (!initData && !authHeader)) {
     console.error(`[CallSession] /end: REJECTED — missing fields`);
     return json({ error: "Missing sessionId or auth token" }, 400);
@@ -455,13 +459,245 @@ async function handleEnd(
     return json({ ok: true, alreadyEnded: true });
   }
 
+  // ---- Core update payload ----
+  const updatePayload: Record<string, unknown> = {
+    status: "ended",
+    ended_at: new Date().toISOString(),
+    duration_seconds: durationSeconds ?? null,
+  };
+
+  // ---- Process transcript (if present and non-empty) ----
+  if (transcript && transcript.length > 0) {
+    const userTurns = transcript.filter(t => t.role === "user").length;
+    const agentTurns = transcript.filter(t => t.role === "agent").length;
+    const totalChars = transcript.reduce((sum, t) => sum + t.text.length, 0);
+    console.log(`[CallSession] /end: processing transcript — ${transcript.length} turns (${userTurns} user, ${agentTurns} agent), ${totalChars} chars total`);
+
+    // 1. Insert transcript turns into conversations table
+    const insertStart = Date.now();
+    const now = new Date();
+    const conversationRows = transcript.map((turn, i) => ({
+      profile_id: profile.id,
+      channel: "voice",
+      direction: turn.role === "user" ? "inbound" : "outbound",
+      content: turn.text,
+      created_at: new Date(now.getTime() - (transcript.length - i) * 1000).toISOString(),
+    }));
+
+    const { error: insertError } = await supabase
+      .from("conversations")
+      .insert(conversationRows);
+
+    if (insertError) {
+      console.error(`[CallSession] /end: conversation insert FAILED (${Date.now() - insertStart}ms):`, insertError.message, insertError.details);
+    } else {
+      console.log(`[CallSession] /end: inserted ${conversationRows.length} conversation rows (channel=voice) (${Date.now() - insertStart}ms)`);
+    }
+
+    // 2. Generate call summary + extract insights (in parallel, best-effort)
+    if (lovableApiKey) {
+      const transcriptText = transcript
+        .map(t => `[${t.role === "user" ? "inbound" : "outbound"}]: ${t.text}`)
+        .join("\n");
+      console.log(`[CallSession] /end: starting AI processing — summary + insight extraction in parallel (transcriptText=${transcriptText.length} chars)`);
+
+      const aiStart = Date.now();
+      try {
+        const [summaryResponse, insights] = await Promise.all([
+          // Summary generation
+          fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${lovableApiKey}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              model: "google/gemini-3-flash-preview",
+              thinking_config: { thinking_level: "low" },
+              messages: [
+                {
+                  role: "system",
+                  content: `You are a conversation summarizer. Create a concise summary of this plant care voice call that captures:
+1. Key plants discussed
+2. Issues diagnosed or questions answered
+3. Actions taken (plants saved, reminders set)
+4. Important user preferences revealed
+
+Return JSON: {"summary": "2-3 sentence summary", "key_topics": ["topic1", "topic2"]}`,
+                },
+                { role: "user", content: transcriptText },
+              ],
+              max_tokens: 200,
+            }),
+          }),
+          // Insight extraction
+          (async (): Promise<Array<{ key: string; value: string }>> => {
+            const insightStart = Date.now();
+            try {
+              const resp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+                method: "POST",
+                headers: {
+                  Authorization: `Bearer ${lovableApiKey}`,
+                  "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                  model: "google/gemini-3-flash-preview",
+                  thinking_config: { thinking_level: "low" },
+                  messages: [
+                    {
+                      role: "system",
+                      content: `Extract structured user facts from this plant care conversation.
+
+Return ONLY valid JSON with an array of insights (empty array if none found):
+{
+  "insights": [
+    {"key": "has_pets", "value": "yes"},
+    {"key": "pet_type", "value": "cat"},
+    {"key": "home_lighting", "value": "mostly low light, one south-facing window"}
+  ]
+}
+
+Valid keys (ONLY use these):
+- has_pets: "yes" or "no"
+- pet_type: specific pet (cat, dog, bird, etc.)
+- home_lighting: description of light conditions
+- watering_style: tendency (overwaterer, underwaterer, forgetful, consistent)
+- experience_level: beginner, intermediate, experienced
+- plant_preferences: types they like (tropical, succulents, flowering, etc.)
+- climate_zone: if mentioned (humid, dry, seasonal, etc.)
+- window_orientation: north, south, east, west facing
+- child_safety: if they mention kids/child safety
+- home_humidity: humid, dry, average
+- problem_patterns: recurring issues (root rot, pests, etc.)
+
+CRITICAL: Only extract facts EXPLICITLY stated by the user. Do not infer or guess.`,
+                    },
+                    { role: "user", content: transcriptText },
+                  ],
+                  max_tokens: 300,
+                }),
+              });
+              if (!resp.ok) {
+                console.error(`[CallSession] /end: insight extraction API error: ${resp.status} ${resp.statusText} (${Date.now() - insightStart}ms)`);
+                return [];
+              }
+              const data = await resp.json();
+              const content = data.choices?.[0]?.message?.content || "";
+              const jsonMatch = content.match(/\{[\s\S]*\}/);
+              const parsed = JSON.parse(jsonMatch ? jsonMatch[0] : content);
+              console.log(`[CallSession] /end: insight extraction completed — ${parsed.insights?.length || 0} insights (${Date.now() - insightStart}ms)`);
+              return parsed.insights || [];
+            } catch (insightErr) {
+              console.error(`[CallSession] /end: insight extraction FAILED (${Date.now() - insightStart}ms):`, insightErr);
+              return [];
+            }
+          })(),
+        ]);
+
+        console.log(`[CallSession] /end: AI processing completed (${Date.now() - aiStart}ms) — summaryOk=${summaryResponse.ok}, insights=${insights.length}`);
+
+        // Process summary
+        if (summaryResponse.ok) {
+          const summaryData = await summaryResponse.json();
+          const summaryContent = summaryData.choices?.[0]?.message?.content || "";
+          let summaryJson: { summary: string; key_topics: string[] };
+          try {
+            const jsonMatch = summaryContent.match(/\{[\s\S]*\}/);
+            summaryJson = JSON.parse(jsonMatch ? jsonMatch[0] : summaryContent);
+          } catch {
+            console.warn(`[CallSession] /end: summary JSON parse failed, using raw content (${summaryContent.length} chars)`);
+            summaryJson = { summary: summaryContent, key_topics: [] };
+          }
+
+          console.log(`[CallSession] /end: summary generated — "${summaryJson.summary.substring(0, 100)}...", topics=[${summaryJson.key_topics.join(", ")}]`);
+          updatePayload.summary = summaryJson.summary;
+
+          // Also save to conversation_summaries table for context loading
+          const { error: summaryInsertError } = await supabase.from("conversation_summaries").insert({
+            profile_id: profile.id,
+            summary: summaryJson.summary,
+            key_topics: summaryJson.key_topics,
+            message_count: transcript.length,
+            start_time: conversationRows[0].created_at,
+            end_time: conversationRows[conversationRows.length - 1].created_at,
+          });
+
+          if (summaryInsertError) {
+            console.error(`[CallSession] /end: conversation_summaries insert FAILED:`, summaryInsertError.message, summaryInsertError.details);
+          } else {
+            console.log(`[CallSession] /end: conversation_summaries row inserted`);
+          }
+        } else {
+          const errBody = await summaryResponse.text().catch(() => "unreadable");
+          console.error(`[CallSession] /end: summary API FAILED: ${summaryResponse.status} ${summaryResponse.statusText} — ${errBody.substring(0, 300)}`);
+        }
+
+        // Process insights
+        if (insights.length > 0) {
+          console.log(`[CallSession] /end: saving ${insights.length} insights — [${insights.map(i => i.key).join(", ")}]`);
+          let savedCount = 0;
+          for (const insight of insights) {
+            const { error: insightError } = await supabase.from("user_insights").upsert(
+              {
+                profile_id: profile.id,
+                insight_key: insight.key,
+                insight_value: insight.value,
+                updated_at: new Date().toISOString(),
+              },
+              { onConflict: "profile_id,insight_key" },
+            );
+            if (insightError) {
+              console.error(`[CallSession] /end: insight upsert FAILED for key="${insight.key}":`, insightError.message);
+            } else {
+              savedCount++;
+            }
+          }
+          console.log(`[CallSession] /end: insights saved — ${savedCount}/${insights.length} succeeded`);
+        } else {
+          console.log(`[CallSession] /end: no insights extracted from transcript`);
+        }
+
+        // Mark the voice conversation rows as already summarized
+        // (we just generated the summary — no need for maybeCompressHistory to re-process)
+        const markStart = Date.now();
+        const voiceMessageIds = (await supabase
+          .from("conversations")
+          .select("id")
+          .eq("profile_id", profile.id)
+          .eq("channel", "voice")
+          .order("created_at", { ascending: false })
+          .limit(transcript.length)
+        ).data?.map((m: any) => m.id) || [];
+
+        if (voiceMessageIds.length > 0) {
+          const { error: markError } = await supabase.from("conversations").update({ summarized: true }).in("id", voiceMessageIds);
+          if (markError) {
+            console.error(`[CallSession] /end: mark summarized FAILED (${Date.now() - markStart}ms):`, markError.message);
+          } else {
+            console.log(`[CallSession] /end: marked ${voiceMessageIds.length} voice messages as summarized (${Date.now() - markStart}ms)`);
+          }
+        } else {
+          console.warn(`[CallSession] /end: no voice message IDs found to mark as summarized (${Date.now() - markStart}ms)`);
+        }
+      } catch (err) {
+        const errStr = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
+        console.error(`[CallSession] /end: transcript processing FAILED (${Date.now() - aiStart}ms): ${errStr}`);
+        if (err instanceof Error && err.stack) {
+          console.error(`[CallSession] /end: stack: ${err.stack.substring(0, 500)}`);
+        }
+        // Non-fatal — session still ends successfully
+      }
+    } else {
+      console.warn(`[CallSession] /end: LOVABLE_API_KEY not set — skipping summary/insight generation for ${transcript.length} transcript turns`);
+    }
+  } else {
+    console.log(`[CallSession] /end: no transcript provided — skipping transcript processing`);
+  }
+
+  // ---- Final DB update ----
   const { error: updateError } = await supabase
     .from("call_sessions")
-    .update({
-      status: "ended",
-      ended_at: new Date().toISOString(),
-      duration_seconds: durationSeconds ?? null,
-    })
+    .update(updatePayload)
     .eq("id", sessionId);
 
   if (updateError) {
@@ -470,7 +706,7 @@ async function handleEnd(
   }
 
   console.log(
-    `[CallSession] /end: SUCCESS — session ${sessionId} status: ${session.status}→ended, duration=${durationSeconds != null ? durationSeconds : "unknown"}s, total=${Date.now() - routeStart}ms`,
+    `[CallSession] /end: SUCCESS — session ${sessionId} status: ${session.status}→ended, duration=${durationSeconds != null ? durationSeconds : "unknown"}s, summary=${!!updatePayload.summary}, total=${Date.now() - routeStart}ms`,
   );
 
   return json({ ok: true });
@@ -547,7 +783,7 @@ serve(async (req: Request) => {
         );
         break;
       case "end":
-        response = await handleEnd(supabase, body as EndBody, authHeader, TELEGRAM_BOT_TOKEN);
+        response = await handleEnd(supabase, body as EndBody, authHeader, TELEGRAM_BOT_TOKEN, LOVABLE_API_KEY);
         break;
       default:
         console.warn(`[CallSession] Unknown route: ${path}`);

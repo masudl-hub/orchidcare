@@ -213,6 +213,7 @@ function DevCallPageInner() {
             telegramChatId: Number(chatId.trim()),
             sessionId: sessionIdRef.current,
             durationSeconds: callDuration,
+            transcript: gemini.transcript.current,
           }),
         });
       } catch { /* best effort */ }

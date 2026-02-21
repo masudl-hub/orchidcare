@@ -167,6 +167,7 @@ function LiveCallPageInner() {
             sessionId,
             initData: initData || undefined,
             durationSeconds: callDuration,
+            transcript: gemini.transcript.current,
           }),
         });
       } catch (err) {

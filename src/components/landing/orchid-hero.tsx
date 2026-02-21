@@ -296,13 +296,7 @@ export function OrchidHero({ onStartClick, onLoginClick, onDemoClick }: OrchidHe
 
       {/* Main content container */}
       <div className="relative px-8 md:px-16 pt-[24px]">
-        {/* Tagline — smaller on mobile, tighter margin */}
-        <div
-          className={`font-mono text-[13px] md:text-[16px] mb-[-12px] md:mb-[-100px] ${revealClass(0)}`}
-          style={{ ...revealStyle(0) }}
-        >
-          plant care made easy
-        </div>
+        {/* Spacer where tagline used to be — keeps ORCHID positioning */}
 
         {/* ORCHID text */}
         <div
@@ -323,7 +317,7 @@ export function OrchidHero({ onStartClick, onLoginClick, onDemoClick }: OrchidHe
           >
             {/* Annotation callout — hidden on mobile */}
             <div
-              className={`absolute z-30 pointer-events-none hidden md:block ${
+              className={`absolute z-30 pointer-events-none ${
                 isRevealing ? "translate-y-0" : "translate-y-2"
               }`}
               style={{
@@ -451,6 +445,14 @@ export function OrchidHero({ onStartClick, onLoginClick, onDemoClick }: OrchidHe
           >/get-demo</div>
           <div className="cursor-pointer hover:underline" onClick={onLoginClick}>/login</div>
         </div>
+      </div>
+
+      {/* Tagline — bottom center of viewport */}
+      <div
+        className={`absolute bottom-6 left-0 right-0 text-center z-20 font-mono text-[13px] md:text-[16px] ${revealClass(0)}`}
+        style={{ ...revealStyle(0), color: 'white' }}
+      >
+        plant care made easy
       </div>
 
       {/* Telegram fallback overlay — mobile only */}

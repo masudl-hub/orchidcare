@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useIsTouch } from "@/hooks/use-mobile";
 import { usePwaInstall } from "@/hooks/use-pwa-install";
+import { AddToHomeGuide } from "@/components/pwa/AddToHomeGuide";
 import { QRMorphCanvas } from "./qr-morph-canvas";
 import { generateQRMatrix } from "@/lib/qr-matrix";
 import { sampleOrchidGrid } from "@/lib/orchid-grid";
@@ -19,13 +20,14 @@ interface QROrchidProps {
 export function QROrchid({ visible = false, className = "" }: QROrchidProps) {
   const navigate = useNavigate();
   const isTouch = useIsTouch();
-  const { canInstall, isIos, isStandalone, triggerInstall } = usePwaInstall();
+  const { canInstall, isIos, iosBrowser, isStandalone, triggerInstall } = usePwaInstall();
   const [morphActive, setMorphActive] = useState(false);
   const [morphComplete, setMorphComplete] = useState(false);
   const [orchidData, setOrchidData] = useState<{ grid: boolean[][]; cols: number; rows: number } | null>(null);
   const [qrData, setQrData] = useState<{ grid: boolean[][]; moduleCount: number } | null>(null);
   const [showFallback, setShowFallback] = useState(false);
   const [showMobileSheet, setShowMobileSheet] = useState(false);
+  const [showInstallGuide, setShowInstallGuide] = useState(false);
 
   // Preload grids on mount
   useEffect(() => {
@@ -216,7 +218,14 @@ export function QROrchid({ visible = false, className = "" }: QROrchidProps) {
             {/* Add to Home Screen — always visible on mobile */}
             {!isStandalone && (
               <button
-                onClick={canInstall ? handleAddToHome : undefined}
+                onClick={() => {
+                  if (canInstall) {
+                    handleAddToHome();
+                  } else {
+                    setShowMobileSheet(false);
+                    setShowInstallGuide(true);
+                  }
+                }}
                 style={{
                   width: "100%",
                   padding: "12px 16px",
@@ -231,13 +240,7 @@ export function QROrchid({ visible = false, className = "" }: QROrchidProps) {
                   textAlign: "left",
                 }}
               >
-                {canInstall ? (
-                  <>add to home screen</>
-                ) : isIos ? (
-                  <>tap ⬆ share → "add to home screen"</>
-                ) : (
-                  <>menu (⋮) → add to home screen</>
-                )}
+                add to home screen
               </button>
             )}
 
@@ -263,6 +266,11 @@ export function QROrchid({ visible = false, className = "" }: QROrchidProps) {
           </div>
         </div>
       )}
+      <AddToHomeGuide
+        browser={iosBrowser}
+        visible={showInstallGuide}
+        onClose={() => setShowInstallGuide(false)}
+      />
     </div>
   );
 }

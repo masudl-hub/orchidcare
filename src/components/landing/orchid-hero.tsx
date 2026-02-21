@@ -3,6 +3,7 @@ import { useState, useCallback, useRef, useEffect } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useIsTouch, useIsMobile } from "@/hooks/use-mobile";
 import { TelegramFallback } from "./telegram-fallback";
+import { usePwaInstall } from "@/hooks/use-pwa-install";
 
 const purpleOrchidSrc =
   "/plant_assets_art/T_phalaenopsis_orchid/phalaenopsis_orchid_transparent.png";
@@ -48,6 +49,8 @@ export function OrchidHero({ onStartClick, onLoginClick, onDemoClick }: OrchidHe
   const isTouch = useIsTouch();
   const isMobile = useIsMobile();
   const [showFallback, setShowFallback] = useState(false);
+  const { canInstall, isIos, isStandalone, triggerInstall } = usePwaInstall();
+  const [showIosHint, setShowIosHint] = useState(false);
 
   // Responsive dimensions
   const canvasW = isMobile ? CANVAS_WIDTH_SM : CANVAS_WIDTH_LG;
@@ -199,6 +202,11 @@ export function OrchidHero({ onStartClick, onLoginClick, onDemoClick }: OrchidHe
       touchStartTime.current = Date.now();
     };
 
+    const onTouchMove = (e: TouchEvent) => {
+      // Block page scroll while on the hero
+      e.preventDefault();
+    };
+
     const onTouchEnd = (e: TouchEvent) => {
       if (phase !== "ready" || touchStartY.current === null) return;
       const deltaY = touchStartY.current - e.changedTouches[0].clientY;
@@ -213,9 +221,11 @@ export function OrchidHero({ onStartClick, onLoginClick, onDemoClick }: OrchidHe
     };
 
     el.addEventListener("touchstart", onTouchStart, { passive: true });
+    el.addEventListener("touchmove", onTouchMove, { passive: false });
     el.addEventListener("touchend", onTouchEnd, { passive: true });
     return () => {
       el.removeEventListener("touchstart", onTouchStart);
+      el.removeEventListener("touchmove", onTouchMove);
       el.removeEventListener("touchend", onTouchEnd);
     };
   }, [isTouch, phase]);
@@ -265,7 +275,7 @@ export function OrchidHero({ onStartClick, onLoginClick, onDemoClick }: OrchidHe
   return (
     <div
       ref={containerRef}
-      className="min-h-screen w-full bg-white flex items-center justify-center overflow-hidden"
+      className="h-screen w-full bg-white flex items-center justify-center overflow-hidden"
     >
       {/* Top bar - starts as loading progress, becomes permanent black bar */}
       <div
@@ -444,13 +454,28 @@ export function OrchidHero({ onStartClick, onLoginClick, onDemoClick }: OrchidHe
             onClick={onDemoClick}
           >/get-demo</div>
           <div className="cursor-pointer hover:underline" onClick={onLoginClick}>/login</div>
+          {!isStandalone && (
+            <div
+              className="cursor-pointer hover:underline md:hidden"
+              onClick={() => {
+                if (canInstall) {
+                  triggerInstall();
+                } else if (isIos) {
+                  setShowIosHint(true);
+                } else {
+                  setShowIosHint(true); // fallback: show generic hint
+                }
+              }}
+            >/add-to-home</div>
+          )}
         </div>
+
       </div>
 
       {/* Tagline — bottom center of viewport */}
       <div
         className={`absolute bottom-6 left-0 right-0 text-center z-20 font-mono text-[13px] md:text-[16px] ${revealClass(0)}`}
-        style={{ ...revealStyle(0), color: 'white' }}
+        style={{ ...revealStyle(0), color: 'rgba(0,0,0,0.35)' }}
       >
         plant care made easy
       </div>
@@ -464,6 +489,61 @@ export function OrchidHero({ onStartClick, onLoginClick, onDemoClick }: OrchidHe
           onStartClick?.();
         }}
       />
+
+      {/* iOS / fallback install hint overlay — outside overflow-hidden container */}
+      {showIosHint && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center"
+          style={{ backgroundColor: "rgba(0,0,0,0.85)" }}
+          onClick={() => setShowIosHint(false)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="mx-6 max-w-xs"
+            style={{
+              border: "1px solid rgba(255,255,255,0.15)",
+              backgroundColor: "rgba(10,10,10,0.97)",
+              padding: "24px 20px",
+              fontFamily: "ui-monospace, monospace",
+            }}
+          >
+            <div style={{ fontSize: 13, color: "white", lineHeight: 1.6, letterSpacing: "0.03em" }}>
+              {isIos ? (
+                <>
+                  <div style={{ marginBottom: 12, opacity: 0.5, fontSize: 10, textTransform: "uppercase", letterSpacing: "0.1em" }}>install orchid</div>
+                  <div>1. tap the <span style={{ display: "inline-block", border: "1px solid rgba(255,255,255,0.3)", padding: "1px 6px", margin: "0 2px" }}>⬆</span> share button</div>
+                  <div style={{ marginTop: 8 }}>2. scroll down and tap</div>
+                  <div style={{ marginTop: 4, padding: "6px 10px", border: "1px solid rgba(255,255,255,0.2)", display: "inline-block" }}>Add to Home Screen</div>
+                </>
+              ) : (
+                <>
+                  <div style={{ marginBottom: 12, opacity: 0.5, fontSize: 10, textTransform: "uppercase", letterSpacing: "0.1em" }}>install orchid</div>
+                  <div>open your browser menu (⋮) and tap</div>
+                  <div style={{ marginTop: 8, padding: "6px 10px", border: "1px solid rgba(255,255,255,0.2)", display: "inline-block" }}>Add to Home Screen</div>
+                </>
+              )}
+            </div>
+            <button
+              onClick={() => setShowIosHint(false)}
+              style={{
+                marginTop: 20,
+                width: "100%",
+                padding: "10px",
+                border: "1px solid rgba(255,255,255,0.2)",
+                backgroundColor: "transparent",
+                color: "rgba(255,255,255,0.5)",
+                fontFamily: "ui-monospace, monospace",
+                fontSize: 11,
+                textTransform: "uppercase",
+                letterSpacing: "0.08em",
+                cursor: "pointer",
+              }}
+            >
+              got it
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

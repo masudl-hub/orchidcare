@@ -62,13 +62,13 @@ export function MemoryFeature({
         FIG 2.3 — ADAPTIVE MEMORY
       </div>
 
-      <div className="max-w-[1000px] w-full px-10 md:px-16 lg:px-24 flex flex-col items-center text-center">
+      <div className="max-w-[1000px] w-full px-4 md:px-16 lg:px-24 flex flex-col items-center text-center">
         {/* Heading */}
         <h2
+          className="text-[22px] md:text-[36px]"
           style={{
             ...revealStyle(200),
             fontFamily: '"Press Start 2P", cursive',
-            fontSize: "36px",
             lineHeight: 1.3,
             color: "white",
             marginBottom: "24px",

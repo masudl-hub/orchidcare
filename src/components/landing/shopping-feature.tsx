@@ -313,15 +313,15 @@ export function ShoppingFeature({
         FIG 2.5 — LOCAL COMMERCE
       </div>
 
-      <div className="w-full px-10 md:px-16 lg:px-24 z-10 relative">
-        <div className="max-w-[1100px] mx-auto grid md:grid-cols-2 gap-12 items-center">
+      <div className="w-full px-4 md:px-16 lg:px-24 z-10 relative">
+        <div className="max-w-[1100px] mx-auto grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-12 items-center">
           {/* Left: Description */}
           <div>
             <h2
+              className="text-[22px] md:text-[32px]"
               style={{
                 ...revealStyle(0),
                 fontFamily: '"Press Start 2P", cursive',
-                fontSize: "32px",
                 lineHeight: 1.4,
                 color: "white",
               }}

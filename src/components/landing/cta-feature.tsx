@@ -126,16 +126,16 @@ export function CTAFeature({
         FIG 2.8 — SUMMONING ORCHID
       </div>
 
-      <div className="w-full px-10 md:px-16 lg:px-24 z-10 relative">
+      <div className="w-full px-4 md:px-16 lg:px-24 z-10 relative">
         <div style={{ maxWidth: 520, width: "100%", margin: "0 auto" }} className="flex flex-col gap-0">
           {/* Title with pixelated animation */}
           <motion.h2
             initial={{ opacity: 0, y: 20 }}
             animate={visible ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
             transition={{ delay: 0.2, duration: 0.8 }}
+            className="text-[28px] md:text-[48px]"
             style={{
               fontFamily: '"Press Start 2P", cursive',
-              fontSize: '48px',
               lineHeight: 1.3,
               color: 'white',
               letterSpacing: '0.05em',

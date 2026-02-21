@@ -273,8 +273,8 @@ export function StartPage({ visible, onClose }: StartPageProps) {
                     ? "absolute"
                     : "relative",
                 pointerEvents: "none",
-                fontFamily: '"Press Start 2P", cursive',
-                fontSize: "22px",
+                 fontFamily: '"Press Start 2P", cursive',
+                 fontSize: "clamp(14px, 4vw, 22px)",
                 color: "white",
                 height:
                   phase === "decrypting" || phase === "done" ? 0 : "auto",
@@ -289,7 +289,7 @@ export function StartPage({ visible, onClose }: StartPageProps) {
               style={{
                 opacity: phase === "decrypting" || phase === "done" ? 1 : 0,
                 fontFamily: "ui-monospace, monospace",
-                fontSize: "18px",
+                fontSize: "clamp(14px, 3.5vw, 18px)",
                 lineHeight: "1.7",
                 color: "white",
                 letterSpacing: "0.01em",

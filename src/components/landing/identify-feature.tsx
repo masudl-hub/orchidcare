@@ -847,10 +847,10 @@ function FeatureDescription({
     >
       {/* Heading */}
       <h2
+        className="text-[22px] md:text-[32px]"
         style={{
           ...revealStyle(200),
           fontFamily: '"Press Start 2P", cursive',
-          fontSize: "32px",
           lineHeight: 1.4,
           color: "white",
         }}
@@ -970,15 +970,15 @@ export function IdentifyFeature({
       </div>
 
       {/* Content grid */}
-      <div className="w-full px-10 md:px-16 lg:px-24 py-20">
-        <div className="flex flex-row items-center gap-8 lg:gap-12 max-w-[1100px] mx-auto">
+      <div className="w-full px-4 md:px-16 lg:px-24 py-10 md:py-20">
+        <div className="flex flex-col md:flex-row items-center gap-8 lg:gap-12 max-w-[1100px] mx-auto">
           {/* Left — Chat mock */}
-          <div className="flex-shrink-0 flex-1 min-w-0 max-w-[400px]">
+          <div className="flex-shrink-0 w-full md:flex-1 md:min-w-0 md:max-w-[400px]">
             <MockChat visible={visible} interactive={interactive} />
           </div>
 
           {/* Right — Feature description */}
-          <div className="flex items-center flex-1 min-w-0">
+          <div className="flex items-center w-full md:flex-1 md:min-w-0">
             <FeatureDescription
               visible={visible}
               interactive={interactive}

@@ -119,10 +119,10 @@ function FeatureDescription({
     <div className="flex flex-col transition-opacity duration-500 max-w-[440px]">
       {/* Heading */}
       <h2
+        className="text-[22px] md:text-[32px]"
         style={{
           ...revealStyle(0),
           fontFamily: '"Press Start 2P", cursive',
-          fontSize: "32px",
           lineHeight: 1.4,
           color: "white",
         }}
@@ -705,7 +705,7 @@ export function ProactiveFeature({
         FIG 2.4 — PREDICTIVE ALERTS
       </div>
 
-      <div className="w-full px-10 md:px-16 lg:px-24 z-10 relative pointer-events-none">
+      <div className="w-full px-4 md:px-16 lg:px-24 z-10 relative pointer-events-none">
         <div className="flex flex-col md:flex-row items-center gap-8 lg:gap-16 max-w-[1100px] mx-auto pointer-events-auto">
             
            {/* Left: Description */}

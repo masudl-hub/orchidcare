@@ -158,8 +158,8 @@ export function LiveFeature({
         FIG 2.7 — VIDEO DIAGNOSIS
       </div>
 
-      <div className="w-full px-10 md:px-16 lg:px-24 z-10 relative">
-        <div className="max-w-[1200px] mx-auto grid md:grid-cols-2 gap-12 items-center">
+      <div className="w-full px-4 md:px-16 lg:px-24 z-10 relative">
+        <div className="max-w-[1200px] mx-auto grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-12 items-center">
           {/* Left: Description */}
           <motion.div
             initial={{ x: -40, opacity: 0 }}
@@ -167,9 +167,9 @@ export function LiveFeature({
             transition={{ delay: 0.3, duration: 0.8 }}
           >
             <h2
+              className="text-[22px] md:text-[32px]"
               style={{
                 fontFamily: '"Press Start 2P", cursive',
-                fontSize: "32px",
                 lineHeight: 1.4,
                 color: "white",
                 marginBottom: "24px",

@@ -611,7 +611,7 @@ ${prompt}
 MANDATORY STYLE:
 - Pure black background (#000000), no exceptions
 - White and light gray line art only
-- All text labels in monospace pixel font style
+- All text labels in monospace pixel font style (IMPORTANT: "monospace" is a font rendering instruction — do NOT write the word "monospace" as visible text anywhere in the image)
 - Clean, minimal, educational
 - No colored backgrounds, no gradients
 - Annotations in white text with thin white arrows
@@ -1659,7 +1659,7 @@ async function handleVoiceTools(
         result = { success: false, error: "Not configured" };
         break;
       }
-      const styledPrompt = `${args.prompt}\n\nVISUAL STYLE — "Botanical Pixels":\n- Clean WHITE background for maximum legibility\n- Illustrated botanical plants and foliage (detailed, lush, naturalistic — NOT pixel art for the plants themselves)\n- Typography: "Press Start 2P" style pixel font for headers, monospace for labels\n- Layout: grid-based, structured information design with clear visual hierarchy\n- Annotations: thin dark lines, small monospace labels, well-placed arrows\n- Color palette: rich botanical greens and earth tones, black text, subtle gray grid lines\n- NO watercolor washes, NO cream/beige backgrounds\n- Keep all text highly legible — avoid placing text over busy illustration areas`;
+      const styledPrompt = `${args.prompt}\n\nVISUAL STYLE — "Botanical Pixels":\n- Clean WHITE background for maximum legibility\n- Illustrated botanical plants and foliage (detailed, lush, naturalistic — NOT pixel art for the plants themselves)\n- Typography: "Press Start 2P" style pixel font for headers, monospace for labels\n- Layout: grid-based, structured information design with clear visual hierarchy\n- Annotations: thin dark lines, small monospace labels, well-placed arrows\n- Color palette: rich botanical greens and earth tones, black text, subtle gray grid lines\n- NO watercolor washes, NO cream/beige backgrounds\n- Keep all text highly legible — avoid placing text over busy illustration areas\n- CRITICAL — FONT NAMES ARE RENDERING INSTRUCTIONS ONLY: Do NOT write "Press Start 2P", "monospace", or any font/style name as visible text in the image; these directives tell you which fonts to USE, not text to display`;
       const resp = await fetch(
         "https://ai.gateway.lovable.dev/v1/chat/completions",
         {

@@ -1331,7 +1331,8 @@ VISUAL STYLE — "Botanical Pixels":
 - Color palette: rich botanical greens and earth tones for plants, black text, subtle gray grid lines
 - Think illustrated botanical field guide meets retro game UI — beautiful plant drawings with pixel-font headers
 - NO watercolor washes, NO cream/beige backgrounds
-- Keep all text highly legible — avoid placing text over busy illustration areas`,
+- Keep all text highly legible — avoid placing text over busy illustration areas
+- CRITICAL — FONT NAMES ARE RENDERING INSTRUCTIONS ONLY: Do NOT write "Press Start 2P", "monospace", or any font/style name as visible text in the image; these directives tell you which fonts to USE, not text to display`,
           },
           2: {
             title: "MAKE THE CUT",
@@ -1354,7 +1355,8 @@ VISUAL STYLE — "Botanical Pixels":
 - Annotations: use thin dark lines and small monospace labels, well-placed arrows
 - Color palette: rich botanical greens and earth tones for plants, black text, subtle gray grid lines
 - NO watercolor washes, NO cream/beige backgrounds
-- Keep all text highly legible — avoid placing text over busy illustration areas`,
+- Keep all text highly legible — avoid placing text over busy illustration areas
+- CRITICAL — FONT NAMES ARE RENDERING INSTRUCTIONS ONLY: Do NOT write "Press Start 2P", "monospace", or any font/style name as visible text in the image; these directives tell you which fonts to USE, not text to display`,
           },
           3: {
             title: "ROOT & CARE",
@@ -1376,7 +1378,8 @@ VISUAL STYLE — "Botanical Pixels":
 - Annotations: use thin dark lines and small monospace labels, well-placed arrows
 - Color palette: rich botanical greens and earth tones for plants, black text, subtle gray grid lines
 - NO watercolor washes, NO cream/beige backgrounds
-- Keep all text highly legible — avoid placing text over busy illustration areas`,
+- Keep all text highly legible — avoid placing text over busy illustration areas
+- CRITICAL — FONT NAMES ARE RENDERING INSTRUCTIONS ONLY: Do NOT write "Press Start 2P", "monospace", or any font/style name as visible text in the image; these directives tell you which fonts to USE, not text to display`,
           },
           4: {
             title: "TRANSPLANT",
@@ -1397,7 +1400,8 @@ VISUAL STYLE — "Botanical Pixels":
 - Annotations: use thin dark lines and small monospace labels, well-placed arrows
 - Color palette: rich botanical greens and earth tones for plants, black text, subtle gray grid lines
 - NO watercolor washes, NO cream/beige backgrounds
-- Keep all text highly legible — avoid placing text over busy illustration areas`,
+- Keep all text highly legible — avoid placing text over busy illustration areas
+- CRITICAL — FONT NAMES ARE RENDERING INSTRUCTIONS ONLY: Do NOT write "Press Start 2P", "monospace", or any font/style name as visible text in the image; these directives tell you which fonts to USE, not text to display`,
           },
         };
 
@@ -1426,7 +1430,8 @@ VISUAL STYLE — "Botanical Pixels":
 - Annotations: use thin dark lines and small monospace labels, well-placed arrows
 - Color palette: rich botanical greens and earth tones for plants, black text, subtle gray grid lines
 - NO watercolor washes, NO cream/beige backgrounds
-- Keep all text highly legible — avoid placing text over busy illustration areas`,
+- Keep all text highly legible — avoid placing text over busy illustration areas
+- CRITICAL — FONT NAMES ARE RENDERING INSTRUCTIONS ONLY: Do NOT write "Press Start 2P", "monospace", or any font/style name as visible text in the image; these directives tell you which fonts to USE, not text to display`,
           },
           2: {
             title: "REMOVE & INSPECT ROOTS",
@@ -1446,7 +1451,8 @@ VISUAL STYLE — "Botanical Pixels":
 - Annotations: use thin dark lines and small monospace labels, well-placed arrows
 - Color palette: rich botanical greens and earth tones for plants, black text, subtle gray grid lines
 - NO watercolor washes, NO cream/beige backgrounds
-- Keep all text highly legible — avoid placing text over busy illustration areas`,
+- Keep all text highly legible — avoid placing text over busy illustration areas
+- CRITICAL — FONT NAMES ARE RENDERING INSTRUCTIONS ONLY: Do NOT write "Press Start 2P", "monospace", or any font/style name as visible text in the image; these directives tell you which fonts to USE, not text to display`,
           },
           3: {
             title: "REPLANT & WATER",
@@ -1467,7 +1473,8 @@ VISUAL STYLE — "Botanical Pixels":
 - Annotations: use thin dark lines and small monospace labels, well-placed arrows
 - Color palette: rich botanical greens and earth tones for plants, black text, subtle gray grid lines
 - NO watercolor washes, NO cream/beige backgrounds
-- Keep all text highly legible — avoid placing text over busy illustration areas`,
+- Keep all text highly legible — avoid placing text over busy illustration areas
+- CRITICAL — FONT NAMES ARE RENDERING INSTRUCTIONS ONLY: Do NOT write "Press Start 2P", "monospace", or any font/style name as visible text in the image; these directives tell you which fonts to USE, not text to display`,
           },
         };
 
@@ -1495,7 +1502,8 @@ VISUAL STYLE — "Botanical Pixels":
 - Annotations: use thin dark lines and small monospace labels, well-placed arrows
 - Color palette: rich botanical greens and earth tones for plants, black text, subtle gray grid lines
 - NO watercolor washes, NO cream/beige backgrounds
-- Keep all text highly legible — avoid placing text over busy illustration areas`,
+- Keep all text highly legible — avoid placing text over busy illustration areas
+- CRITICAL — FONT NAMES ARE RENDERING INSTRUCTIONS ONLY: Do NOT write "Press Start 2P", "monospace", or any font/style name as visible text in the image; these directives tell you which fonts to USE, not text to display`,
         },
         2: {
           title: "MAIN ACTION",
@@ -1515,7 +1523,8 @@ VISUAL STYLE — "Botanical Pixels":
 - Annotations: use thin dark lines and small monospace labels, well-placed arrows
 - Color palette: rich botanical greens and earth tones for plants, black text, subtle gray grid lines
 - NO watercolor washes, NO cream/beige backgrounds
-- Keep all text highly legible — avoid placing text over busy illustration areas`,
+- Keep all text highly legible — avoid placing text over busy illustration areas
+- CRITICAL — FONT NAMES ARE RENDERING INSTRUCTIONS ONLY: Do NOT write "Press Start 2P", "monospace", or any font/style name as visible text in the image; these directives tell you which fonts to USE, not text to display`,
         },
         3: {
           title: "AFTERCARE",
@@ -1535,7 +1544,8 @@ VISUAL STYLE — "Botanical Pixels":
 - Annotations: use thin dark lines and small monospace labels, well-placed arrows
 - Color palette: rich botanical greens and earth tones for plants, black text, subtle gray grid lines
 - NO watercolor washes, NO cream/beige backgrounds
-- Keep all text highly legible — avoid placing text over busy illustration areas`,
+- Keep all text highly legible — avoid placing text over busy illustration areas
+- CRITICAL — FONT NAMES ARE RENDERING INSTRUCTIONS ONLY: Do NOT write "Press Start 2P", "monospace", or any font/style name as visible text in the image; these directives tell you which fonts to USE, not text to display`,
         },
       };
 
@@ -1555,7 +1565,8 @@ CRITICAL REQUIREMENTS:
 1. Include clear text labels and arrows ON the image explaining WHY each action matters
 2. VISUAL STYLE — "Botanical Pixels": Clean WHITE background, illustrated botanical plants (detailed, lush, naturalistic — NOT pixel art for plants), "Press Start 2P" style pixel font for headers, monospace for labels, grid-based layout, thin dark annotation lines, rich botanical greens and earth tones, NO watercolor washes, NO cream/beige backgrounds
 3. Make annotations legible and well-placed — avoid placing text over busy illustration areas
-4. This is step ${step} of ${stepCount} - make it clear this is part of a sequence`;
+4. This is step ${step} of ${stepCount} - make it clear this is part of a sequence
+5. FONT NAMES ARE RENDERING INSTRUCTIONS ONLY: Never write "Press Start 2P", "monospace", or any font/style name as literal visible text in the image — these are font rendering directives, not content to display`;
 
       console.log(`[ImageGenAgent] Starting parallel generation for step ${step}/${stepCount}...`);
 
@@ -3631,7 +3642,7 @@ ${proactiveContext.events.map((e: any) => `- ${e.message_hint}`).join("\n")}
                 toolResult = { success: false, error: "Image generation not configured" };
               } else {
                 try {
-                  const styledPrompt = `${args.prompt}\n\nVISUAL STYLE — "Botanical Pixels":\n- Clean WHITE background for maximum legibility\n- Illustrated botanical plants and foliage (detailed, lush, naturalistic — NOT pixel art for the plants themselves)\n- Typography: "Press Start 2P" style pixel font for headers, monospace for labels\n- Layout: grid-based, structured information design with clear visual hierarchy\n- Annotations: thin dark lines, small monospace labels, well-placed arrows\n- Color palette: rich botanical greens and earth tones, black text, subtle gray grid lines\n- NO watercolor washes, NO cream/beige backgrounds\n- Keep all text highly legible — avoid placing text over busy illustration areas`;
+                  const styledPrompt = `${args.prompt}\n\nVISUAL STYLE — "Botanical Pixels":\n- Clean WHITE background for maximum legibility\n- Illustrated botanical plants and foliage (detailed, lush, naturalistic — NOT pixel art for the plants themselves)\n- Typography: "Press Start 2P" style pixel font for headers, monospace for labels\n- Layout: grid-based, structured information design with clear visual hierarchy\n- Annotations: thin dark lines, small monospace labels, well-placed arrows\n- Color palette: rich botanical greens and earth tones, black text, subtle gray grid lines\n- NO watercolor washes, NO cream/beige backgrounds\n- Keep all text highly legible — avoid placing text over busy illustration areas\n- CRITICAL — FONT NAMES ARE RENDERING INSTRUCTIONS ONLY: Do NOT write "Press Start 2P", "monospace", or any font/style name as visible text in the image; these directives tell you which fonts to USE, not text to display`;
                   const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
                     method: "POST",
                     headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },

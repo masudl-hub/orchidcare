@@ -146,9 +146,16 @@ serve(async (req: Request) => {
     // ---------------------------------------------------------------------------
     const agentResult = await agentResponse.json();
 
-    // Build NDJSON response
+    // Build NDJSON response with real tool events
     const events: string[] = [];
-    events.push(JSON.stringify({ event: "status", label: "thinking" }));
+
+    // Emit tool events from actual tool usage
+    if (agentResult.toolsUsed && Array.isArray(agentResult.toolsUsed)) {
+      for (const toolName of agentResult.toolsUsed) {
+        events.push(JSON.stringify({ event: "tool", name: toolName }));
+      }
+    }
+
     events.push(
       JSON.stringify({
         event: "done",

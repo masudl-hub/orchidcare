@@ -2334,7 +2334,7 @@ serve(async (req: Request) => {
       });
     }
 
-    const channel = "telegram";
+    const channel = (isInternalAgentCall && payload?.channel) || "telegram";
 
     console.log(
       `[${correlationId}] ${isProactiveTrigger ? "🔔 Proactive" : "📨 Internal"} TELEGRAM for profile ${profile?.id}`,
@@ -2575,6 +2575,7 @@ ${body ? `Accompanying text: ${body}` : ""}`;
       userPlants || [],
       profile,
       plantSnapshots,
+      channel,
     );
 
     // Inject proactive context if this is a proactive trigger
@@ -2694,6 +2695,7 @@ ${proactiveContext.events.map((e: any) => `- ${e.message_hint}`).join("\n")}
       // Bounded tool loop: max 3 iterations for multi-step workflows
       const MAX_TOOL_ITERATIONS = 3;
       let toolIteration = 0;
+      const toolsUsed: string[] = [];
 
       while (currentToolCalls && currentToolCalls.length > 0 && toolIteration < MAX_TOOL_ITERATIONS) {
         toolIteration++;
@@ -2726,6 +2728,7 @@ ${proactiveContext.events.map((e: any) => `- ${e.message_hint}`).join("\n")}
           }
 
           console.log(`[${correlationId}] Executing tool: ${functionName}`, args);
+          toolsUsed.push(functionName);
 
           // Check agent permission for this tool
           const requiredCapability = TOOL_CAPABILITY_MAP[functionName];
@@ -3837,6 +3840,7 @@ ${proactiveContext.events.map((e: any) => `- ${e.message_hint}`).join("\n")}
       return new Response(JSON.stringify({
         reply: aiReply,
         mediaToSend: mediaToSend,
+        toolsUsed: toolsUsed,
       }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });

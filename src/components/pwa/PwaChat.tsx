@@ -69,7 +69,7 @@ export function PwaChat() {
     const loadHistory = async () => {
       const { data } = await supabase
         .from('conversations')
-        .select('content, direction, created_at')
+        .select('content, direction, created_at, media_urls')
         .eq('profile_id', profile.id)
         .eq('channel', 'pwa')
         .order('created_at', { ascending: true })
@@ -88,9 +88,11 @@ export function PwaChat() {
         for (let i = 0; i < data.length; i++) {
           if (data[i].direction === 'outbound') {
             const userMsg = i > 0 && data[i - 1].direction === 'inbound' ? data[i - 1].content : undefined;
+            const images = data[i].media_urls?.map((url: string) => ({ url, title: 'Image' }));
+
             historyArtifacts.push({
               id: `history-${i}`,
-              element: <ChatResponse text={data[i].content} />,
+              element: <ChatResponse text={data[i].content} images={images} />,
               userMessage: userMsg,
               artifactType: 'chat',
               artifactData: { text: data[i].content },

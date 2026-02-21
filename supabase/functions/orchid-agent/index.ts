@@ -3905,6 +3905,7 @@ ${proactiveContext.events.map((e: any) => `- ${e.message_hint}`).join("\n")}
       channel,
       direction: "outbound",
       content: aiReply,
+      media_urls: mediaToSend.length > 0 ? mediaToSend.map(m => m.url) : null,
     });
 
     // Trigger background compression check

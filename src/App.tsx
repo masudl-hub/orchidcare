@@ -8,7 +8,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import Onboarding from "./pages/Onboarding";
 import LoginPage from "./pages/LoginPage";
-import BeginPage from "./pages/BeginPage";
+
 import Dashboard from "./pages/Dashboard";
 import Settings from "./pages/Settings";
 import Plants from "./pages/Plants";
@@ -44,8 +44,8 @@ const App = () => (
             <Route path="/" element={<OrchidPage />} />
             <Route path="/onboarding" element={<ProtectedRoute><Onboarding /></ProtectedRoute>} />
             <Route path="/login" element={<LoginPage />} />
-            <Route path="/begin" element={<BeginPage />} />
-            <Route path="/signup" element={<Navigate to="/begin" replace />} />
+            <Route path="/begin" element={<Navigate to="/login" replace />} />
+            <Route path="/signup" element={<Navigate to="/login" replace />} />
             <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
             <Route path="/dashboard/collection" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
             <Route path="/dashboard/profile" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />

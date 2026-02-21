@@ -67,7 +67,7 @@ export function QROrchid({ visible = false, className = "" }: QROrchidProps) {
 
   const handleContinueWeb = useCallback(() => {
     setShowMobileSheet(false);
-    navigate("/begin");
+    navigate("/login");
   }, [navigate]);
 
   return (

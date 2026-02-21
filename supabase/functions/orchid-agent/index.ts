@@ -2234,6 +2234,7 @@ serve(async (req: Request) => {
     let numMedia = 0;
     let messageSid: string;
     let proactiveContext: { events: any[]; eventSummary: string } | null = null;
+    let requestChannel = "telegram";
     let profile: any = null;
     let internalMediaInfo: { base64: string; mimeType: string } | null = null;
 
@@ -2285,7 +2286,8 @@ serve(async (req: Request) => {
         body = `[Internal: I'm thinking about my friend and want to check in. ${eventDescriptions}. Let me reach out naturally.]`;
       }
 
-      console.log(`[${correlationId}] Internal call channel: ${payload.channel || "telegram"}, message length: ${body.length}`);
+      requestChannel = payload.channel || "telegram";
+      console.log(`[${correlationId}] Internal call channel: ${requestChannel}, message length: ${body.length}`);
     } else if (isProactiveTrigger && contentType.includes("application/json")) {
       // ====================================================================
       // PROACTIVE MODE: Triggered by proactive-agent with event context
@@ -2334,7 +2336,7 @@ serve(async (req: Request) => {
       });
     }
 
-    const channel = (isInternalAgentCall && payload?.channel) || "telegram";
+    const channel = requestChannel;
 
     console.log(
       `[${correlationId}] ${isProactiveTrigger ? "🔔 Proactive" : "📨 Internal"} TELEGRAM for profile ${profile?.id}`,

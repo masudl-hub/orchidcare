@@ -213,10 +213,10 @@ export function QROrchid({ visible = false, className = "" }: QROrchidProps) {
               open in telegram →
             </button>
 
-            {/* Add to Home Screen */}
-            {(canInstall || isIos) && !isStandalone && (
+            {/* Add to Home Screen — always visible on mobile */}
+            {!isStandalone && (
               <button
-                onClick={isIos ? undefined : handleAddToHome}
+                onClick={canInstall ? handleAddToHome : undefined}
                 style={{
                   width: "100%",
                   padding: "12px 16px",
@@ -231,10 +231,12 @@ export function QROrchid({ visible = false, className = "" }: QROrchidProps) {
                   textAlign: "left",
                 }}
               >
-                {isIos ? (
+                {canInstall ? (
+                  <>add to home screen</>
+                ) : isIos ? (
                   <>tap ⬆ share → "add to home screen"</>
                 ) : (
-                  <>add to home screen</>
+                  <>menu (⋮) → add to home screen</>
                 )}
               </button>
             )}

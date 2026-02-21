@@ -163,7 +163,8 @@ function LiveCallPageInner() {
     if (endedRef.current) return;
     endedRef.current = true;
 
-    gemini.disconnect();
+    // Await disconnect so MediaRecorder blobs are finalized before we read them
+    await gemini.disconnect();
     if (sessionId) {
       try {
         const initData = getInitData();
@@ -205,6 +206,7 @@ function LiveCallPageInner() {
                   initData: initData || undefined,
                   userAudio: userB64,
                   agentAudio: agentB64,
+                  audioMimeType: blobs.mimeType,
                 }),
               }).catch(() => {});
             } catch (err) {

@@ -212,7 +212,7 @@ function DevCallPageInner() {
   const handleEndCall = useCallback(async () => {
     if (endedRef.current) return;
     endedRef.current = true;
-    gemini.disconnect();
+    await gemini.disconnect();
 
     // End session on server in full mode
     if (mode === 'full' && sessionIdRef.current) {
@@ -248,6 +248,7 @@ function DevCallPageInner() {
                   telegramChatId: Number(chatId.trim()),
                   userAudio: userB64,
                   agentAudio: agentB64,
+                  audioMimeType: blobs.mimeType,
                 }),
               }).catch(() => {});
             } catch (err) {

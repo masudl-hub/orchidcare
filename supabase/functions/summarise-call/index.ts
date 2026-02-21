@@ -14,6 +14,7 @@ interface RequestBody {
   telegramChatId?: number;
   userAudio?: string;   // base64
   agentAudio?: string;  // base64
+  audioMimeType?: string; // e.g. "audio/webm;codecs=opus" or "audio/mp4"
 }
 
 // ---------------------------------------------------------------------------
@@ -68,7 +69,9 @@ serve(async (req: Request) => {
     return json({ error: "Invalid JSON body" }, 400);
   }
 
-  const { sessionId, initData, devSecret, telegramChatId, userAudio, agentAudio } = body;
+  const { sessionId, initData, devSecret, telegramChatId, userAudio, agentAudio, audioMimeType } = body;
+  // Map client mime type to one Gemini accepts. Safari sends audio/mp4.
+  const geminiMime = (audioMimeType || "audio/webm").replace(/;codecs=.*$/, "");
 
   console.log(`[SummariseCall] sessionId=${sessionId}, hasUserAudio=${!!userAudio}, hasAgentAudio=${!!agentAudio}, userAudioLen=${userAudio?.length || 0}, agentAudioLen=${agentAudio?.length || 0}`);
 
@@ -191,10 +194,10 @@ Return JSON: {"summary": "3-5 sentence summary", "key_topics": ["topic1", "topic
     ];
 
     if (userAudio) {
-      parts.push({ inlineData: { mimeType: "audio/webm", data: userAudio } });
+      parts.push({ inlineData: { mimeType: geminiMime, data: userAudio } });
     }
     if (agentAudio) {
-      parts.push({ inlineData: { mimeType: "audio/webm", data: agentAudio } });
+      parts.push({ inlineData: { mimeType: geminiMime, data: agentAudio } });
     }
 
     // Retry up to 3 times with exponential backoff (2s, 4s, 8s)

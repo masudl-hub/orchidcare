@@ -3,26 +3,41 @@ import { useRef, useCallback } from 'react';
 export interface CallRecordingBlobs {
   userBlob: Blob | null;
   agentBlob: Blob | null;
+  mimeType: string;
 }
 
-const MIME_TYPE = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
-  ? 'audio/webm;codecs=opus'
-  : 'audio/webm';
+function pickMimeType(): string {
+  if (typeof MediaRecorder === 'undefined') return '';
+  // Chrome/Firefox/Android
+  if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) return 'audio/webm;codecs=opus';
+  if (MediaRecorder.isTypeSupported('audio/webm')) return 'audio/webm';
+  // Safari / iOS
+  if (MediaRecorder.isTypeSupported('audio/mp4')) return 'audio/mp4';
+  if (MediaRecorder.isTypeSupported('audio/aac')) return 'audio/aac';
+  // Last resort — let the browser pick
+  return '';
+}
+
+const MIME_TYPE = pickMimeType();
 
 export function useCallRecorder() {
   const userRecorderRef = useRef<MediaRecorder | null>(null);
   const agentRecorderRef = useRef<MediaRecorder | null>(null);
   const userChunksRef = useRef<Blob[]>([]);
   const agentChunksRef = useRef<Blob[]>([]);
-  const blobsRef = useRef<CallRecordingBlobs>({ userBlob: null, agentBlob: null });
+  const blobsRef = useRef<CallRecordingBlobs>({ userBlob: null, agentBlob: null, mimeType: MIME_TYPE });
   const recordingRef = useRef(false);
 
   const startRecording = useCallback((micStream: MediaStream | null, agentStream: MediaStream | undefined | null) => {
     if (recordingRef.current) return;
+    if (!MIME_TYPE) {
+      console.warn('[CallRecorder] No supported audio MIME type — recording disabled');
+      return;
+    }
 
     userChunksRef.current = [];
     agentChunksRef.current = [];
-    blobsRef.current = { userBlob: null, agentBlob: null };
+    blobsRef.current = { userBlob: null, agentBlob: null, mimeType: MIME_TYPE };
 
     try {
       if (micStream) {

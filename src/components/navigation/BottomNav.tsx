@@ -20,10 +20,9 @@ export function BottomNav() {
 
     const navItems: NavItem[] = isDeveloperContext
         ? [
-            { id: '/dashboard', icon: LayoutDashboard, path: '/dashboard/collection' },
-            { id: '/developer', icon: Terminal, path: '/developer' },
-            { id: '/developer/docs', icon: FileText, path: '/developer/docs', isGroupRight: true },
-            { id: '/dashboard/collection', icon: Leaf, path: '/dashboard/collection' },
+            { id: '/developer', icon: LayoutDashboard, path: '/developer' },
+            { id: '/developer/docs', icon: FileText, path: '/developer/docs' },
+            { id: '/dashboard/collection', icon: Leaf, path: '/dashboard/collection', isGroupRight: true },
             { id: '/chat', icon: MessageSquare, path: '/chat' },
             { id: '/call', icon: Phone, path: '/call' },
           ]

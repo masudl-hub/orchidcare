@@ -11,43 +11,104 @@ interface Step {
   illustration: React.ReactNode;
 }
 
-/* ── CSS icon primitives ── */
+/* ── SVG icon primitives (no emojis, consistent style) ── */
 
-function ShareIcon({ size = 28, pulse = false }: { size?: number; pulse?: boolean }) {
+function ShareIcon({ size = 18, dim = false }: { size?: number; dim?: boolean }) {
+  const c = dim ? "rgba(255,255,255,0.3)" : "white";
   return (
-    <div style={{ width: size, height: size, display: "inline-flex", alignItems: "center", justifyContent: "center" }} className={pulse ? "animate-pulse" : ""}>
-      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-        <rect x="5" y="9" width="14" height="13" rx="2" />
-        <polyline points="9,5 12,2 15,5" />
-        <line x1="12" y1="2" x2="12" y2="14" />
-      </svg>
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="5" y="9" width="14" height="13" rx="2" />
+      <polyline points="9,5 12,2 15,5" />
+      <line x1="12" y1="2" x2="12" y2="14" />
+    </svg>
+  );
+}
+
+function BookmarkIcon({ dim = true }: { dim?: boolean }) {
+  const c = dim ? "rgba(255,255,255,0.3)" : "white";
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M6 4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18l-6-4-6 4V4z" />
+    </svg>
+  );
+}
+
+function PlusIcon({ dim = true }: { dim?: boolean }) {
+  const c = dim ? "rgba(255,255,255,0.3)" : "white";
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="1.5" strokeLinecap="round">
+      <line x1="12" y1="5" x2="12" y2="19" />
+      <line x1="5" y1="12" x2="19" y2="12" />
+    </svg>
+  );
+}
+
+function StarIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.3)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <polygon points="12,2 15,9 22,9.5 17,14.5 18.5,22 12,18 5.5,22 7,14.5 2,9.5 9,9" />
+    </svg>
+  );
+}
+
+function NoteIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.3)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="4" y="3" width="16" height="18" rx="2" />
+      <line x1="8" y1="8" x2="16" y2="8" />
+      <line x1="8" y1="12" x2="13" y2="12" />
+    </svg>
+  );
+}
+
+function CopyIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.3)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="8" y="8" width="12" height="12" rx="2" />
+      <path d="M16 4H6a2 2 0 0 0-2 2v10" />
+    </svg>
+  );
+}
+
+function BookIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.3)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 4h4a4 4 0 0 1 4 4v12a3 3 0 0 0-3-3H4V4z" />
+      <path d="M20 4h-4a4 4 0 0 0-4 4v12a3 3 0 0 1 3-3h5V4z" />
+    </svg>
+  );
+}
+
+function ThreeDotsHorizontal({ highlight = false }: { highlight?: boolean }) {
+  const c = highlight ? "white" : "rgba(255,255,255,0.3)";
+  return (
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 3 }}>
+      <div style={{ width: 5, height: 5, borderRadius: "50%", backgroundColor: c }} />
+      <div style={{ width: 5, height: 5, borderRadius: "50%", backgroundColor: c }} />
+      <div style={{ width: 5, height: 5, borderRadius: "50%", backgroundColor: c }} />
     </div>
   );
 }
 
-function ThreeDotsHorizontal({ pulse = false }: { pulse?: boolean }) {
+function MoreDotsCircle({ highlight = false }: { highlight?: boolean }) {
   return (
-    <div style={{ width: 28, height: 28, display: "flex", alignItems: "center", justifyContent: "center", gap: 3 }} className={pulse ? "animate-pulse" : ""}>
-      <div style={{ width: 5, height: 5, borderRadius: "50%", backgroundColor: "white" }} />
-      <div style={{ width: 5, height: 5, borderRadius: "50%", backgroundColor: "white" }} />
-      <div style={{ width: 5, height: 5, borderRadius: "50%", backgroundColor: "white" }} />
+    <div style={{
+      width: 36, height: 36, borderRadius: "50%",
+      border: highlight ? "1.5px solid rgba(255,255,255,0.5)" : "1.5px solid rgba(255,255,255,0.15)",
+      backgroundColor: highlight ? "rgba(255,255,255,0.08)" : "transparent",
+      display: "flex", alignItems: "center", justifyContent: "center", gap: 3,
+    }}>
+      <div style={{ width: 4, height: 4, borderRadius: "50%", backgroundColor: highlight ? "white" : "rgba(255,255,255,0.4)" }} />
+      <div style={{ width: 4, height: 4, borderRadius: "50%", backgroundColor: highlight ? "white" : "rgba(255,255,255,0.4)" }} />
+      <div style={{ width: 4, height: 4, borderRadius: "50%", backgroundColor: highlight ? "white" : "rgba(255,255,255,0.4)" }} />
     </div>
   );
 }
 
-function MoreDotsIcon({ pulse = false }: { pulse?: boolean }) {
+function PlusSquareIcon({ highlight = false }: { highlight?: boolean }) {
+  const c = highlight ? "white" : "rgba(255,255,255,0.3)";
   return (
-    <div style={{ width: 36, height: 36, borderRadius: "50%", border: "1.5px solid rgba(255,255,255,0.3)", display: "flex", alignItems: "center", justifyContent: "center", gap: 3 }} className={pulse ? "animate-pulse" : ""}>
-      <div style={{ width: 4, height: 4, borderRadius: "50%", backgroundColor: "white" }} />
-      <div style={{ width: 4, height: 4, borderRadius: "50%", backgroundColor: "white" }} />
-      <div style={{ width: 4, height: 4, borderRadius: "50%", backgroundColor: "white" }} />
-    </div>
-  );
-}
-
-function PlusSquareIcon() {
-  return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
       <rect x="3" y="3" width="18" height="18" rx="3" />
       <line x1="12" y1="8" x2="12" y2="16" />
       <line x1="8" y1="12" x2="16" y2="12" />
@@ -59,7 +120,7 @@ function PulseArrow({ direction }: { direction: "up" | "down" | "right" }) {
   const rotation = direction === "up" ? "rotate(180deg)" : direction === "right" ? "rotate(-90deg)" : "rotate(0deg)";
   return (
     <div className="animate-bounce" style={{ transform: rotation, display: "inline-flex" }}>
-      <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="rgba(255,255,255,0.8)" strokeWidth="2" strokeLinecap="round">
+      <svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="rgba(255,255,255,0.6)" strokeWidth="2" strokeLinecap="round">
         <line x1="10" y1="4" x2="10" y2="16" />
         <polyline points="5,11 10,16 15,11" />
       </svg>
@@ -67,63 +128,65 @@ function PulseArrow({ direction }: { direction: "up" | "down" | "right" }) {
   );
 }
 
+/* ── Consistent menu row (border-radius: 0 everywhere) ── */
 function MenuRow({ icon, label, highlight = false }: { icon: React.ReactNode; label: string; highlight?: boolean }) {
   return (
-    <div
-      style={{
-        display: "flex", alignItems: "center", gap: 10, padding: "7px 12px",
-        border: highlight ? "1px solid rgba(255,255,255,0.4)" : "1px solid rgba(255,255,255,0.08)",
-        backgroundColor: highlight ? "rgba(255,255,255,0.06)" : "transparent",
-      }}
-      className={highlight ? "animate-pulse" : ""}
-    >
+    <div style={{
+      display: "flex", alignItems: "center", gap: 10, padding: "8px 12px",
+      border: highlight ? "1px solid rgba(255,255,255,0.35)" : "1px solid rgba(255,255,255,0.08)",
+      backgroundColor: highlight ? "rgba(255,255,255,0.06)" : "transparent",
+    }}>
       {icon}
-      <span style={{ fontSize: 11, color: highlight ? "white" : "rgba(255,255,255,0.5)" }}>{label}</span>
+      <span style={{ fontSize: 12, color: highlight ? "white" : "rgba(255,255,255,0.4)" }}>{label}</span>
     </div>
   );
 }
 
-/* ── Safari steps ── */
+/* ── Safari steps (4 steps) ── */
 function safariSteps(): Step[] {
   return [
     {
       instruction: "tap the three dots in the bottom right",
       illustration: (
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
-          <div style={{ width: 260, padding: "6px 8px", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 4, display: "flex", alignItems: "center", gap: 6, backgroundColor: "rgba(255,255,255,0.03)" }}>
+          <div style={{ width: "100%", padding: "7px 10px", border: "1px solid rgba(255,255,255,0.12)", display: "flex", alignItems: "center", gap: 8, backgroundColor: "rgba(255,255,255,0.03)" }}>
             <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="rgba(255,255,255,0.25)" strokeWidth="2" strokeLinecap="round"><polyline points="12,4 6,10 12,16" /></svg>
-            <div style={{ flex: 1, height: 24, backgroundColor: "rgba(255,255,255,0.06)", borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 8, color: "rgba(255,255,255,0.3)" }}>orchid.masudlewis.com</div>
-            <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="rgba(255,255,255,0.2)" strokeWidth="1.5" strokeLinecap="round"><path d="M17 10a7 7 0 1 1-2-5" /><polyline points="17,2 17,6 13,6" /></svg>
-            <ThreeDotsHorizontal pulse />
+            <div style={{ flex: 1, height: 26, backgroundColor: "rgba(255,255,255,0.06)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, color: "rgba(255,255,255,0.3)" }}>orchid.masudlewis.com</div>
+            <svg width="13" height="13" viewBox="0 0 20 20" fill="none" stroke="rgba(255,255,255,0.2)" strokeWidth="1.5" strokeLinecap="round"><path d="M17 10a7 7 0 1 1-2-5" /><polyline points="17,2 17,6 13,6" /></svg>
+            <ThreeDotsHorizontal highlight />
           </div>
-          <div style={{ display: "flex", justifyContent: "flex-end", width: 260, paddingRight: 4 }}><PulseArrow direction="up" /></div>
+          <div style={{ display: "flex", justifyContent: "flex-end", width: "100%", paddingRight: 4 }}><PulseArrow direction="up" /></div>
         </div>
       ),
     },
     {
       instruction: "tap 'Share' at the top",
       illustration: (
-        <div style={{ width: 220, border: "1px solid rgba(255,255,255,0.1)", borderRadius: 6, overflow: "hidden" }}>
-          <MenuRow icon={<ShareIcon size={16} pulse />} label="Share" highlight />
-          <MenuRow icon={<span style={{ fontSize: 12, opacity: 0.3 }}>🔖</span>} label="Add to Bookmarks" />
-          <div style={{ borderTop: "1px solid rgba(255,255,255,0.08)", margin: "1px 0" }} />
-          <MenuRow icon={<span style={{ fontSize: 12, opacity: 0.3 }}>+</span>} label="New Tab" />
+        <div style={{ width: "100%", border: "1px solid rgba(255,255,255,0.1)", overflow: "hidden" }}>
+          <MenuRow icon={<ShareIcon size={16} />} label="Share" highlight />
+          <MenuRow icon={<BookmarkIcon />} label="Add to Bookmarks" />
+          <div style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }} />
+          <MenuRow icon={<PlusIcon />} label="New Tab" />
         </div>
       ),
     },
     {
       instruction: "tap 'More' with the three dots",
       illustration: (
-        <div style={{ display: "flex", gap: 12, padding: "8px 12px", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 4 }}>
-          {["📋", "📑", "📖"].map((icon, i) => (
-            <div key={i} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, opacity: 0.3, minWidth: 36 }}>
-              <span style={{ fontSize: 16 }}>{icon}</span>
-              <span style={{ fontSize: 7 }}>{["Copy", "Bookmarks", "Reading"][i]}</span>
+        <div style={{ display: "flex", gap: 14, padding: "10px 14px", border: "1px solid rgba(255,255,255,0.1)", alignItems: "flex-start" }}>
+          {[
+            { icon: <CopyIcon />, label: "Copy" },
+            { icon: <BookmarkIcon />, label: "Bookmarks" },
+            { icon: <BookIcon />, label: "Reading" },
+          ].map((item, i) => (
+            <div key={i} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 5, minWidth: 40, opacity: 0.5 }}>
+              {item.icon}
+              <span style={{ fontSize: 8, color: "rgba(255,255,255,0.4)" }}>{item.label}</span>
             </div>
           ))}
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, minWidth: 36 }}>
-            <MoreDotsIcon pulse />
-            <span style={{ fontSize: 7, color: "white" }}>More</span>
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 5, minWidth: 40 }}>
+            <MoreDotsCircle highlight />
+            <span style={{ fontSize: 8, color: "white" }}>More</span>
           </div>
         </div>
       ),
@@ -131,26 +194,26 @@ function safariSteps(): Step[] {
     {
       instruction: "tap 'Add to Home Screen'",
       illustration: (
-        <div style={{ display: "flex", flexDirection: "column", gap: 0, width: 220 }}>
-          <MenuRow icon={<span style={{ fontSize: 12, opacity: 0.3 }}>⭐</span>} label="Add to Favorites" />
-          <MenuRow icon={<span style={{ fontSize: 12, opacity: 0.3 }}>📝</span>} label="Add to Quick Note" />
-          <MenuRow icon={<PlusSquareIcon />} label="Add to Home Screen" highlight />
+        <div style={{ display: "flex", flexDirection: "column", width: "100%", border: "1px solid rgba(255,255,255,0.1)", overflow: "hidden" }}>
+          <MenuRow icon={<StarIcon />} label="Add to Favorites" />
+          <MenuRow icon={<NoteIcon />} label="Add to Quick Note" />
+          <MenuRow icon={<PlusSquareIcon highlight />} label="Add to Home Screen" highlight />
         </div>
       ),
     },
   ];
 }
 
-/* ── Chrome steps ── */
+/* ── Chrome steps (3 steps) ── */
 function chromeSteps(): Step[] {
   return [
     {
       instruction: "tap the share icon in the top bar",
       illustration: (
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
-          <div style={{ width: 260, padding: "6px 8px", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 4, display: "flex", alignItems: "center", gap: 6, backgroundColor: "rgba(255,255,255,0.03)" }}>
-            <div style={{ flex: 1, height: 24, backgroundColor: "rgba(255,255,255,0.06)", borderRadius: 12, display: "flex", alignItems: "center", paddingLeft: 10, fontSize: 8, color: "rgba(255,255,255,0.3)" }}>orchidaicare.lovable.app</div>
-            <ShareIcon size={20} pulse />
+          <div style={{ width: "100%", padding: "7px 10px", border: "1px solid rgba(255,255,255,0.12)", display: "flex", alignItems: "center", gap: 8, backgroundColor: "rgba(255,255,255,0.03)" }}>
+            <div style={{ flex: 1, height: 26, backgroundColor: "rgba(255,255,255,0.06)", display: "flex", alignItems: "center", paddingLeft: 10, fontSize: 9, color: "rgba(255,255,255,0.3)" }}>orchidaicare.lovable.app</div>
+            <ShareIcon size={18} />
           </div>
           <PulseArrow direction="up" />
         </div>
@@ -159,16 +222,19 @@ function chromeSteps(): Step[] {
     {
       instruction: "tap 'More' with the three dots",
       illustration: (
-        <div style={{ display: "flex", gap: 12, padding: "8px 12px", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 4 }}>
-          {["📋", "📑"].map((icon, i) => (
-            <div key={i} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, opacity: 0.3, minWidth: 36 }}>
-              <span style={{ fontSize: 16 }}>{icon}</span>
-              <span style={{ fontSize: 7 }}>{["Copy", "Read Later"][i]}</span>
+        <div style={{ display: "flex", gap: 14, padding: "10px 14px", border: "1px solid rgba(255,255,255,0.1)", alignItems: "flex-start" }}>
+          {[
+            { icon: <CopyIcon />, label: "Copy" },
+            { icon: <BookmarkIcon />, label: "Read Later" },
+          ].map((item, i) => (
+            <div key={i} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 5, minWidth: 40, opacity: 0.5 }}>
+              {item.icon}
+              <span style={{ fontSize: 8, color: "rgba(255,255,255,0.4)" }}>{item.label}</span>
             </div>
           ))}
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, minWidth: 36 }}>
-            <MoreDotsIcon pulse />
-            <span style={{ fontSize: 7, color: "white" }}>More</span>
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 5, minWidth: 40 }}>
+            <MoreDotsCircle highlight />
+            <span style={{ fontSize: 8, color: "white" }}>More</span>
           </div>
         </div>
       ),
@@ -176,10 +242,10 @@ function chromeSteps(): Step[] {
     {
       instruction: "tap 'Add to Home Screen'",
       illustration: (
-        <div style={{ display: "flex", flexDirection: "column", gap: 0, width: 220 }}>
-          <MenuRow icon={<span style={{ fontSize: 12, opacity: 0.3 }}>🔖</span>} label="Add to Bookmarks" />
-          <MenuRow icon={<PlusSquareIcon />} label="Add to Home Screen" highlight />
-          <MenuRow icon={<span style={{ fontSize: 12, opacity: 0.3 }}>📋</span>} label="Copy Link" />
+        <div style={{ display: "flex", flexDirection: "column", width: "100%", border: "1px solid rgba(255,255,255,0.1)", overflow: "hidden" }}>
+          <MenuRow icon={<BookmarkIcon />} label="Add to Bookmarks" />
+          <MenuRow icon={<PlusSquareIcon highlight />} label="Add to Home Screen" highlight />
+          <MenuRow icon={<CopyIcon />} label="Copy Link" />
         </div>
       ),
     },
@@ -210,7 +276,7 @@ export function AddToHomeGuide({ browser, visible, onClose }: AddToHomeGuideProp
           install orchid · {browser === "chrome" ? "chrome" : "safari"}
         </div>
 
-        <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 22 }}>
           {steps.map((s, i) => (
             <div key={i} style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
@@ -227,7 +293,7 @@ export function AddToHomeGuide({ browser, visible, onClose }: AddToHomeGuideProp
         <button
           onClick={onClose}
           style={{
-            width: "100%", padding: "11px", marginTop: 20,
+            width: "100%", padding: "11px", marginTop: 22,
             border: "1px solid rgba(255,255,255,0.2)", backgroundColor: "transparent",
             color: "rgba(255,255,255,0.6)", fontFamily: "ui-monospace, monospace",
             fontSize: 11, textTransform: "uppercase", letterSpacing: "0.08em", cursor: "pointer",

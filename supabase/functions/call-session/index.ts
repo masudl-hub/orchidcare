@@ -359,6 +359,7 @@ async function handleTools(
   botToken: string,
   perplexityApiKey?: string,
   lovableApiKey?: string,
+  geminiApiKey?: string,
 ) {
   const routeStart = Date.now();
   console.log(`[CallSession] /tools: toolName=${body.toolName}, sessionId=${body.sessionId}, callId=${body.toolCallId}, args=${JSON.stringify(body.toolArgs || {}).substring(0, 300)}`);
@@ -405,6 +406,7 @@ async function handleTools(
     toolArgs || {},
     perplexityApiKey,
     lovableApiKey,
+    geminiApiKey,
   );
 
   // Increment tool_calls_count atomically
@@ -788,6 +790,7 @@ serve(async (req: Request) => {
           TELEGRAM_BOT_TOKEN,
           PERPLEXITY_API_KEY,
           LOVABLE_API_KEY,
+          GEMINI_API_KEY,
         );
         break;
       case "end":

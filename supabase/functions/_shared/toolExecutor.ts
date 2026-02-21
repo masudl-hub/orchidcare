@@ -29,6 +29,7 @@ export async function executeTool(
   args: Record<string, unknown>,
   PERPLEXITY_API_KEY?: string,
   LOVABLE_API_KEY?: string,
+  GEMINI_API_KEY?: string,
 ): Promise<Record<string, unknown>> {
   const startTime = Date.now();
   console.log(`[ToolExecutor] ${toolName}, args=${JSON.stringify(args).substring(0, 500)}`);
@@ -76,8 +77,8 @@ export async function executeTool(
       break;
 
     case "find_stores": {
-      if (!LOVABLE_API_KEY) {
-        result = { success: false, error: "Store search not configured" };
+      if (!GEMINI_API_KEY) {
+        result = { success: false, error: "Store search not configured (missing GEMINI_API_KEY)" };
       } else {
         const { data: profile } = await supabase
           .from("profiles")
@@ -88,7 +89,7 @@ export async function executeTool(
           args.product_query,
           args.store_type || "any",
           profile?.location,
-          LOVABLE_API_KEY,
+          GEMINI_API_KEY,
           PERPLEXITY_API_KEY,
         );
       }

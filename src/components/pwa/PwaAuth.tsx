@@ -80,7 +80,7 @@ export function PwaAuth({ defaultMode = 'signup' }: { defaultMode?: AuthMode }) 
     setIsLoading(true);
     try {
       const { error } = await lovable.auth.signInWithOAuth(provider, {
-        redirect_uri: `${window.location.origin}/app`,
+        redirect_uri: `${window.location.origin}${window.location.pathname}`,
       });
       if (error) throw error;
     } catch (err) {

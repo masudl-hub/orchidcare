@@ -1,97 +1,108 @@
 
 
-# Unified Web Auth Flow -- Skip Telegram, Land in Chat
+# Browser-Specific "Add to Home Screen" Visual Guide
 
-## What changes
+## Problem
 
-Currently, the web auth flow is: Sign up --> Profile config --> Connect Telegram --> /dashboard.
-The new flow is: Sign up or Log in --> Profile config (new users only) --> PwaChat.
+The current install hint is a generic one-liner ("tap share button, scroll down..."). It doesn't detect which browser the user is in, and provides no visual guidance. From your screenshots, the actual flows are quite different between Safari and Chrome on iOS, and users need step-by-step hand-holding.
 
-All three channels (in-browser, PWA, Telegram) converge on the same chat experience. Telegram linking is removed from the web onboarding -- users who want Telegram will tap "Open in Telegram" from the start page.
+## Browser Detection
 
-## Current state
+Enhance `use-pwa-install.ts` to expose granular browser info instead of just `isIos`:
+
+- **iOS Safari**: `navigator.userAgent` contains "Safari" but NOT "CriOS" or "FxiOS"
+- **iOS Chrome**: `navigator.userAgent` contains "CriOS"
+- **iOS Firefox**: `navigator.userAgent` contains "FxiOS"
+
+Return a new `iosBrowser` field: `'safari' | 'chrome' | 'other' | null`
+
+## The Visual Guide Component
+
+Create a new `src/components/pwa/AddToHomeGuide.tsx` -- a full-screen overlay with a multi-step walkthrough. Monospace aesthetic, dark background, matching the project style.
+
+### Structure: Step-by-step carousel
+
+The guide advances through steps with a "next" button. Each step shows:
+- A step number (1, 2, 3)
+- A short instruction in monospace
+- A **drawn/CSS illustration** of the browser UI element they need to tap (not screenshots -- pure CSS recreations matching your app's pixel/monospace aesthetic)
+- An animated arrow/pulse pointing to where the button is on screen
+
+### iOS Safari Flow (3 steps)
+
+Based on your screenshots:
+
+**Step 1**: "tap the share button"
+- CSS illustration of the iOS Safari share icon (the square-with-up-arrow) positioned at bottom-center of screen
+- An animated arrow pointing down toward where it sits in the Safari toolbar
+- Show a simplified Safari bottom bar with the share icon highlighted
+
+**Step 2**: "scroll down and tap 'more'"
+- CSS illustration of the share sheet with the three-dot "More" circle icon highlighted
+- Shows the share sheet row with Copy, Add to Bookmarks, Add to Reading List, More -- with More pulsing
+
+**Step 3**: "tap 'add to home screen'"
+- CSS illustration of the "Add to Home Screen" row item with the plus-in-square icon
+- Clean, simple representation of the menu list
+
+### iOS Chrome Flow (3 steps)
+
+Based on your screenshots:
+
+**Step 1**: "tap the share icon"
+- CSS illustration of the Chrome address bar with the share icon (square-with-up-arrow) in the top-right
+- Arrow pointing to top-right corner
+
+**Step 2**: "tap 'more'"
+- CSS illustration showing the share sheet with the three-dot "More" circle at bottom-right
+- The More icon is highlighted/pulsing
+
+**Step 3**: "tap 'add to home screen'"
+- Same as Safari step 3 -- the "Add to Home Screen" row with the plus icon
+
+### Design Language
+
+All illustrations use:
+- Monospace font (`ui-monospace`)
+- White on near-black (`rgba(10,10,10,0.97)`)
+- Thin borders (`1px solid rgba(255,255,255,0.15)`)
+- CSS-drawn icons (no images) -- simple geometric shapes for share icon, dots, plus-square
+- Subtle pulse animation on the element they need to tap
+- Step counter: `1/3`, `2/3`, `3/3` in muted text
+
+### Controls
+
+- "next" button advances steps (styled like existing "got it" button)
+- On final step, button says "got it"
+- Tap backdrop to dismiss at any time
+- Small "x" in top-right corner
+
+## Integration Points
+
+### 1. `src/hooks/use-pwa-install.ts`
+
+Add `iosBrowser` detection:
 
 ```text
-/login  --> LoginPage.tsx  (Login.tsx component)  --> /dashboard
-/begin  --> BeginPage.tsx  (CreateAccount.tsx)     --> /onboarding --> ProfileConfig --> ConnectTelegram --> /dashboard
-/app    --> AppPage.tsx    (PwaAuth --> PwaOnboarding --> PwaChat)
+return { canInstall, isIos, iosBrowser, isStandalone, triggerInstall }
 ```
 
-## New state
+Where `iosBrowser` is `'safari' | 'chrome' | 'other' | null`.
 
-```text
-/login  --> Consolidated auth page (login/signup toggle, same as /app) --> PwaChat
-/begin  --> Redirect to /login
-/app    --> Same as today (PwaAuth --> PwaOnboarding --> PwaChat)
-/onboarding --> ProfileConfig --> PwaChat (no Telegram step)
-/dashboard  --> Still accessible but no longer the default post-auth landing
-```
+### 2. `src/components/landing/orchid-hero.tsx`
 
----
+Replace the current `showIosHint` overlay (lines 493-546) with the new `<AddToHomeGuide>` component. Pass `iosBrowser` to it so it picks the right flow.
 
-## Detailed changes
+### 3. `src/components/landing/qr-orchid.tsx`
 
-### 1. Consolidate /login and /begin into a single auth page
+When tapping "Add to Home Screen" in the action sheet and `canInstall` is false, show the same `<AddToHomeGuide>` instead of just displaying text on the button.
 
-**File: `src/pages/LoginPage.tsx`** -- Rewrite to use the same lifecycle as `AppPage.tsx`:
-- Not authenticated: show `PwaAuth` (has login/signup toggle built in)
-- Authenticated, no profile: show `PwaOnboarding`
-- Authenticated, with profile: show `PwaChat`
-
-This replaces the separate `Login.tsx` and `CreateAccount.tsx` component usage. The `PwaAuth` component already has a login/signup toggle, social auth (Google/Apple), and matching aesthetic.
-
-The loading animation overlay currently in LoginPage can be removed since PwaAuth handles the transition internally via AuthContext state changes.
-
-### 2. Redirect /begin to /login
-
-**File: `src/App.tsx`** -- Change the `/begin` route from rendering `BeginPage` to `<Navigate to="/login" replace />`.
-
-The `/signup` redirect already points to `/begin`, so update it to point to `/login` as well.
-
-### 3. Update Onboarding to skip Telegram and land in chat
-
-**File: `src/pages/Onboarding.tsx`** -- Two changes:
-- Remove the `connectTelegram` step entirely. After profile config completes, go straight to the `complete` step.
-- Change `handleOnboardingComplete` to navigate to `/login` instead of `/dashboard` (which will detect the profile and show PwaChat).
-
-Alternatively, navigate to `/app` -- but since `/login` is now the consolidated page, either works. Using `/login` keeps the URL cleaner for browser users.
-
-### 4. Update post-auth redirects across the app
-
-Several pages redirect authenticated users to `/dashboard`. These need to point to `/login` (or `/app`) instead so users land in chat:
-
-- **`src/pages/Auth.tsx`** (lines 34, 53): Change `/dashboard` to `/login`
-- **`src/pages/LoginPage.tsx`**: Handled by rewrite (step 1)
-- **`src/pages/BeginPage.tsx`**: No longer used (step 2)
-
-### 5. Update the hero nav links
-
-**File: `src/components/landing/orchid-hero.tsx`** -- The `/login` and menu links should still point to `/login`. The "Continue on web" option in the tap-to-start sheet (`qr-orchid.tsx`) currently navigates to `/begin` -- update it to navigate to `/login`.
-
-**File: `src/components/landing/qr-orchid.tsx`** -- Change the "Continue on web" `navigate('/begin')` to `navigate('/login')`.
-
-### 6. Clean up unused pages
-
-**Files to remove from routes (but keep files for now):**
-- `BeginPage.tsx` -- no longer routed
-- `Auth.tsx` -- check if still routed (it's not in App.tsx routes, so already unused)
-
----
-
-## Technical summary
+## Files
 
 | File | Action |
 |------|--------|
-| `src/pages/LoginPage.tsx` | Rewrite to use PwaAuth/PwaOnboarding/PwaChat lifecycle (same as AppPage) |
-| `src/App.tsx` | Change `/begin` and `/signup` routes to redirect to `/login`; remove BeginPage import |
-| `src/pages/Onboarding.tsx` | Remove `connectTelegram` step; navigate to `/login` on complete |
-| `src/components/landing/qr-orchid.tsx` | Change "Continue on web" from `/begin` to `/login` |
-| `src/components/landing/orchid-hero.tsx` | Verify nav links point to `/login` (already should) |
-
-### What stays the same
-- `/app` route and AppPage behavior -- identical, untouched
-- PwaAuth, PwaOnboarding, PwaChat components -- reused as-is
-- Dashboard route -- still accessible via direct URL or navigation from chat
-- Telegram bot flow -- completely independent, users discover it from start page
-- Login.tsx and CreateAccount.tsx components -- kept in codebase but no longer used by main routes
+| `src/hooks/use-pwa-install.ts` | Add `iosBrowser` detection (`'safari' \| 'chrome' \| 'other' \| null`) |
+| `src/components/pwa/AddToHomeGuide.tsx` | New file -- multi-step visual walkthrough component |
+| `src/components/landing/orchid-hero.tsx` | Replace inline hint overlay with `<AddToHomeGuide>` |
+| `src/components/landing/qr-orchid.tsx` | Wire up guide for action sheet's "Add to Home Screen" button |
 

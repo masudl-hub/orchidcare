@@ -1,44 +1,32 @@
 
-# Fix Developer Bottom Nav + Add /developer/docs Route
 
-## Problem
-The developer context bottom nav currently shows: **LayoutDashboard, Terminal, | FileText, Leaf, Chat, Call** -- which reads as two "dashboard-like" icons before the separator. It should mirror the desktop header: **Dashboard, Docs | Collection, Chat, Call**.
+# Switch Default Voice to Algenib
 
-Also, `/developer/docs` doesn't exist as a route yet.
+## Current State
 
-## Changes
+The voice call system already supports per-session voice selection:
+- The `call_sessions` table has a `voice` column (default: `'Aoede'`)
+- Both `call-session` and `dev-call-proxy` edge functions read `session.voice || "Aoede"` when requesting the Gemini ephemeral token
 
-### 1. Fix BottomNav developer items (`src/components/navigation/BottomNav.tsx`)
+No profile-level voice preference exists yet, but the plumbing is there for future expansion.
 
-Replace the developer nav items to match the header exactly:
+## Change
 
-```
-LayoutDashboard (/developer)  FileText (/developer/docs)  |  Leaf (/dashboard/collection)  MessageSquare (/chat)  Phone (/call)
-```
-
-- Remove the redundant Terminal icon -- the LayoutDashboard icon already represents the developer dashboard
-- Move the separator to after FileText (docs), before Leaf (collection)
-
-### 2. Add `/developer/docs` route (`src/App.tsx`)
-
-Add a new route that renders `DeveloperPlatform` with the docs tab active:
-
-```
-<Route path="/developer/docs" element={<ProtectedRoute><DeveloperPlatform /></ProtectedRoute>} />
-```
-
-### 3. Make DeveloperPlatform respond to URL (`src/pages/DeveloperPlatform.tsx`)
-
-Read the current path to set the initial tab:
-- `/developer/docs` opens the "docs" tab
-- `/developer` opens the "dashboard" tab
-
-This way the page responds to direct navigation from the bottom nav instead of relying only on internal tab state.
-
-## Files Modified
+Update the default voice from `Aoede` to `Algenib` in three places:
 
 | File | Change |
 |------|--------|
-| `src/components/navigation/BottomNav.tsx` | Fix developer nav: 5 items (Dashboard, Docs, \|, Collection, Chat, Call) |
-| `src/App.tsx` | Add `/developer/docs` route |
-| `src/pages/DeveloperPlatform.tsx` | Read URL path to set initial active tab |
+| `call_sessions` table | Alter column default from `'Aoede'` to `'Algenib'` (DB migration) |
+| `supabase/functions/call-session/index.ts` | Change fallback from `"Aoede"` to `"Algenib"` |
+| `supabase/functions/dev-call-proxy/index.ts` | Change fallback from `"Aoede"` to `"Algenib"` |
+
+The `demo-agent` function hardcodes `"Aoede"` -- this will also be updated to `"Algenib"` for consistency.
+
+## Future (not in this change)
+
+When you're ready to let users pick their voice, the approach would be:
+1. Add a `preferred_voice` column to `profiles`
+2. Read it when creating a call session
+3. Add a voice picker in settings UI
+
+But for now, this just swaps the default to Algenib everywhere.

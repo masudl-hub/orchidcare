@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { CreateAccount } from '@/components/CreateAccount';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
+import { lovable } from '@/integrations/lovable/index';
 
 export default function BeginPage() {
   const navigate = useNavigate();
@@ -84,18 +85,27 @@ export default function BeginPage() {
   const handleGoogleAuth = async () => {
     setError(null);
     setIsSubmitting(true);
-    
     try {
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-          redirectTo: `${window.location.origin}/begin`,
-        },
+      const { error } = await lovable.auth.signInWithOAuth("google", {
+        redirect_uri: `${window.location.origin}/begin`,
       });
-      
       if (error) throw error;
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to sign up with Google');
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleAppleAuth = async () => {
+    setError(null);
+    setIsSubmitting(true);
+    try {
+      const { error } = await lovable.auth.signInWithOAuth("apple", {
+        redirect_uri: `${window.location.origin}/begin`,
+      });
+      if (error) throw error;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to sign up with Apple');
       setIsSubmitting(false);
     }
   };
@@ -116,6 +126,7 @@ export default function BeginPage() {
         onBack={handleBack}
         onComplete={handleAccountCreated}
         onGoogleSignup={handleGoogleAuth}
+        onAppleSignup={handleAppleAuth}
         onLogin={handleLogin}
         isLoading={isSubmitting}
         error={error}

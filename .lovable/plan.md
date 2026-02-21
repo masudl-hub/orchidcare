@@ -1,69 +1,38 @@
 
 
-# Fix Safari "Add to Home Screen" Guide -- Accurate 4-Step Flow
+## Fix: Developer API Key Foreign Key Violation
 
-## Problem
+### Problem
+The `DeveloperDashboard` component uses `user.id` (the auth user ID) directly as `profile_id` when inserting into `developer_api_keys`. However, the `profiles` table has its own `id` column (a separate UUID) that differs from `user_id`. The foreign key `developer_api_keys_profile_id_fkey` references `profiles.id`, not `profiles.user_id`.
 
-The current Safari guide is wrong. It shows a share icon in the center of a bottom toolbar (like old Safari) which doesn't match modern iOS Safari at all. The actual flow from your screenshots is 4 steps, not 3.
+For example, a user might have:
+- `auth.uid()` = `511860c0-...`
+- `profiles.id` = `0312d930-...`
 
-## Correct Safari Flow (from your screenshots)
+The code currently passes `511860c0-...` as `profile_id`, which doesn't exist in `profiles.id`.
 
-**Step 1**: Tap the **three dots (...)** in the bottom-right corner of Safari's toolbar
-- Illustration: Safari bottom bar with back arrow, address bar, reload icon, and the three-dot menu button highlighted/pulsing on the far right
+### Solution
+Update `DeveloperDashboard.tsx` to first look up the user's `profiles.id` from their `user_id`, then use that profile ID for all queries.
 
-**Step 2**: Tap **"Share"** at the top of the popup menu
-- Illustration: A popup menu showing "Share" (with share icon) highlighted at top, then dimmed items: "Add to Bookmarks", "Add Bookmark to...", separator, "New Tab", "New Private Tab"
+### Technical Details
 
-**Step 3**: Tap **"More"** in the share sheet
-- Illustration: The share sheet action row with circle icons: Copy, Add to Bookmarks, Add to Reading List, and **More (...)** highlighted/pulsing on the right
+**File: `src/components/developers/DeveloperDashboard.tsx`**
 
-**Step 4**: Tap **"Add to Home Screen"**
-- Illustration: List menu showing dimmed "Add to Favorites", "Add to Quick Note", "Find on Page", then highlighted **"Add to Home Screen"** with the plus-in-square icon
+1. In `fetchData`, add a query to get the profile record first:
+   ```typescript
+   const { data: profile } = await supabase
+     .from("profiles")
+     .select("id")
+     .eq("user_id", user.id)
+     .single();
+   if (!profile) return;
+   ```
 
-## Chrome Flow (stays 3 steps, already mostly correct)
+2. Store the `profileId` in component state or a ref.
 
-Keeping the existing 3 steps but verifying they match the screenshots from the earlier round.
+3. Replace all instances of `user.id` used as `profile_id` with `profile.id` -- this affects:
+   - The `developer_api_keys` SELECT query (line 134)
+   - The `developer_api_keys` INSERT in `handleGenerate` (line 198)
 
-## Changes
+4. Remove `as any` type casts where possible now that the types are properly generated.
 
-### File: `src/components/pwa/AddToHomeGuide.tsx`
-
-Rewrite `safariSteps()` to return 4 steps matching the actual Safari UI:
-
-**Step 1 illustration** -- Safari bottom toolbar:
-- CSS-drawn bar with: back chevron icon, address bar pill showing "orchid.masudlewis.com", reload icon, and the three-dot (***) button on the right side pulsing
-- Arrow pointing to the three-dot button
-
-**Step 2 illustration** -- Popup menu:
-- White-on-dark menu list with:
-  - Share (share icon) -- **highlighted/pulsing**
-  - Add to Bookmarks (bookmark icon) -- dimmed
-  - Add Bookmark to... (book icon) -- dimmed
-  - separator line
-  - New Tab (+ icon) -- dimmed
-  - New Private Tab (hand icon) -- dimmed
-- Arrow pointing to Share
-
-**Step 3 illustration** -- Share sheet action circles:
-- Row of circular gray icons matching your screenshot: Copy, Add to Bookmarks, Add to Reading List, **More (...)** -- with More highlighted/pulsing
-- Arrow pointing to More
-
-**Step 4 illustration** -- Menu list:
-- List items: Add to Favorites (star), Add to Quick Note, Find on Page -- all dimmed
-- **Add to Home Screen** (plus-in-square icon) -- highlighted/pulsing
-
-### Updated instructions text:
-1. "tap the three dots in the bottom right"
-2. "tap 'Share' at the top"
-3. "tap 'More' with the three dots"
-4. "tap 'Add to Home Screen'"
-
-### Step counter updates automatically since `steps.length` is now 4 for Safari (shows "step 1/4", "step 2/4", etc.)
-
-## Technical Details
-
-Only one file changes: `src/components/pwa/AddToHomeGuide.tsx`
-
-The `safariSteps()` function gets rewritten with 4 steps and updated CSS illustrations. All helper components (`ShareIcon`, `MoreDotsIcon`, `PlusSquareIcon`, `MenuRow`, `PulseArrow`) are reused. A new `ThreeDotsIcon` may be added for the horizontal three-dot Safari menu button (distinct from the circular `MoreDotsIcon`).
-
-No changes to `use-pwa-install.ts`, `orchid-hero.tsx`, or `qr-orchid.tsx` -- the integration is already wired up correctly.

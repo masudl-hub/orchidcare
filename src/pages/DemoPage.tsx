@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { PixelCanvas } from '@/lib/pixel-canvas/PixelCanvas';
 import type { Formation } from '@/lib/pixel-canvas/types';
 import { DemoInputBar } from '@/components/demo/DemoInputBar';
-import { DemoArtifactStack, type ArtifactEntry, type ArtifactData } from '@/components/demo/DemoArtifactStack';
+import { ChatMessageStack, type ArtifactEntry, type ArtifactData } from '@/components/demo/ChatMessageStack';
 import { DemoTurnCounter } from '@/components/demo/DemoTurnCounter';
 import { DemoLimitScreen } from '@/components/demo/DemoLimitScreen';
 import { DemoVoiceOverlay } from '@/components/demo/DemoVoiceOverlay';
@@ -122,7 +122,7 @@ export default function DemoPage() {
 
   const artifactIdCounter = useRef(0);
   const artifactsHydrated = useRef(false);
-  const sendMessageRef = useRef<(text: string) => void>(() => {});
+  const sendMessageRef = useRef<(text: string) => void>(() => { });
 
   // Responsive canvas sizing
   useEffect(() => {
@@ -485,7 +485,7 @@ export default function DemoPage() {
               outputAudioLevel={0}
               isThinking={false}
               formation={currentFormation}
-              onFormationComplete={() => {}}
+              onFormationComplete={() => { }}
               heightPx={pixelCanvasHeight}
             />
           </motion.div>
@@ -531,7 +531,7 @@ export default function DemoPage() {
         }}
       >
         {hasSentMessage && (
-          <DemoArtifactStack
+          <ChatMessageStack
             artifacts={artifacts}
             isLoading={isLoading}
             loadingLabel={loadingLabel}

@@ -1,7 +1,8 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { PixelCanvas } from '@/lib/pixel-canvas/PixelCanvas';
 import type { Formation } from '@/lib/pixel-canvas/types';
+import { Copy, RefreshCcw, ThumbsUp, ThumbsDown } from 'lucide-react';
 
 const mono = 'ui-monospace, monospace';
 
@@ -17,22 +18,52 @@ export interface ArtifactEntry extends ArtifactData {
   id: string;
   element: React.ReactNode;
   userMessage?: string;
+  createdAt?: string;
+  rating?: number | null;
 }
 
-interface DemoArtifactStackProps {
+interface ChatMessageStackProps {
   artifacts: ArtifactEntry[];
   isLoading: boolean;
   loadingLabel: string;
   pendingUserMessage: string | null;
   currentFormation: Formation | null;
+  onCopy?: (text: string) => void;
+  onResend?: (text: string) => void;
+  onRate?: (id: string, rating: number) => void;
 }
 
-function UserBubble({ text }: { text: string }) {
+function formatTime(isoStr?: string) {
+  if (!isoStr) return '';
+  const d = new Date(isoStr);
+  return d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+}
+
+function UserBubble({
+  text,
+  timestamp,
+  onCopy,
+  onResend
+}: {
+  text: string;
+  timestamp?: string;
+  onCopy?: (text: string) => void;
+  onResend?: (text: string) => void;
+}) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = () => {
+    onCopy?.(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  };
+
   return (
     <div
       style={{
         display: 'flex',
-        justifyContent: 'flex-end',
+        flexDirection: 'column',
+        alignItems: 'flex-end',
         marginBottom: '8px',
       }}
     >
@@ -51,6 +82,100 @@ function UserBubble({ text }: { text: string }) {
       >
         {text}
       </div>
+
+      {/* Actions Row — right-aligned */}
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'flex-end',
+        gap: '12px',
+        marginTop: '6px',
+        opacity: 0,
+        transition: 'opacity 0.25s ease',
+        color: 'rgba(255,255,255,0.5)',
+        width: '100%',
+      }} className="user-action-row">
+        {timestamp && (
+          <span style={{ fontSize: '10px', fontFamily: mono, color: 'rgba(255,255,255,0.5)' }}>{formatTime(timestamp)}</span>
+        )}
+        {onCopy && (
+          <button onClick={handleCopy} title="Copy message" style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: copied ? '#4ade80' : 'rgba(255,255,255,0.5)', display: 'flex', alignItems: 'center', transition: 'color 0.2s' }}>
+            <Copy size={11} />
+          </button>
+        )}
+        {onResend && (
+          <button onClick={() => onResend(text)} title="Resend message" style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'rgba(255,255,255,0.5)', display: 'flex', alignItems: 'center' }}>
+            <RefreshCcw size={11} />
+          </button>
+        )}
+      </div>
+
+      <style>{`
+        .user-action-row:hover { opacity: 1 !important; }
+        @media (hover: none) { .user-action-row { opacity: 0.5 !important; } }
+      `}</style>
+    </div>
+  );
+}
+
+function AgentActionRow({
+  entryId,
+  timestamp,
+  responseMessage,
+  rating,
+  onCopy,
+  onRate,
+}: {
+  entryId: string;
+  timestamp?: string;
+  responseMessage: string;
+  rating?: number | null;
+  onCopy?: (text: string) => void;
+  onRate?: (id: string, rating: number) => void;
+}) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = () => {
+    onCopy?.(responseMessage);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  };
+
+  return (
+    <div
+      className="agent-action-row"
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'flex-end',
+        gap: '12px',
+        marginTop: '8px',
+        opacity: 0,
+        transition: 'opacity 0.25s ease',
+        color: 'rgba(255,255,255,0.5)',
+        width: '100%',
+      }}
+    >
+      {timestamp && (
+        <span style={{ fontSize: '10px', fontFamily: mono, color: 'rgba(255,255,255,0.5)' }}>
+          {formatTime(timestamp)}
+        </span>
+      )}
+      {onCopy && (
+        <button onClick={handleCopy} title="Copy response" style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: copied ? '#4ade80' : 'rgba(255,255,255,0.5)', display: 'flex', alignItems: 'center', transition: 'color 0.2s' }}>
+          <Copy size={11} />
+        </button>
+      )}
+      {onRate && (
+        <>
+          <button onClick={() => onRate(entryId, 1)} title="Helpful" style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: rating === 1 ? '#4ade80' : 'rgba(255,255,255,0.5)', display: 'flex', alignItems: 'center', transition: 'color 0.2s' }}>
+            <ThumbsUp size={11} />
+          </button>
+          <button onClick={() => onRate(entryId, -1)} title="Not helpful" style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: rating === -1 ? '#ef4444' : 'rgba(255,255,255,0.5)', display: 'flex', alignItems: 'center', transition: 'color 0.2s' }}>
+            <ThumbsDown size={11} />
+          </button>
+        </>
+      )}
     </div>
   );
 }
@@ -71,13 +196,16 @@ function SmallCanvas({ formation, isThinking }: { formation: Formation | null; i
   );
 }
 
-export function DemoArtifactStack({
+export function ChatMessageStack({
   artifacts,
   isLoading,
   loadingLabel,
   pendingUserMessage,
   currentFormation,
-}: DemoArtifactStackProps) {
+  onCopy,
+  onResend,
+  onRate,
+}: ChatMessageStackProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // Auto-scroll to bottom on new content
@@ -121,10 +249,12 @@ export function DemoArtifactStack({
                   y: 0,
                   opacity: isLatest ? 1 : 0.4,
                 }}
+                whileHover={{ opacity: 1 }}
                 transition={{
                   duration: 0.4,
                   ease: [0.16, 1, 0.3, 1],
                 }}
+                className="artifact-block-hover"
                 style={{
                   width: '100%',
                   maxWidth: 680,
@@ -132,7 +262,14 @@ export function DemoArtifactStack({
                 }}
               >
                 {/* User message bubble */}
-                {entry.userMessage && <UserBubble text={entry.userMessage} />}
+                {entry.userMessage && (
+                  <UserBubble
+                    text={entry.userMessage}
+                    timestamp={entry.createdAt}
+                    onCopy={onCopy}
+                    onResend={onResend}
+                  />
+                )}
 
                 {/* Canvas in left gutter — outside the 680px column */}
                 {showCanvas && (
@@ -143,9 +280,24 @@ export function DemoArtifactStack({
 
                 {/* Artifact card — full column width */}
                 {entry.element}
+
+                {/* Agent Action Row */}
+                <AgentActionRow
+                  entryId={entry.id}
+                  timestamp={entry.createdAt}
+                  responseMessage={entry.responseMessage}
+                  rating={entry.rating}
+                  onCopy={onCopy}
+                  onRate={onRate}
+                />
               </motion.div>
             );
           })}
+
+          <style>{`
+            .artifact-block-hover:hover .agent-action-row { opacity: 1 !important; }
+            @media (hover: none) { .agent-action-row { opacity: 0.5 !important; } }
+          `}</style>
 
           {/* Pending user message — appears instantly before API responds */}
           {pendingUserMessage && (

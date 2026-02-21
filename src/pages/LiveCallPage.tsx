@@ -46,6 +46,9 @@ function LiveCallPageInner() {
 
   // Initialize: create session + get token + connect
   useEffect(() => {
+    const controller = new AbortController();
+    const { signal } = controller;
+
     const init = async () => {
       try {
         setError(null);
@@ -55,6 +58,7 @@ function LiveCallPageInner() {
         if (!initData) {
           // Attempt Web/PWA Auth fallback
           const { data: { session } } = await supabase.auth.getSession();
+          if (signal.aborted) return;
           if (session?.access_token) {
             authToken = session.access_token;
           } else {
@@ -79,7 +83,9 @@ function LiveCallPageInner() {
           method: 'POST',
           headers,
           body: JSON.stringify({ initData: initData || undefined }),
+          signal,
         });
+        if (signal.aborted) return;
         const createData = await createRes.json();
         if (!createRes.ok) throw new Error(createData.error || 'Failed to create session');
         setSessionId(createData.sessionId);
@@ -89,10 +95,15 @@ function LiveCallPageInner() {
           method: 'POST',
           headers,
           body: JSON.stringify({ sessionId: createData.sessionId, initData: initData || undefined }),
+          signal,
         });
+        if (signal.aborted) return;
         const tokenData = await tokenRes.json();
         if (!tokenRes.ok) throw new Error(tokenData.error || 'Failed to get token');
         if (!tokenData?.token) throw new Error('No ephemeral token received');
+
+        // Final guard: don't connect if user already ended the call
+        if (signal.aborted || endedRef.current) return;
 
         // Connect to Gemini Live
         gemini.connect(tokenData.token, createData.sessionId, initData || undefined, {
@@ -112,12 +123,16 @@ function LiveCallPageInner() {
           },
         });
       } catch (err) {
+        if (signal.aborted) return; // ignore errors from aborted fetches
         console.error('[LiveCall] Init error:', err);
         setError(err instanceof Error ? err.message : 'Failed to start call');
       }
     };
 
     init();
+
+    // Cancel in-flight fetches on unmount or when retryCount changes
+    return () => controller.abort();
   }, [retryCount]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Timer
@@ -158,10 +173,14 @@ function LiveCallPageInner() {
         console.error('[LiveCall] End session error:', err);
       }
     }
-    // Close Mini App
+    // Close Mini App (Telegram) or navigate to chat (web/PWA)
     const tg = getTelegram();
-    tg?.close?.();
-  }, [gemini.disconnect, sessionId, callDuration, getInitData, getTelegram]);
+    if (tg?.initData) {
+      tg.close?.();
+    } else {
+      navigate('/chat');
+    }
+  }, [gemini.disconnect, sessionId, callDuration, getInitData, getTelegram, navigate]);
 
   // Permission denied — clean "ended" state with friendly message
   const isPermissionDenied = gemini.status === 'ended' && gemini.errorDetail?.includes('rejected');

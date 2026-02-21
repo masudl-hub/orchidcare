@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { PixelCanvas } from '@/lib/pixel-canvas/PixelCanvas';
 import type { Formation } from '@/lib/pixel-canvas/types';
 import { DemoInputBar } from '@/components/demo/DemoInputBar';
-import { DemoArtifactStack, type ArtifactEntry } from '@/components/demo/DemoArtifactStack';
+import { ChatMessageStack, type ArtifactEntry } from '@/components/demo/ChatMessageStack';
 import { ChatResponse } from '@/components/demo/artifacts/ChatResponse';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -13,8 +13,11 @@ import { WifiOff } from 'lucide-react';
 const mono = 'ui-monospace, monospace';
 
 interface PwaMessage {
+  id: string;
   role: 'user' | 'assistant';
   content: string;
+  createdAt: string;
+  rating?: number | null;
   media?: { type: string; data: string }[];
 }
 
@@ -69,7 +72,7 @@ export function PwaChat() {
     const loadHistory = async () => {
       const { data } = await supabase
         .from('conversations')
-        .select('content, direction, created_at, media_urls')
+        .select('id, content, direction, created_at, media_urls, rating')
         .eq('profile_id', profile.id)
         .eq('channel', 'pwa')
         .order('created_at', { ascending: true })
@@ -77,8 +80,11 @@ export function PwaChat() {
 
       if (data && data.length > 0) {
         const historyMessages: PwaMessage[] = data.map(msg => ({
+          id: msg.id,
           role: msg.direction === 'inbound' ? 'user' as const : 'assistant' as const,
           content: msg.content,
+          createdAt: msg.created_at,
+          rating: msg.rating,
         }));
         setMessages(historyMessages);
         setHasSentMessage(true);
@@ -91,12 +97,14 @@ export function PwaChat() {
             const images = data[i].media_urls?.map((url: string) => ({ url, title: 'Image' }));
 
             historyArtifacts.push({
-              id: `history-${i}`,
+              id: data[i].id, // Use DB id instead of counter
               element: <ChatResponse text={data[i].content} images={images} />,
               userMessage: userMsg,
               artifactType: 'chat',
               artifactData: { text: data[i].content },
               responseMessage: data[i].content,
+              createdAt: data[i].created_at,
+              rating: data[i].rating,
             });
           }
         }
@@ -150,6 +158,45 @@ export function PwaChat() {
     }
   }, []);
 
+  const handleCopy = useCallback((text: string) => {
+    navigator.clipboard.writeText(text);
+    // Optional: could add a toast here
+  }, []);
+
+  const handleResend = useCallback((text: string) => {
+    // We already have a sendMessage function defined below, so we need to defer the call 
+    // or just rely on the reference. We will use the reference.
+    sendMessageRef.current(text);
+  }, []);
+
+  const handleRate = useCallback(async (id: string, newRating: number) => {
+    // Optimistic UI update
+    setArtifacts(prev => prev.map(art =>
+      art.id === id ? { ...art, rating: newRating } : art
+    ));
+    setMessages(prev => prev.map(msg =>
+      msg.id === id ? { ...msg, rating: newRating } : msg
+    ));
+
+    // Persist to DB
+    const { error } = await supabase
+      .from('conversations')
+      .update({ rating: newRating })
+      .eq('id', id)
+      .eq('profile_id', profile?.id); // Basic security check
+
+    if (error) {
+      console.error('[PwaChat] failed to update rating:', error);
+      // Revert on failure
+      setArtifacts(prev => prev.map(art =>
+        art.id === id ? { ...art, rating: null } : art
+      ));
+      setMessages(prev => prev.map(msg =>
+        msg.id === id ? { ...msg, rating: null } : msg
+      ));
+    }
+  }, [profile?.id]);
+
   // Send message to pwa-agent
   const sendMessage = useCallback(
     async (text: string, media?: { type: string; data: string }[]) => {
@@ -164,7 +211,13 @@ export function PwaChat() {
       setErrorMsg(null);
       setPendingUserMessage(text !== '(photo)' ? text : '(photo sent)');
 
-      const userMsg: PwaMessage = { role: 'user', content: text, media };
+      const userMsg: PwaMessage = {
+        id: crypto.randomUUID(),
+        role: 'user',
+        content: text,
+        createdAt: new Date().toISOString(),
+        media
+      };
       const updatedMessages = [...messages, userMsg];
       setMessages(updatedMessages);
 
@@ -273,7 +326,15 @@ export function PwaChat() {
           .map((m: any) => ({ url: m.url, title: m.caption || '' }));
 
         // Add assistant message
-        const assistantMsg: PwaMessage = { role: 'assistant', content: reply };
+        const newId = crypto.randomUUID();
+        const newTime = new Date().toISOString();
+
+        const assistantMsg: PwaMessage = {
+          id: newId,
+          role: 'assistant',
+          content: reply,
+          createdAt: newTime,
+        };
         setMessages(prev => [...prev, assistantMsg]);
 
         // Render with images if available
@@ -308,8 +369,8 @@ export function PwaChat() {
   sendMessageRef.current = sendMessage;
 
   const handleMicClick = useCallback(() => {
-    // Voice not yet supported in PWA — could be added later
-  }, []);
+    navigate('/call');
+  }, [navigate]);
 
   const handleRetry = useCallback(() => {
     setErrorMsg(null);
@@ -431,12 +492,15 @@ export function PwaChat() {
         }}
       >
         {hasSentMessage && (
-          <DemoArtifactStack
+          <ChatMessageStack
             artifacts={artifacts}
             isLoading={isLoading}
             loadingLabel={loadingLabel}
             pendingUserMessage={pendingUserMessage}
             currentFormation={currentFormation}
+            onCopy={handleCopy}
+            onResend={handleResend}
+            onRate={handleRate}
           />
         )}
       </div>

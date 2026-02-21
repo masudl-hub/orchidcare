@@ -35,7 +35,7 @@ export function useGeminiLive() {
   const reconnectAttemptsRef = useRef(0);
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const connectOptionsRef = useRef<{ toolsUrl?: string; extraAuth?: Record<string, unknown>; onReconnectNeeded?: () => Promise<string | null> } | undefined>(undefined);
-  const attemptReconnectRef = useRef<() => void>(() => {});
+  const attemptReconnectRef = useRef<() => void>(() => { });
 
   const playback = useAudioPlayback();
   const capture = useAudioCapture();
@@ -55,7 +55,7 @@ export function useGeminiLive() {
   // Tool call bridge — forwards tool calls to the Supabase edge function,
   // then sends responses back via the SDK session
   // ---------------------------------------------------------------------------
-  const handleToolCallRef = useRef<(message: LiveServerMessage) => void>(() => {});
+  const handleToolCallRef = useRef<(message: LiveServerMessage) => void>(() => { });
 
   useEffect(() => {
     handleToolCallRef.current = async (message: LiveServerMessage) => {
@@ -153,7 +153,7 @@ export function useGeminiLive() {
   // ---------------------------------------------------------------------------
   // Message handler ref — avoids stale closures in the onmessage callback
   // ---------------------------------------------------------------------------
-  const handleMessageRef = useRef<(msg: LiveServerMessage) => void>(() => {});
+  const handleMessageRef = useRef<(msg: LiveServerMessage) => void>(() => { });
 
   useEffect(() => {
     handleMessageRef.current = (message: LiveServerMessage) => {
@@ -249,7 +249,7 @@ export function useGeminiLive() {
         model: GEMINI_MODEL,
         config: {
           responseModalities: [Modality.AUDIO],
-      realtimeInputConfig: {
+          realtimeInputConfig: {
             automaticActivityDetection: {
               disabled: true,
             },
@@ -311,6 +311,19 @@ export function useGeminiLive() {
           (err: unknown) => { micErr = err; },
         ),
       ]);
+
+      // If disconnect() was called while we were awaiting, clean up the
+      // just-created session and bail — this prevents zombie connections.
+      if (userDisconnectedRef.current) {
+        log('connect() aborted — disconnect was requested while connecting');
+        try { session.close(); } catch { /* ignore */ }
+        capture.onAudioData.current = null;
+        capture.stopCapture();
+        playback.stopPlayback();
+        connectingRef.current = false;
+        setStatus('ended');
+        return;
+      }
 
       // Mic is required — bail if it failed
       if (micErr) {

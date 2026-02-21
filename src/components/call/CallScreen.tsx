@@ -186,7 +186,7 @@ export function CallScreen({
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
-        justifyContent: 'center',
+        justifyContent: 'flex-start',
         zIndex: 10,
         width: '100%',
         gap: '24px',
@@ -272,6 +272,7 @@ export function CallScreen({
             isThinking={isToolExecuting}
             formation={formation}
             onFormationComplete={onFormationComplete}
+            heightPx={isVideoActive ? undefined : window.innerHeight - 80}
           />
         </div>
       </div>

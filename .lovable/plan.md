@@ -1,108 +1,69 @@
 
 
-# Browser-Specific "Add to Home Screen" Visual Guide
+# Fix Safari "Add to Home Screen" Guide -- Accurate 4-Step Flow
 
 ## Problem
 
-The current install hint is a generic one-liner ("tap share button, scroll down..."). It doesn't detect which browser the user is in, and provides no visual guidance. From your screenshots, the actual flows are quite different between Safari and Chrome on iOS, and users need step-by-step hand-holding.
+The current Safari guide is wrong. It shows a share icon in the center of a bottom toolbar (like old Safari) which doesn't match modern iOS Safari at all. The actual flow from your screenshots is 4 steps, not 3.
 
-## Browser Detection
+## Correct Safari Flow (from your screenshots)
 
-Enhance `use-pwa-install.ts` to expose granular browser info instead of just `isIos`:
+**Step 1**: Tap the **three dots (...)** in the bottom-right corner of Safari's toolbar
+- Illustration: Safari bottom bar with back arrow, address bar, reload icon, and the three-dot menu button highlighted/pulsing on the far right
 
-- **iOS Safari**: `navigator.userAgent` contains "Safari" but NOT "CriOS" or "FxiOS"
-- **iOS Chrome**: `navigator.userAgent` contains "CriOS"
-- **iOS Firefox**: `navigator.userAgent` contains "FxiOS"
+**Step 2**: Tap **"Share"** at the top of the popup menu
+- Illustration: A popup menu showing "Share" (with share icon) highlighted at top, then dimmed items: "Add to Bookmarks", "Add Bookmark to...", separator, "New Tab", "New Private Tab"
 
-Return a new `iosBrowser` field: `'safari' | 'chrome' | 'other' | null`
+**Step 3**: Tap **"More"** in the share sheet
+- Illustration: The share sheet action row with circle icons: Copy, Add to Bookmarks, Add to Reading List, and **More (...)** highlighted/pulsing on the right
 
-## The Visual Guide Component
+**Step 4**: Tap **"Add to Home Screen"**
+- Illustration: List menu showing dimmed "Add to Favorites", "Add to Quick Note", "Find on Page", then highlighted **"Add to Home Screen"** with the plus-in-square icon
 
-Create a new `src/components/pwa/AddToHomeGuide.tsx` -- a full-screen overlay with a multi-step walkthrough. Monospace aesthetic, dark background, matching the project style.
+## Chrome Flow (stays 3 steps, already mostly correct)
 
-### Structure: Step-by-step carousel
+Keeping the existing 3 steps but verifying they match the screenshots from the earlier round.
 
-The guide advances through steps with a "next" button. Each step shows:
-- A step number (1, 2, 3)
-- A short instruction in monospace
-- A **drawn/CSS illustration** of the browser UI element they need to tap (not screenshots -- pure CSS recreations matching your app's pixel/monospace aesthetic)
-- An animated arrow/pulse pointing to where the button is on screen
+## Changes
 
-### iOS Safari Flow (3 steps)
+### File: `src/components/pwa/AddToHomeGuide.tsx`
 
-Based on your screenshots:
+Rewrite `safariSteps()` to return 4 steps matching the actual Safari UI:
 
-**Step 1**: "tap the share button"
-- CSS illustration of the iOS Safari share icon (the square-with-up-arrow) positioned at bottom-center of screen
-- An animated arrow pointing down toward where it sits in the Safari toolbar
-- Show a simplified Safari bottom bar with the share icon highlighted
+**Step 1 illustration** -- Safari bottom toolbar:
+- CSS-drawn bar with: back chevron icon, address bar pill showing "orchid.masudlewis.com", reload icon, and the three-dot (***) button on the right side pulsing
+- Arrow pointing to the three-dot button
 
-**Step 2**: "scroll down and tap 'more'"
-- CSS illustration of the share sheet with the three-dot "More" circle icon highlighted
-- Shows the share sheet row with Copy, Add to Bookmarks, Add to Reading List, More -- with More pulsing
+**Step 2 illustration** -- Popup menu:
+- White-on-dark menu list with:
+  - Share (share icon) -- **highlighted/pulsing**
+  - Add to Bookmarks (bookmark icon) -- dimmed
+  - Add Bookmark to... (book icon) -- dimmed
+  - separator line
+  - New Tab (+ icon) -- dimmed
+  - New Private Tab (hand icon) -- dimmed
+- Arrow pointing to Share
 
-**Step 3**: "tap 'add to home screen'"
-- CSS illustration of the "Add to Home Screen" row item with the plus-in-square icon
-- Clean, simple representation of the menu list
+**Step 3 illustration** -- Share sheet action circles:
+- Row of circular gray icons matching your screenshot: Copy, Add to Bookmarks, Add to Reading List, **More (...)** -- with More highlighted/pulsing
+- Arrow pointing to More
 
-### iOS Chrome Flow (3 steps)
+**Step 4 illustration** -- Menu list:
+- List items: Add to Favorites (star), Add to Quick Note, Find on Page -- all dimmed
+- **Add to Home Screen** (plus-in-square icon) -- highlighted/pulsing
 
-Based on your screenshots:
+### Updated instructions text:
+1. "tap the three dots in the bottom right"
+2. "tap 'Share' at the top"
+3. "tap 'More' with the three dots"
+4. "tap 'Add to Home Screen'"
 
-**Step 1**: "tap the share icon"
-- CSS illustration of the Chrome address bar with the share icon (square-with-up-arrow) in the top-right
-- Arrow pointing to top-right corner
+### Step counter updates automatically since `steps.length` is now 4 for Safari (shows "step 1/4", "step 2/4", etc.)
 
-**Step 2**: "tap 'more'"
-- CSS illustration showing the share sheet with the three-dot "More" circle at bottom-right
-- The More icon is highlighted/pulsing
+## Technical Details
 
-**Step 3**: "tap 'add to home screen'"
-- Same as Safari step 3 -- the "Add to Home Screen" row with the plus icon
+Only one file changes: `src/components/pwa/AddToHomeGuide.tsx`
 
-### Design Language
+The `safariSteps()` function gets rewritten with 4 steps and updated CSS illustrations. All helper components (`ShareIcon`, `MoreDotsIcon`, `PlusSquareIcon`, `MenuRow`, `PulseArrow`) are reused. A new `ThreeDotsIcon` may be added for the horizontal three-dot Safari menu button (distinct from the circular `MoreDotsIcon`).
 
-All illustrations use:
-- Monospace font (`ui-monospace`)
-- White on near-black (`rgba(10,10,10,0.97)`)
-- Thin borders (`1px solid rgba(255,255,255,0.15)`)
-- CSS-drawn icons (no images) -- simple geometric shapes for share icon, dots, plus-square
-- Subtle pulse animation on the element they need to tap
-- Step counter: `1/3`, `2/3`, `3/3` in muted text
-
-### Controls
-
-- "next" button advances steps (styled like existing "got it" button)
-- On final step, button says "got it"
-- Tap backdrop to dismiss at any time
-- Small "x" in top-right corner
-
-## Integration Points
-
-### 1. `src/hooks/use-pwa-install.ts`
-
-Add `iosBrowser` detection:
-
-```text
-return { canInstall, isIos, iosBrowser, isStandalone, triggerInstall }
-```
-
-Where `iosBrowser` is `'safari' | 'chrome' | 'other' | null`.
-
-### 2. `src/components/landing/orchid-hero.tsx`
-
-Replace the current `showIosHint` overlay (lines 493-546) with the new `<AddToHomeGuide>` component. Pass `iosBrowser` to it so it picks the right flow.
-
-### 3. `src/components/landing/qr-orchid.tsx`
-
-When tapping "Add to Home Screen" in the action sheet and `canInstall` is false, show the same `<AddToHomeGuide>` instead of just displaying text on the button.
-
-## Files
-
-| File | Action |
-|------|--------|
-| `src/hooks/use-pwa-install.ts` | Add `iosBrowser` detection (`'safari' \| 'chrome' \| 'other' \| null`) |
-| `src/components/pwa/AddToHomeGuide.tsx` | New file -- multi-step visual walkthrough component |
-| `src/components/landing/orchid-hero.tsx` | Replace inline hint overlay with `<AddToHomeGuide>` |
-| `src/components/landing/qr-orchid.tsx` | Wire up guide for action sheet's "Add to Home Screen" button |
-
+No changes to `use-pwa-install.ts`, `orchid-hero.tsx`, or `qr-orchid.tsx` -- the integration is already wired up correctly.

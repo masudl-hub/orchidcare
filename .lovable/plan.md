@@ -1,119 +1,98 @@
 
 
-# PWA Chat Experience -- Implementation Plan
+# Mobile UX Overhaul
 
-## User Story
+This plan addresses the broken mobile experience across the app while preserving the desktop design exactly as-is. All changes target screens below 768px (the existing `MOBILE_BREAKPOINT`).
 
-1. User opens Orchid on their phone (the landing page `/` or `/start`)
-2. They see an "Install Orchid" / "Add to Home Screen" prompt
-3. Tapping it pins the app; it opens to `/app`
-4. They create an account (Google or email/password) or switch to login
-5. Profile onboarding questions (reusing the existing ProfileConfig design)
-6. Chat UI loads -- they're ready to use Orchid
+---
 
-## Architecture
+## 1. Remove the placeholder rectangle from the de-pixelation animation (all screens)
 
-The orchid-agent already supports internal JSON calls via `X-Internal-Agent-Call: true` header. It accepts `{ profileId, message, channel, mediaBase64?, mediaMimeType? }` and returns `{ reply, mediaToSend }`. A new `pwa-agent` edge function will authenticate users via their Supabase JWT, resolve their profile, and forward to orchid-agent -- same pattern as the telegram-bot.
+**Problem:** The `createPlaceholderImage()` function in `orchid-hero.tsx` generates a colored rectangle (purple/green/brown blocks) that doesn't look like the real pixelated orchid. It was meant to bridge the loading gap but looks wrong.
 
-```text
-PWA Chat UI  -->  pwa-agent (JWT + profile)  -->  orchid-agent
-                                                    |
-                  same tools, same memory, same AI  |
-```
+**Fix:**
+- Remove `createPlaceholderImage()` entirely from `orchid-hero.tsx`
+- Instead, start the de-pixelation only after the real image loads (the `fullImg` path)
+- Keep the loading progress bar at top as visual feedback while the image loads
+- On the canvas, show nothing (transparent) until the real image is ready, then run the de-pixelation from step 0
+- This applies to both desktop and mobile
 
-## What Gets Built
+---
 
-### New Files
+## 2. Fix "plant care made easy" text positioning on mobile
 
-**`supabase/functions/pwa-agent/index.ts`**
-- POST endpoint accepting `{ message, mediaBase64?, mediaMimeType? }`
-- Validates JWT from `Authorization` header via `supabase.auth.getUser(token)`
-- Looks up profile by `user_id`; returns 401/404 if missing
-- Forwards to orchid-agent with `X-Internal-Agent-Call: true`, `channel: "pwa"`
-- Streams NDJSON tool-status events back to the client (wrapping orchid-agent's response), matching demo-agent's streaming pattern so the chat UI can show "identifying plant..." etc.
-- No HMAC, no turn limits -- authenticated users get full access
+**Problem:** The tagline overlaps the carousel and annotation on small screens. The large negative margin (`mb-[-40px]` / `mb-[-100px]`) designed for desktop causes collisions on mobile.
 
-**`src/pages/AppPage.tsx`**
-- The `/app` route -- PWA entry point
-- Three states:
-  - **Not authenticated**: renders auth UI (new dedicated components below)
-  - **Authenticated, no profile**: renders profile onboarding
-  - **Authenticated + profile**: renders PwaChat
-- Detects standalone mode (`window.matchMedia('(display-mode: standalone)')`) to hide "back to website" links
+**Fix:**
+- On mobile (`md:` breakpoint), reduce the negative margin to something like `mb-[-12px]` so the text sits ~8px above the orchid carousel
+- Reduce font size on mobile (e.g., `text-[13px]` instead of `16px`)
+- Keep the desktop values unchanged via responsive classes
 
-**`src/components/pwa/PwaAuth.tsx`**
-- Dedicated auth screen for the PWA context (not reusing LoginPage/BeginPage since those have Telegram references and different navigation flows)
-- Uses the same visual language: black bg, white borders, monospace, pixel art character swaps
-- Two tabs/modes: "Create Account" and "Login"
-- Google OAuth button (uses `lovable.auth.signInWithOAuth("google", ...)`)
-- Email + password form
-- No Telegram hints, no "/web" references
-- Shares the same `useAuth()` context and `signUp`/`signIn` functions
+---
 
-**`src/components/pwa/PwaOnboarding.tsx`**
-- Simplified version of ProfileConfig: display name, experience level, personality, notification frequency
-- Same icon-based selection UI (reuses the same design patterns)
-- On submit, calls `createProfile()` from AuthContext
-- Transitions to chat on completion
+## 3. Fix scroll-to-carousel on the homepage
 
-**`src/components/pwa/PwaChat.tsx`**
-- Adapted from DemoPage's chat architecture but connected to real auth
-- Calls `supabase.functions.invoke('pwa-agent', ...)` with the user's session token
-- Reads NDJSON stream for tool status updates (same pattern as DemoPage)
-- No turn counter, no HMAC tokens, no DemoLimitScreen
-- Shows conversation history (loads recent messages from `conversations` table filtered to `channel = "pwa"` on mount)
-- Reuses DemoInputBar for text + photo input (camera capture already built in)
-- Reuses ChatResponse component for rendering replies
-- Offline indicator when `navigator.onLine` is false
+**Problem:** Wheel events on the orchid-hero page prevent default scrolling but on mobile (touch), there's no way to swipe through the carousel. The page just scrolls normally and the carousel is stuck.
 
-**`src/components/pwa/InstallPrompt.tsx`**
-- Listens for `beforeinstallprompt` event (Chrome/Android)
-- On iOS: detects Safari + non-standalone, shows "Tap Share > Add to Home Screen"
-- Renders a subtle banner/button
+**Fix:**
+- On touch devices, add touch/swipe gesture handling (touchstart/touchmove/touchend) to cycle through the carousel
+- Keep the existing wheel handler for desktop
+- Detect touch via the existing `useIsTouch()` hook
 
-### Edited Files
+---
 
-**`src/App.tsx`**
-- Add route: `<Route path="/app" element={<AppPage />} />`
+## 4. Hide the BackButton on mobile
 
-**`public/manifest.json`**
-- Change `start_url` from `/` to `/app`
+**Problem:** The `BackButton` component (`absolute top-8 left-8`) overlaps with page content on small screens (visible in screenshots: back button over content on /demo, /proposal, start-page features).
 
-**`index.html`**
-- Update viewport meta: add `maximum-scale=1, user-scalable=0` to prevent iOS input zoom in the PWA
-- Add `/~oauth` awareness (already handled by Lovable Cloud)
+**Fix:**
+- Add `hidden md:block` to the BackButton component so it's invisible on mobile (under 768px)
+- Mobile devices have their own native back gesture/button
+- This is a one-line change in `back-button.tsx` that affects all pages using it
 
-**`public/sw.js`**
-- Add network-only handling for `/~oauth` and auth callback paths so OAuth redirects never serve cached content
+---
 
-### Mobile UX Polish (applied to `/app` layout)
+## 5. Fix StartPage feature sections for mobile
 
-- `overscroll-behavior-y: none` on the app wrapper to prevent pull-to-refresh bounce
-- Only the chat message list scrolls (`overflow-y: auto; -webkit-overflow-scrolling: touch`)
-- Bottom input uses `padding-bottom: env(safe-area-inset-bottom)` (already in DemoInputBar)
-- Camera capture on photo input (already in DemoInputBar)
+**Problem:** The two-column layout in feature sections (e.g., `identify-feature.tsx` uses `flex-row` with side-by-side chat mock + description) breaks on mobile -- content falls into margins, requires horizontal scrolling.
 
-## Account Linking (Telegram vs PWA)
+**Fix:**
+- In `identify-feature.tsx`, change the content grid from `flex-row` to `flex-col` on mobile (`flex-col md:flex-row`)
+- Reduce horizontal padding on mobile (`px-4 md:px-10 lg:px-24`)
+- Apply the same pattern to `diagnosis-feature.tsx`, `memory-feature.tsx`, `proactive-feature.tsx`, `shopping-feature.tsx`, `guides-feature.tsx`, `live-feature.tsx`, and `cta-feature.tsx`
+- Reduce large pixel-art heading font sizes on mobile (e.g., `fontSize: "32px"` becomes responsive)
+- Cap mock chat and description panel widths to `100%` on mobile
 
-For now, Telegram and PWA profiles are separate. A Telegram user who also creates a PWA account gets a separate profile. Future enhancement: if someone signs up on the PWA with the same email linked to their Telegram account, we could offer to merge profiles. Not in scope for this iteration.
+---
 
-## What Does NOT Change
+## 6. General mobile polish pass
 
-- Landing page (`/`), `/demo`, `/begin`, `/login`, `/start` -- all stay as-is
-- Telegram bot -- completely untouched
-- orchid-agent edge function -- no modifications needed
-- Database schema -- no new tables; existing `conversations`, `profiles`, `plants` all work
-- Auth system -- already fully implemented
+Additional responsive fixes across the app:
 
-## Sequence
+- **Annotation callout** in `orchid-hero.tsx`: Hide or reposition the SVG line + label on mobile since it extends off-screen
+- **Start page decrypt text**: Reduce font size on mobile for the `/start` text and decrypted paragraph
+- **Feature figure annotations** (e.g., "FIG 2.1 -- SPECIES IDENTIFICATION"): Reposition or hide on mobile to avoid overlap
+- **Login/Begin pages**: Already look acceptable on mobile (confirmed via screenshots), no changes needed
 
-1. Create `pwa-agent` edge function and deploy
-2. Create `InstallPrompt` component
-3. Create `PwaAuth` component (signup + login in one view)
-4. Create `PwaOnboarding` component
-5. Create `PwaChat` component
-6. Create `AppPage` orchestrator
-7. Update `App.tsx` with new route
-8. Update `manifest.json`, `index.html`, `sw.js`
-9. Test end-to-end: install prompt -> auth -> onboarding -> chat
+---
+
+## Technical Details
+
+### Files to modify:
+1. **`src/components/landing/orchid-hero.tsx`** -- Remove placeholder, fix tagline positioning, add touch swipe, fix annotation on mobile
+2. **`src/components/ui/back-button.tsx`** -- Add `hidden md:block` for mobile hiding
+3. **`src/components/landing/identify-feature.tsx`** -- Responsive flex direction, padding, font sizes
+4. **`src/components/landing/diagnosis-feature.tsx`** -- Same responsive pattern
+5. **`src/components/landing/memory-feature.tsx`** -- Same responsive pattern
+6. **`src/components/landing/proactive-feature.tsx`** -- Same responsive pattern
+7. **`src/components/landing/shopping-feature.tsx`** -- Same responsive pattern
+8. **`src/components/landing/guides-feature.tsx`** -- Same responsive pattern
+9. **`src/components/landing/live-feature.tsx`** -- Same responsive pattern
+10. **`src/components/landing/cta-feature.tsx`** -- Same responsive pattern
+11. **`src/components/landing/start-page.tsx`** -- Mobile font size adjustments
+
+### Approach:
+- All changes use responsive Tailwind classes or `isMobile` checks
+- Desktop layout is never touched -- all mobile styles are additive via breakpoint prefixes
+- The 768px breakpoint is used consistently (matching existing `MOBILE_BREAKPOINT`)
 

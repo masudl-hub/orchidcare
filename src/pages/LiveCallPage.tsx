@@ -6,9 +6,15 @@ import { supabase } from '@/integrations/supabase/client';
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 
+import { useNavigate } from 'react-router-dom';
+import { BackButton } from '@/components/ui/back-button';
+import { RefreshCcw, ArrowLeft } from 'lucide-react';
+
 function LiveCallPageInner() {
+  const navigate = useNavigate();
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
   const [callDuration, setCallDuration] = useState(0);
   const endedRef = useRef(false);
 
@@ -24,10 +30,25 @@ function LiveCallPageInner() {
     return tg?.initData || '';
   }, [getTelegram]);
 
+  const handleRetry = () => {
+    setError(null);
+    setRetryCount(prev => prev + 1);
+  };
+
+  const handleBack = () => {
+    const tg = getTelegram();
+    if (tg?.initData) {
+      tg.close();
+    } else {
+      navigate(-1);
+    }
+  };
+
   // Initialize: create session + get token + connect
   useEffect(() => {
     const init = async () => {
       try {
+        setError(null);
         const initData = getInitData();
         let authToken: string | null = null;
 
@@ -97,7 +118,7 @@ function LiveCallPageInner() {
     };
 
     init();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [retryCount]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Timer
   useEffect(() => {
@@ -164,21 +185,27 @@ function LiveCallPageInner() {
         }}>
           {gemini.errorDetail}
         </p>
-        <button
-          onClick={() => { const tg = getTelegram(); tg?.close?.(); }}
-          style={{
-            backgroundColor: 'transparent',
-            border: '1px solid rgba(255,255,255,0.3)',
-            borderRadius: '0',
-            color: 'rgba(255,255,255,0.6)',
-            fontFamily: 'ui-monospace, monospace',
-            fontSize: '11px',
-            padding: '8px 16px',
-            cursor: 'pointer',
-          }}
-        >
-          Close
-        </button>
+        <div style={{ display: 'flex', gap: '12px' }}>
+          <button
+            onClick={handleBack}
+            style={{
+              backgroundColor: 'transparent',
+              border: '1px solid rgba(255,255,255,0.3)',
+              borderRadius: '0',
+              color: 'rgba(255,255,255,0.6)',
+              fontFamily: 'ui-monospace, monospace',
+              fontSize: '11px',
+              padding: '8px 16px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+            }}
+          >
+            <ArrowLeft size={14} />
+            Back
+          </button>
+        </div>
       </div>
     );
   }
@@ -210,20 +237,62 @@ function LiveCallPageInner() {
           <p style={{ marginBottom: '16px', wordBreak: 'break-word' }}>{errorMessage}</p>
         </div>
 
+        <div style={{ display: 'flex', gap: '12px' }}>
+          <button
+            onClick={handleBack}
+            style={{
+              backgroundColor: 'transparent',
+              border: '1px solid rgba(255,255,255,0.2)',
+              borderRadius: '0',
+              color: 'rgba(255,255,255,0.4)',
+              fontFamily: 'ui-monospace, monospace',
+              fontSize: '11px',
+              padding: '8px 16px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+            }}
+          >
+            <ArrowLeft size={14} />
+            Back
+          </button>
+          <button
+            onClick={handleRetry}
+            style={{
+              backgroundColor: 'rgba(255,255,255,0.1)',
+              border: '1px solid rgba(255,255,255,0.3)',
+              borderRadius: '0',
+              color: 'rgba(255,255,255,0.9)',
+              fontFamily: 'ui-monospace, monospace',
+              fontSize: '11px',
+              padding: '8px 16px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+            }}
+          >
+            <RefreshCcw size={14} />
+            Retry
+          </button>
+        </div>
+
         {/* Debug log — visible so we can diagnose Mini App issues */}
         {gemini.debugLog.length > 0 && (
           <div style={{
             fontFamily: 'ui-monospace, monospace',
             fontSize: '10px',
-            color: 'rgba(255,255,255,0.35)',
+            color: 'rgba(255,255,255,0.25)',
             textAlign: 'left',
             maxWidth: '90vw',
-            maxHeight: '40vh',
+            maxHeight: '30vh',
             overflow: 'auto',
-            border: '1px solid rgba(255,255,255,0.1)',
+            border: '1px solid rgba(255,255,255,0.08)',
             padding: '8px',
             borderRadius: '2px',
             wordBreak: 'break-all',
+            marginTop: '12px',
           }}>
             {gemini.debugLog.map((line, i) => (
               <div key={i} style={{ marginBottom: '2px' }}>{line}</div>

@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { GoogleGenAI, Modality, EndSensitivity } from '@google/genai';
+import { GoogleGenAI, Modality } from '@google/genai';
 import type { Session, LiveServerMessage } from '@google/genai';
 import { useAudioPlayback } from './call/useAudioPlayback';
 import { useAudioCapture } from './call/useAudioCapture';
@@ -34,7 +34,7 @@ export function useGeminiLive() {
   const userDisconnectedRef = useRef(false);
   const reconnectAttemptsRef = useRef(0);
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const connectOptionsRef = useRef<{ toolsUrl?: string; extraAuth?: Record<string, unknown>; onReconnectNeeded?: () => Promise<string | null>; vadConfig?: { silenceDurationMs?: number; endOfSpeechSensitivity?: 'low' | 'high' } } | undefined>(undefined);
+  const connectOptionsRef = useRef<{ toolsUrl?: string; extraAuth?: Record<string, unknown>; onReconnectNeeded?: () => Promise<string | null> } | undefined>(undefined);
   const attemptReconnectRef = useRef<() => void>(() => {});
 
   const playback = useAudioPlayback();
@@ -177,9 +177,9 @@ export function useGeminiLive() {
         }
       }
 
-      // Handle interruption — user spoke while model was responding
+      // Handle interruption — with VAD disabled this should not fire
       if (message.serverContent?.interrupted) {
-        playback.flush();
+        log('Received interrupted signal (VAD disabled -- unexpected)');
       }
 
       // Route tool calls to bridge
@@ -211,7 +211,7 @@ export function useGeminiLive() {
   // ---------------------------------------------------------------------------
   // connect — orchestrates playback, capture, and SDK session setup
   // ---------------------------------------------------------------------------
-  const connect = useCallback(async (token: string, sessionId: string, initData: string, options?: { toolsUrl?: string; extraAuth?: Record<string, unknown>; onReconnectNeeded?: () => Promise<string | null>; vadConfig?: { silenceDurationMs?: number; endOfSpeechSensitivity?: 'low' | 'high' } }) => {
+  const connect = useCallback(async (token: string, sessionId: string, initData: string, options?: { toolsUrl?: string; extraAuth?: Record<string, unknown>; onReconnectNeeded?: () => Promise<string | null> }) => {
     // Re-entrancy guard
     if (connectingRef.current || sessionRef.current) {
       log('connect() skipped — already connecting or connected');
@@ -251,10 +251,7 @@ export function useGeminiLive() {
           responseModalities: [Modality.AUDIO],
       realtimeInputConfig: {
             automaticActivityDetection: {
-              silenceDurationMs: options?.vadConfig?.silenceDurationMs ?? 1500,
-              endOfSpeechSensitivity: options?.vadConfig?.endOfSpeechSensitivity === 'high'
-                ? EndSensitivity.END_SENSITIVITY_HIGH
-                : EndSensitivity.END_SENSITIVITY_LOW,
+              disabled: true,
             },
           },
         },
@@ -361,7 +358,7 @@ export function useGeminiLive() {
       // Google's example uses `media` key (not `audio`) for sendRealtimeInput
       let audioChunkCount = 0;
       capture.onAudioData.current = (base64: string) => {
-        if (sessionRef.current) {
+        if (sessionRef.current && !playback.isSpeaking) {
           audioChunkCount++;
           if (audioChunkCount <= 3 || audioChunkCount % 50 === 0) {
             log(`Sending audio chunk #${audioChunkCount} (${base64.length} chars)`);
@@ -490,6 +487,25 @@ export function useGeminiLive() {
   }, [video.isActive, log]);
 
   // ---------------------------------------------------------------------------
+  // interruptModel — manual interrupt: flush audio + send user turn
+  // ---------------------------------------------------------------------------
+  const interruptModel = useCallback(() => {
+    if (!sessionRef.current || !playback.isSpeaking) return;
+    log('User triggered manual interrupt');
+
+    // 1. Silence the audio output immediately
+    playback.flush();
+
+    // 2. Send a client turn so the model stops generating and listens
+    sessionRef.current.sendClientContent({
+      turns: [{ role: 'user', parts: [{ text: '(user interrupted -- listening now)' }] }],
+      turnComplete: true,
+    });
+
+    setIsListening(true);
+  }, [playback, log]);
+
+  // ---------------------------------------------------------------------------
   // disconnect — tears down SDK session, video, capture, and playback
   // ---------------------------------------------------------------------------
   const disconnect = useCallback(() => {
@@ -564,6 +580,7 @@ export function useGeminiLive() {
     setCurrentAnnotations,
     connect,
     disconnect,
+    interruptModel,
     toggleMic: capture.toggleMic,
     toggleVideo,
     facingMode: video.facingMode,

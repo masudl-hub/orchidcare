@@ -65,8 +65,6 @@ function DevCallPageInner() {
     localStorage.getItem(STORAGE_KEYS.chatId) || ''
   );
   const [voice, setVoice] = useState<string>('Aoede');
-  const [vadEndSensitivity, setVadEndSensitivity] = useState<'default' | 'low' | 'high'>('default');
-  const [vadSilenceMs, setVadSilenceMs] = useState(2000);
   const [systemPrompt, setSystemPrompt] = useState(DEFAULT_SYSTEM_PROMPT);
   const [callDuration, setCallDuration] = useState(0);
   const [initError, setInitError] = useState<string | null>(null);
@@ -125,17 +123,8 @@ function DevCallPageInner() {
     if (!ephemeralToken) throw new Error('token.name is empty');
 
     setInCall(true);
-    gemini.connect(ephemeralToken, 'dev-session', '', {
-      ...(vadEndSensitivity !== 'default' ? {
-        vadConfig: {
-          endOfSpeechSensitivity: vadEndSensitivity as 'low' | 'high',
-          silenceDurationMs: vadSilenceMs,
-        },
-      } : vadSilenceMs !== 2000 ? {
-        vadConfig: { silenceDurationMs: vadSilenceMs },
-      } : {}),
-    });
-  }, [apiKey, voice, systemPrompt, vadEndSensitivity, vadSilenceMs, gemini]);
+    gemini.connect(ephemeralToken, 'dev-session', '', {});
+  }, [apiKey, voice, systemPrompt, gemini]);
 
   // ---------------------------------------------------------------------------
   // Full mode start — edge function creates session + token with full context
@@ -179,14 +168,8 @@ function DevCallPageInner() {
     gemini.connect(tokenData.token, createData.sessionId, '', {
       toolsUrl: `${proxyBase}/tools`,
       extraAuth: devAuth,
-      ...(vadEndSensitivity !== 'default' || vadSilenceMs !== 2000 ? {
-        vadConfig: {
-          ...(vadEndSensitivity !== 'default' && { endOfSpeechSensitivity: vadEndSensitivity as 'low' | 'high' }),
-          ...(vadSilenceMs !== 2000 && { silenceDurationMs: vadSilenceMs }),
-        },
-      } : {}),
     });
-  }, [devSecret, chatId, vadEndSensitivity, vadSilenceMs, gemini]);
+  }, [devSecret, chatId, gemini]);
 
   // ---------------------------------------------------------------------------
   // Start handler (dispatches to mode)
@@ -260,8 +243,9 @@ function DevCallPageInner() {
           onToggleMic={gemini.toggleMic}
           onToggleVideo={gemini.toggleVideo}
           onToggleFacingMode={gemini.toggleFacingMode}
-          onEndCall={handleEndCall}
-          onCaptureSnapshot={gemini.captureSnapshot}
+           onEndCall={handleEndCall}
+           onCaptureSnapshot={gemini.captureSnapshot}
+           onInterrupt={gemini.interruptModel}
         />
 
         {/* Debug drawer — right edge */}
@@ -393,39 +377,6 @@ function DevCallPageInner() {
               </div>
             </div>
 
-            {/* VAD Sensitivity */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-              <label style={labelStyle}>End-of-Speech Sensitivity</label>
-              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                {(['default', 'low', 'high'] as const).map(v => (
-                  <button key={v} onClick={() => setVadEndSensitivity(v)} style={{
-                    backgroundColor: vadEndSensitivity === v ? '#fff' : 'transparent',
-                    color: vadEndSensitivity === v ? '#000' : 'rgba(255,255,255,0.5)',
-                    border: `1px solid ${vadEndSensitivity === v ? '#fff' : 'rgba(255,255,255,0.2)'}`,
-                    borderRadius: '0', padding: '6px 12px', fontFamily: mono,
-                    fontSize: '11px', cursor: 'pointer', transition: 'all 100ms',
-                  }}>{v}</button>
-                ))}
-              </div>
-            </div>
-
-            {/* Silence Duration */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-              <label style={labelStyle}>Silence Duration: {vadSilenceMs}ms</label>
-              <input
-                type="range"
-                min={500}
-                max={4000}
-                step={250}
-                value={vadSilenceMs}
-                onChange={e => setVadSilenceMs(Number(e.target.value))}
-                style={{ width: '100%', accentColor: '#fff' }}
-              />
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '9px', color: 'rgba(255,255,255,0.25)' }}>
-                <span>500ms (fast)</span>
-                <span>4000ms (patient)</span>
-              </div>
-            </div>
 
             {/* System Prompt */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>

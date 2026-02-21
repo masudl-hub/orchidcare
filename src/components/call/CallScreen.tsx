@@ -28,6 +28,7 @@ interface CallScreenProps {
   onToggleFacingMode: () => void;
   onEndCall: () => void;
   onCaptureSnapshot?: () => void;
+  onInterrupt?: () => void;
 }
 
 export function CallScreen({
@@ -51,6 +52,7 @@ export function CallScreen({
   onToggleFacingMode,
   onEndCall,
   onCaptureSnapshot,
+  onInterrupt,
 }: CallScreenProps) {
   // Attach video stream to the preview element.
   // Depend on isVideoActive too so the effect re-runs when the <video> mounts.
@@ -148,6 +150,34 @@ export function CallScreen({
         <AnnotationOverlay annotations={annotations} onComplete={onAnnotationsComplete} />
       )}
 
+      {/* Manual interrupt button — top-left, visible only while speaking */}
+      {isSpeaking && onInterrupt && (
+        <button
+          onClick={onInterrupt}
+          style={{
+            position: 'absolute',
+            top: '16px',
+            left: '16px',
+            zIndex: 20,
+            backgroundColor: 'rgba(0,0,0,0.4)',
+            border: '1px solid rgba(255,255,255,0.25)',
+            borderRadius: '0',
+            padding: '8px 14px',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            fontFamily: mono,
+            fontSize: '11px',
+            color: 'rgba(255,255,255,0.8)',
+            letterSpacing: '0.05em',
+            backdropFilter: 'blur(4px)',
+          }}
+          aria-label="Interrupt"
+        >
+          interrupt
+        </button>
+      )}
 
 
       {/* Canvas + Secondary Controls area */}

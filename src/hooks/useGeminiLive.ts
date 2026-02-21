@@ -249,7 +249,18 @@ export function useGeminiLive() {
     connectOptionsRef.current = options;
     connectingRef.current = true;
     greetingSentRef.current = false;
-    transcriptRef.current = [];
+    // Only reset transcript on fresh connections, not reconnects.
+    // Reconnects reuse the same sessionId — preserve accumulated transcript.
+    if (reconnectAttemptsRef.current === 0) {
+      transcriptRef.current = [];
+    }
+    // Always flush any buffered utterance from a prior connection into the transcript
+    if (currentUserUtterance.current.trim()) {
+      transcriptRef.current.push({ role: 'user', text: currentUserUtterance.current.trim() });
+    }
+    if (currentAgentUtterance.current.trim()) {
+      transcriptRef.current.push({ role: 'agent', text: currentAgentUtterance.current.trim() });
+    }
     currentUserUtterance.current = '';
     currentAgentUtterance.current = '';
 
@@ -284,7 +295,10 @@ export function useGeminiLive() {
               disabled: true,
             },
           },
-        },
+          // Request transcription events alongside audio — accumulation handled in handleMessageRef
+          inputAudioTranscription: {},
+          outputAudioTranscription: {},
+        } as any,
         callbacks: {
           onopen: () => {
             log('SDK: session OPENED');

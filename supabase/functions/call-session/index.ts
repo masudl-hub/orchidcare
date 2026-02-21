@@ -278,8 +278,11 @@ async function handleToken(
           model,
           config: {
             responseModalities: ["AUDIO"],
-            inputAudioTranscription: {},
-            outputAudioTranscription: {},
+            // inputAudioTranscription: {},
+            // outputAudioTranscription: {},
+            // ↑ Disabled: causes 1008 on BidiGenerateContentConstrained (ephemeral token endpoint).
+            //   Transcription events may still arrive on v1alpha without explicit config —
+            //   the client-side accumulation in useGeminiLive.ts handles them if present.
             speechConfig: {
               voiceConfig: {
                 prebuiltVoiceConfig: { voiceName: voice },

@@ -1,63 +1,37 @@
 
 
-# Fix: Surface Pet Info in Agent System Prompts
+# Fix: pwa-agent 401 Unauthorized
 
 ## Problem
-Your profile stores `pets: ["cat"]`, but the system prompt builder (`buildUserIdentitySection` in `context.ts`) never reads the `pets` field. The agents (voice calls, text chat, orchid-agent) don't know you have a pet, so they can't factor in toxicity warnings or pet-safe recommendations.
+The `pwa-agent` edge function is returning 401 at the gateway level. The function code never executes (68ms response, zero function logs). This means the Lovable Cloud gateway is rejecting the request before it reaches your code.
 
-Additionally, no `user_insights` rows exist for `has_pets`/`pet_type`, which is the secondary path for surfacing this info.
+Your `supabase/config.toml` already has `verify_jwt = false`, which should prevent this -- but the config may not have synced with the last deployment.
+
+## Root Causes (two possible)
+
+### 1. Config not synced after deployment
+The `verify_jwt = false` setting may not have been picked up. Solution: redeploy `pwa-agent`.
+
+### 2. Race condition: function called before auth session is restored
+If `PwaChat` mounts and immediately calls `pwa-agent` before the Supabase client restores the session from localStorage, the request goes out without a Bearer token, causing a 401. This is the more likely cause since the function was already deployed with `verify_jwt = false`.
 
 ## Fix
 
-### 1. Update `buildUserIdentitySection` in `supabase/functions/_shared/context.ts`
+### 1. Redeploy `pwa-agent`
+Force a fresh deployment to ensure the `verify_jwt = false` config is synced.
 
-Add `profile.pets` to the user identity section so it appears in the system prompt for all agents (voice, text, orchid-agent):
-
-```
-## ABOUT THIS USER
-Name: eml
-Experience Level: Beginner - ...
-Pets: cat - ALWAYS consider pet toxicity. Flag any plant or product that could be harmful.
-```
-
-This single change fixes it everywhere since both `buildEnrichedSystemPrompt` (text/orchid-agent) and `buildVoiceSystemPrompt` (voice calls) call the same `buildUserIdentitySection` function.
-
-### 2. Backfill `user_insights` for existing profiles with pets
-
-Insert `has_pets` and `pet_type` insight rows for your profile so the "USER FACTS" section also reflects this. This is a one-time data fix via a database migration.
-
-## Technical Details
-
-**File: `supabase/functions/_shared/context.ts`** (line ~134-152)
-
-In `buildUserIdentitySection`, after the `primary_concerns` line, add:
+### 2. Guard `pwa-agent` calls against missing auth session
+In `src/components/pwa/PwaChat.tsx`, before calling `supabase.functions.invoke('pwa-agent', ...)`, verify that a session exists:
 
 ```typescript
-const userPets = profile?.pets || [];
-// ...
-return `## ABOUT THIS USER
-${userName ? `Name: ${userName} ...` : "Name: Not provided"}
-Experience Level: ${experienceLevelGuide[userExperience] || ...}
-${userConcerns.length > 0 ? `Primary Interests: ...` : ""}
-${userPets.length > 0 ? `Pets in home: ${userPets.join(", ")} - ALWAYS consider pet toxicity when recommending plants or products. Proactively flag anything potentially harmful to ${userPets.join("/")}s.` : ""}`;
+const { data: { session } } = await supabase.auth.getSession();
+if (!session) {
+  throw new Error('Not authenticated');
+}
 ```
 
-**Database migration**: Insert missing insight rows:
+This prevents the race condition where the function is called before the JWT is available.
 
-```sql
-INSERT INTO user_insights (profile_id, insight_key, insight_value)
-VALUES
-  ('62dca5ae-a71e-403f-b805-0d17c017a7cb', 'has_pets', 'yes'),
-  ('62dca5ae-a71e-403f-b805-0d17c017a7cb', 'pet_type', 'cat')
-ON CONFLICT DO NOTHING;
-```
-
-**Redeploy**: `call-session`, `orchid-agent`, `pwa-agent`, and `demo-agent` (all consumers of the shared context).
-
-## Scope of Impact
-- Voice calls (call-session) -- fixed
-- Text chat (orchid-agent) -- fixed  
-- PWA agent (pwa-agent) -- fixed
-- Demo agent (demo-agent) -- fixed
-
-All four use `buildUserIdentitySection` from the shared `context.ts`.
+## Scope
+- **File**: `src/components/pwa/PwaChat.tsx` (add session guard in `sendMessage`)
+- **Deployment**: Redeploy `pwa-agent`

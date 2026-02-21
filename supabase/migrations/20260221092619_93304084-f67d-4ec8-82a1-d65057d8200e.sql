@@ -1,0 +1,1 @@
+ALTER TABLE public.call_sessions ALTER COLUMN voice SET DEFAULT 'Algenib';

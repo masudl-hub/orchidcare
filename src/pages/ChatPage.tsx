@@ -3,6 +3,7 @@ import { PwaOnboarding } from '@/components/pwa/PwaOnboarding';
 import { PwaChat } from '@/components/pwa/PwaChat';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { BottomNav } from '@/components/navigation/BottomNav';
 
 const mono = 'ui-monospace, monospace';
 const pressStart = '"Press Start 2P", cursive';
@@ -62,16 +63,17 @@ export default function ChatPage() {
         <div className="fixed inset-0">
             {/* Nav — top wide */}
             <div
-                className="absolute z-40 flex justify-between w-full px-4"
+                className="fixed z-40 flex justify-between w-full px-4 pb-3 bg-black/80 backdrop-blur-md"
                 style={{
-                    top: 'max(12px, env(safe-area-inset-top, 12px))',
+                    top: 0,
+                    paddingTop: 'max(12px, env(safe-area-inset-top, 12px))',
                 }}
             >
                 <div className="flex items-center">
                     <ScrambleButton text="ORCHID" onClick={() => navigate('/')} />
                 </div>
 
-                <div className="flex gap-1 items-center">
+                <div className="hidden md:flex gap-1 items-center">
                     {[
                         { label: "/collection", href: "/dashboard/collection" },
                         { label: "/activity", href: "/dashboard/activity" },
@@ -114,6 +116,8 @@ export default function ChatPage() {
             </div>
 
             <PwaChat />
+
+            <BottomNav />
         </div>
     );
 }

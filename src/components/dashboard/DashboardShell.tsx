@@ -7,6 +7,7 @@ import { CollectionView } from './CollectionView';
 import { ActivityView } from './ActivityView';
 import { motion } from 'framer-motion';
 import { DemoInputBar } from '@/components/demo/DemoInputBar';
+import { BottomNav } from '@/components/navigation/BottomNav';
 
 const mono = "ui-monospace, monospace";
 const pressStart = '"Press Start 2P", cursive';
@@ -199,16 +200,17 @@ export default function DashboardShell() {
 
             {/* Navigation — top wide */}
             <div
-                className="absolute z-50 flex justify-between w-full px-4"
+                className="fixed z-50 flex justify-between w-full px-4 pb-3 bg-black/80 backdrop-blur-md"
                 style={{
-                    top: 'max(12px, env(safe-area-inset-top, 12px))',
+                    top: 0,
+                    paddingTop: 'max(12px, env(safe-area-inset-top, 12px))',
                 }}
             >
                 <div className="flex items-center">
                     <ScrambleButton text="ORCHID" onClick={() => navigate('/')} />
                 </div>
 
-                <div className="flex gap-1 items-center">
+                <div className="hidden md:flex gap-1 items-center">
                     {/* Dashboard tabs */}
                     {tabs.map((tab) => (
                         <button
@@ -333,6 +335,8 @@ export default function DashboardShell() {
                     />
                 </div>
             </motion.div>
+
+            <BottomNav />
         </div>
     );
 }

@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { BackButton } from "@/components/ui/back-button";
 import { DeveloperDashboard } from "@/components/developers/DeveloperDashboard";
 import { DeveloperDocs } from "@/components/developers/DeveloperDocs";
+import { BottomNav } from "@/components/navigation/BottomNav";
 
 const mono = "ui-monospace, monospace";
 const pressStart = '"Press Start 2P", cursive';
@@ -136,16 +137,17 @@ export default function DeveloperPlatform() {
 
             {/* Unified nav — top wide */}
             <div
-                className="absolute z-50 flex justify-between w-full px-4"
+                className="fixed z-50 flex justify-between w-full px-4 pb-3 bg-black/80 backdrop-blur-md"
                 style={{
-                    top: 'max(12px, env(safe-area-inset-top, 12px))',
+                    top: 0,
+                    paddingTop: 'max(12px, env(safe-area-inset-top, 12px))',
                 }}
             >
                 <div className="flex items-center">
                     <ScrambleButton text="ORCHID" onClick={() => navigate('/')} />
                 </div>
 
-                <div className="flex gap-1 items-center">
+                <div className="hidden md:flex gap-1 items-center">
                     {([
                         { label: "/dashboard", action: () => navigate("/dashboard"), active: false },
                         { label: "/docs", action: () => setActiveTab("docs"), active: activeTab === "docs" },
@@ -184,6 +186,8 @@ export default function DeveloperPlatform() {
                     })}
                 </div>
             </div>
+
+            <BottomNav />
 
             {/* Sticky header — title only */}
             <div

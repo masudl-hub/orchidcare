@@ -98,11 +98,13 @@ async function validateAuthAndGetProfile(
         const { data: profile, error: profileError } = await supabase
           .from("profiles")
           .select("*")
-          .eq("id", user.id)
+          .eq("user_id", user.id)
           .single();
         if (!profileError && profile) {
           console.log(`[CallSession] Auth: resolved Web profile_id=${profile.id}`);
           return { profile, source: "web" };
+        } else {
+          console.error(`[CallSession] Auth: Web profile lookup FAILED for user_id=${user.id}:`, profileError?.message || "no rows found");
         }
       } else {
         console.error(`[CallSession] Auth: Supabase Web FAILED:`, authError?.message);

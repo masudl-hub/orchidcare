@@ -113,7 +113,7 @@ function useCountUp(target: number, visible: boolean, duration = 1500, decimals 
 function FigureAnnotation({ label, visible }: { label: string; visible: boolean }) {
   return (
     <div
-      className="absolute transition-all duration-600 ease-out z-10"
+      className="absolute transition-all duration-600 ease-out z-10 hidden md:block"
       style={{
         top: 40, right: 40,
         opacity: visible ? 0.35 : 0,

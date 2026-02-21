@@ -141,7 +141,7 @@ export function LiveFeature({
 
       {/* Figure annotation */}
       <div
-        className="absolute transition-all duration-600 ease-out"
+        className="absolute transition-all duration-600 ease-out hidden md:block"
         style={{
           top: 40,
           right: 40,

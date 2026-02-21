@@ -152,7 +152,7 @@ async function handleToken(
   // Create ephemeral token
   const tokenStart = Date.now();
   const model = "models/gemini-2.5-flash-native-audio-preview-12-2025";
-  const voice = session.voice || "Aoede";
+  const voice = session.voice || "Algenib";
   const toolCount = voiceToolDeclarations[0]?.functionDeclarations?.length || 0;
   console.log(`[DevProxy] /token: requesting ephemeral token — model=${model}, voice=${voice}, tools=${toolCount}, promptChars=${systemPrompt.length}`);
 

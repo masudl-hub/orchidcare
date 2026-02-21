@@ -1379,7 +1379,7 @@ async function handleVoiceToken(
             responseModalities: ["AUDIO"],
             speechConfig: {
               voiceConfig: {
-                prebuiltVoiceConfig: { voiceName: "Aoede" },
+                prebuiltVoiceConfig: { voiceName: "Algenib" },
               },
             },
             systemInstruction: {

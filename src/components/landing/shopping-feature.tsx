@@ -318,7 +318,7 @@ export function ShoppingFeature({
           {/* Left: Description */}
           <div>
             <h2
-              className="text-[22px] md:text-[32px]"
+              className="text-[22px] md:text-[32px] mt-8 md:mt-0"
               style={{
                 ...revealStyle(0),
                 fontFamily: '"Press Start 2P", cursive',
@@ -358,8 +358,8 @@ export function ShoppingFeature({
               Ask where to buy supplies. Orchid finds local nurseries with verified stock. Can't find it locally? We'll search online options too.
             </p>
 
-            {/* Pixel Map */}
-            <div style={{ ...revealStyle(450) }}>
+            {/* Pixel Map — desktop only, mobile version is in right column */}
+            <div className="hidden md:block" style={{ ...revealStyle(450) }}>
               <PixelMap stores={stores} visible={visible} />
             </div>
           </div>
@@ -386,6 +386,11 @@ export function ShoppingFeature({
                 </p>
               </div>
             </motion.div>
+
+            {/* Pixel Map — mobile only, after user message */}
+            <div className="block md:hidden mb-4" style={{ ...revealStyle(450) }}>
+              <PixelMap stores={stores} visible={visible} />
+            </div>
 
             {/* Store results */}
             <motion.div

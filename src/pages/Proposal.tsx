@@ -1820,7 +1820,7 @@ export function OrchidProposal() {
 
             {/* DecayMatrix hidden — keep component for potential reuse */}
 
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3" style={{ maxWidth: 800 }}>
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-3" style={{ maxWidth: 800 }}>
               {([
                 { title: 'Information Overload', theme: 'overload' as const, desc: "Generic care guides don't account for individual environments, watering habits, or the specific needs of each plant" },
                 { title: 'Reactive Care', theme: 'reactive' as const, desc: 'Users only seek help when problems arise, rather than receiving proactive guidance' },
@@ -1865,16 +1865,16 @@ export function OrchidProposal() {
 
             {/* Bento grid — mixed sizes */}
             <div
-              className="grid gap-3"
+              className="grid grid-cols-1 md:grid-cols-4 gap-3"
               style={{
-                gridTemplateColumns: 'repeat(4, 1fr)',
+                gridTemplateColumns: undefined,
                 gridTemplateRows: 'auto auto',
                 ...revealStyle(aiTech.visible, 350),
               }}
             >
               {/* Cell 1 — Multi-Modal AI (wide, spans 2 cols) */}
               <div
-                className="col-span-2 transition-all duration-300 hover:border-white/20"
+                className="col-span-1 md:col-span-2 transition-all duration-300 hover:border-white/20"
                 style={{
                   ...revealStyle(aiTech.visible, 400),
                   border: "1px solid rgba(255,255,255,0.08)",
@@ -1900,7 +1900,7 @@ export function OrchidProposal() {
 
               {/* Cell 2 — Conversational Interface (spans 2 cols) */}
               <div
-                className="col-span-2 transition-all duration-300 hover:border-white/20"
+                className="col-span-1 md:col-span-2 transition-all duration-300 hover:border-white/20"
                 style={{
                   ...revealStyle(aiTech.visible, 550),
                   border: "1px solid rgba(255,255,255,0.08)",
@@ -1926,7 +1926,7 @@ export function OrchidProposal() {
 
               {/* Cell 3 — Hierarchical Memory (tall, spans 2 rows on left) */}
               <div
-                className="col-span-2 row-span-1 transition-all duration-300 hover:border-white/20"
+                className="col-span-1 md:col-span-2 row-span-1 transition-all duration-300 hover:border-white/20"
                 style={{
                   ...revealStyle(aiTech.visible, 700),
                   border: "1px solid rgba(255,255,255,0.08)",
@@ -1952,7 +1952,7 @@ export function OrchidProposal() {
 
               {/* Cell 4 — Proactive Intelligence */}
               <div
-                className="col-span-2 row-span-1 transition-all duration-300 hover:border-white/20"
+                className="col-span-1 md:col-span-2 row-span-1 transition-all duration-300 hover:border-white/20"
                 style={{
                   ...revealStyle(aiTech.visible, 850),
                   border: "1px solid rgba(255,255,255,0.08)",
@@ -1997,7 +1997,7 @@ export function OrchidProposal() {
             </div>
 
             {/* Stats */}
-            <div className="grid grid-cols-3 gap-4 mt-8" style={{ ...revealStyle(aiVision.visible, 1000), border: "1px solid rgba(255,255,255,0.1)", padding: 24 }}>
+            <div className="grid grid-cols-3 gap-4 mt-8" style={{ ...revealStyle(aiVision.visible, 1000), border: "1px solid rgba(255,255,255,0.1)", padding: "16px md:24px" }}>
               <div className="text-center">
                 <p style={{ fontFamily: mono, fontSize: "28px", color: "white", fontWeight: "bold" }}>{accuracy}%+</p>
                 <p style={{ fontFamily: mono, fontSize: "10px", color: "rgba(255,255,255,0.4)", letterSpacing: "0.06em", marginTop: 4 }}>ACCURACY</p>

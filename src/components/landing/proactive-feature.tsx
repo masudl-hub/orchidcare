@@ -708,13 +708,13 @@ export function ProactiveFeature({
       <div className="w-full px-4 md:px-16 lg:px-24 z-10 relative pointer-events-none">
         <div className="flex flex-col md:flex-row items-center gap-8 lg:gap-16 max-w-[1100px] mx-auto pointer-events-auto">
             
-           {/* Left: Description */}
-           <div className="flex flex-col flex-1 min-w-0 order-2 md:order-1 items-start">
+           {/* Left: Description — first on mobile */}
+           <div className="flex flex-col flex-1 min-w-0 order-1 md:order-1 items-start">
              <FeatureDescription visible={visible} />
           </div>
 
-          {/* Right: Interface (Notifications) */}
-          <div className="flex-shrink-0 flex-1 min-w-0 max-w-[420px] order-1 md:order-2 self-center w-full">
+          {/* Right: Interface (Notifications) — second on mobile */}
+          <div className="flex-shrink-0 flex-1 min-w-0 max-w-[420px] order-2 md:order-2 self-center w-full">
             <div className="flex flex-col w-full">
                 {NOTIFICATIONS.map((item, i) => (
                     <NotificationCard 

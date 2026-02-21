@@ -972,13 +972,13 @@ export function IdentifyFeature({
       {/* Content grid */}
       <div className="w-full px-4 md:px-16 lg:px-24 py-10 md:py-20">
         <div className="flex flex-col md:flex-row items-center gap-8 lg:gap-12 max-w-[1100px] mx-auto">
-          {/* Left — Chat mock */}
-          <div className="flex-shrink-0 w-full md:flex-1 md:min-w-0 md:max-w-[400px]">
+          {/* Left — Chat mock (second on mobile) */}
+          <div className="flex-shrink-0 w-full md:flex-1 md:min-w-0 md:max-w-[400px] order-2 md:order-1">
             <MockChat visible={visible} interactive={interactive} />
           </div>
 
-          {/* Right — Feature description */}
-          <div className="flex items-center w-full md:flex-1 md:min-w-0">
+          {/* Right — Feature description (first on mobile) */}
+          <div className="flex items-center w-full md:flex-1 md:min-w-0 order-1 md:order-2">
             <FeatureDescription
               visible={visible}
               interactive={interactive}

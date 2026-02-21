@@ -122,7 +122,7 @@ export function PwaChat() {
           return <VisualGuideCard data={data as any} images={images} message={message} />;
         case 'chat':
         default:
-          return <ChatResponse text={message} />;
+          return <ChatResponse text={message} images={images?.map(img => ({ url: img.url, title: img.title }))} />;
       }
     },
     [],
@@ -226,13 +226,20 @@ export function PwaChat() {
 
         const reply = replyData.reply || '';
 
+        // Extract images from mediaToSend
+        const images = (replyData.mediaToSend || [])
+          .filter((m: any) => m.url)
+          .map((m: any) => ({ url: m.url, title: m.caption || '' }));
+
         // Add assistant message
         const assistantMsg: PwaMessage = { role: 'assistant', content: reply };
         setMessages(prev => [...prev, assistantMsg]);
 
-        // Try to parse structured response (orchid-agent returns plain text for internal calls)
-        // We'll render as a chat response since orchid-agent's internal call returns { reply, mediaToSend }
-        const element = renderArtifact('chat', { text: reply }, reply);
+        // Render with images if available
+        const element = images.length > 0
+          ? renderArtifact('chat', { text: reply }, reply, images)
+          : renderArtifact('chat', { text: reply }, reply);
+
         const newArtifact: ArtifactEntry = {
           id: `artifact-${++artifactIdCounter.current}`,
           element,

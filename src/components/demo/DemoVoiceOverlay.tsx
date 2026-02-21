@@ -152,7 +152,7 @@ export function DemoVoiceOverlay({
         outputAudioLevel={gemini.outputAudioLevel}
         callDuration={callDuration}
         formation={gemini.currentFormation}
-        onFormationComplete={() => gemini.setCurrentFormation(null)}
+        onFormationComplete={() => gemini.advanceFormationQueue()}
         facingMode={gemini.facingMode}
         onToggleMic={gemini.toggleMic}
         onToggleVideo={gemini.toggleVideo}

@@ -145,10 +145,13 @@ function buildUserIdentitySection(profile: any): string {
       "Plant Parent Pro - experienced collector. Can use botanical terms freely, discuss advanced techniques, appreciate nuanced advice.",
   };
 
+  const userPets = profile?.pets || [];
+
   return `## ABOUT THIS USER
 ${userName ? `Name: ${userName} (address them by name occasionally! Do NOT state their name in every message.)` : "Name: Not provided"}
 Experience Level: ${experienceLevelGuide[userExperience] || experienceLevelGuide.beginner}
-${userConcerns.length > 0 ? `Primary Interests: ${userConcerns.join(", ")} - Prioritize advice and tips related to these topics.` : ""}`;
+${userConcerns.length > 0 ? `Primary Interests: ${userConcerns.join(", ")} - Prioritize advice and tips related to these topics.` : ""}
+${userPets.length > 0 ? `Pets in home: ${userPets.join(", ")} - ALWAYS consider pet toxicity when recommending plants or products. Proactively flag anything potentially harmful to ${userPets.join("/")}s.` : ""}`;
 }
 
 function buildCommPrefsSection(context: HierarchicalContext): string {

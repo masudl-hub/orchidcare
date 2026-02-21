@@ -277,7 +277,7 @@ function DevCallPageInner() {
           outputAudioLevel={gemini.outputAudioLevel}
           callDuration={callDuration}
           formation={gemini.currentFormation}
-          onFormationComplete={() => gemini.setCurrentFormation(null)}
+          onFormationComplete={() => gemini.advanceFormationQueue()}
           annotations={gemini.currentAnnotations}
           onAnnotationsComplete={() => gemini.setCurrentAnnotations(null)}
           facingMode={gemini.facingMode}

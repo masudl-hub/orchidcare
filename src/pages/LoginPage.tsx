@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Login } from '@/components/Login';
 import { useAuth } from '@/contexts/AuthContext';
+import { InstallPrompt } from '@/components/pwa/InstallPrompt';
 import { supabase } from '@/integrations/supabase/client';
 import { lovable } from '@/integrations/lovable/index';
 
@@ -131,6 +132,11 @@ export default function LoginPage() {
         isLoading={isSubmitting}
         error={error}
       />
+
+      {/* PWA install prompt at bottom */}
+      <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 40 }}>
+        <InstallPrompt />
+      </div>
 
       {/* Loading animation overlay */}
       <AnimatePresence>

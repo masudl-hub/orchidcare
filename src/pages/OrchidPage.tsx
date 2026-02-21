@@ -2,6 +2,7 @@ import { useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { OrchidHero } from "@/components/landing/orchid-hero";
 import { StartPage } from "@/components/landing/start-page";
+import { InstallPrompt } from "@/components/pwa/InstallPrompt";
 
 const SLIDE_MS = 600;
 
@@ -60,6 +61,11 @@ export default function OrchidPage() {
       />
 
       <StartPage visible={startOpen} onClose={handleClose} />
+
+      {/* PWA install prompt — fixed at bottom on mobile */}
+      <div className="md:hidden" style={{ position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 40 }}>
+        <InstallPrompt />
+      </div>
     </>
   );
 }

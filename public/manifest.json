@@ -2,7 +2,7 @@
   "name": "Orchid",
   "short_name": "Orchid",
   "description": "Your AI-powered plant care companion",
-  "start_url": "/",
+  "start_url": "/app",
   "display": "standalone",
   "background_color": "#0D1F0D",
   "theme_color": "#22C55E",

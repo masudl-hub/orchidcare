@@ -1,1 +1,4 @@
 project_id = "ewkfjmekrootyiijrgfh"
+
+[functions.pwa-agent]
+verify_jwt = false

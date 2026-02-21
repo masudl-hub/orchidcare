@@ -29,8 +29,19 @@ self.addEventListener('activate', (event) => {
   self.clients.claim();
 });
 
+// Paths that must always hit the network (auth callbacks)
+const NETWORK_ONLY_PATHS = ['/~oauth', '/auth/'];
+
 // Fetch event - network first, fallback to cache
 self.addEventListener('fetch', (event) => {
+  const url = new URL(event.request.url);
+  
+  // Never cache auth-related paths
+  if (NETWORK_ONLY_PATHS.some(p => url.pathname.startsWith(p))) {
+    event.respondWith(fetch(event.request));
+    return;
+  }
+
   event.respondWith(
     fetch(event.request)
       .then((response) => {

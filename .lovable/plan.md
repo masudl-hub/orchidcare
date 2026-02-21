@@ -1,55 +1,35 @@
 
-## Fix: Images Not Appearing in PWA Chat
 
-### Root Cause
+# Fix: `payload is not defined` in Proactive Trigger Path
 
-There are **two** image generation tools in orchid-agent, and one of them silently drops its output:
+## Root Cause
 
-1. **`generate_visual_guide`** (line 2992): Generates multi-step instructional images. After generation, it correctly pushes each image into `mediaToSend` (lines 3014-3017). This path works.
+Line 2337 of `orchid-agent/index.ts` references `payload`, but that variable is only declared inside the `isInternalAgentCall` block (line 2245). When the proactive trigger path runs instead (line 2289), the variable used is `proactivePayload` -- so `payload` doesn't exist and throws a `ReferenceError`.
 
-2. **`generate_image`** (line 3490): Generates a single image (e.g., "show me what you mean"). It gets an `imageUrl` back from the API and stores it in `toolResult` -- but **never adds it to `mediaToSend`**. The URL sits in the tool result, gets passed back to the LLM as context (so the LLM *thinks* it sent images), but the actual image URL is never included in the response to the client.
+## Fix
 
-This is why Orchid says "I've generated a visual comparison" with no visuals -- the LLM sees the tool succeeded and references the images in its text, but the URLs are dropped before they reach the frontend.
+**File: `supabase/functions/orchid-agent/index.ts`**, line 2337
 
-### Fix
-
-**File: `supabase/functions/orchid-agent/index.ts`** (lines 3490-3508)
-
-After the `generate_image` tool gets a successful `imageUrl`, push it to `mediaToSend`:
-
+Change:
 ```typescript
-else if (functionName === "generate_image") {
-  const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY") || "";
-  if (!LOVABLE_API_KEY) {
-    toolResult = { success: false, error: "Image generation not configured" };
-  } else {
-    try {
-      const response = await fetch("https://ai.gateway.lovable.dev/v1/images/generations", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ model: "dall-e-3", prompt: args.prompt, n: 1, size: "1024x1024" }),
-      });
-      const data = await response.json();
-      const imageUrl = data.data?.[0]?.url || data.data?.[0]?.b64_json;
-      toolResult = imageUrl
-        ? { success: true, imageUrl }
-        : { success: false, error: "No image generated" };
+const channel = (isInternalAgentCall && payload?.channel) || "telegram";
+```
 
-      // ADD: Push generated image to mediaToSend so it reaches the client
-      if (imageUrl) {
-        mediaToSend.push({ url: imageUrl, caption: args.prompt || "" });
-      }
-    } catch (err) {
-      toolResult = { success: false, error: String(err) };
-    }
-  }
+To:
+```typescript
+let channel = "telegram";
+if (isInternalAgentCall) {
+  try { channel = payload?.channel || "telegram"; } catch (_) { /* payload not in scope */ }
 }
 ```
 
-That is the only change needed. The downstream pipeline (`orchid-agent` returns `mediaToSend` in its JSON response, `pwa-agent` includes it in the NDJSON "done" event, `PwaChat` renders images from `mediaToSend`) is already wired up from the previous fix.
+Or more cleanly: declare a `let requestChannel = "telegram"` at the top of the handler, set it to `payload.channel` inside the `isInternalAgentCall` block (line 2288, where `payload` is in scope), and use `requestChannel` at line 2337 instead. This avoids referencing a block-scoped variable outside its block entirely.
 
-### Files to Modify
+### Cleaner approach (recommended)
 
-| File | Change |
-|------|--------|
-| `supabase/functions/orchid-agent/index.ts` | Add `mediaToSend.push(...)` after successful `generate_image` |
+1. Add `let requestChannel = "telegram";` near the top of the handler (around line 2230 with the other `let` declarations)
+2. Inside the `isInternalAgentCall` block, after line 2288, add: `requestChannel = payload.channel || "telegram";`
+3. Replace line 2337 with: `const channel = requestChannel;`
+
+One file, three small line changes.
+

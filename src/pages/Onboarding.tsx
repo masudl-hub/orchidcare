@@ -2,11 +2,9 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { LinkPhone } from '@/components/LinkPhone';
 import { ProfileConfig, ProfileData } from '@/components/ProfileConfig';
-import { ConnectTelegram } from '@/components/ConnectTelegram';
-import { OnboardingComplete } from '@/components/OnboardingComplete';
 import { useAuth } from '@/contexts/AuthContext';
 
-type OnboardingStep = 'linkPhone' | 'profileConfig' | 'connectTelegram' | 'complete';
+type OnboardingStep = 'linkPhone' | 'profileConfig' | 'complete';
 
 export default function Onboarding() {
   const navigate = useNavigate();
@@ -58,7 +56,8 @@ export default function Onboarding() {
         throw result.error;
       }
 
-      setStep('connectTelegram');
+      setStep('complete');
+      navigate('/login', { replace: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save profile');
     } finally {
@@ -67,7 +66,7 @@ export default function Onboarding() {
   };
 
   const handleOnboardingComplete = () => {
-    navigate('/dashboard');
+    navigate('/login', { replace: true });
   };
 
   const handleBack = () => {
@@ -92,15 +91,8 @@ export default function Onboarding() {
           error={error}
         />
       );
-    case 'connectTelegram':
-      return (
-        <ConnectTelegram
-          onComplete={() => setStep('complete')}
-          onSkip={() => setStep('complete')}
-        />
-      );
     case 'complete':
-      return <OnboardingComplete onComplete={handleOnboardingComplete} />;
+      return null;
     default:
       return <LinkPhone onComplete={handlePhoneLinked} onBack={handleBack} />;
   }

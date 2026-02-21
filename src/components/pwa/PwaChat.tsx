@@ -8,6 +8,7 @@ import { ChatResponse } from '@/components/demo/artifacts/ChatResponse';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { prewarmMicPermission } from '@/hooks/call/useAudioCapture';
 import { WifiOff } from 'lucide-react';
 
 const mono = 'ui-monospace, monospace';
@@ -369,6 +370,7 @@ export function PwaChat() {
   sendMessageRef.current = sendMessage;
 
   const handleMicClick = useCallback(() => {
+    prewarmMicPermission(); // fire in user-gesture context so iOS shows dialog immediately
     navigate('/call');
   }, [navigate]);
 

@@ -1,6 +1,28 @@
 import { useState, useRef, useCallback } from 'react';
 
 // ---------------------------------------------------------------------------
+// Module-level mic permission prewarm
+// Call prewarmMicPermission() from a button-click handler (user gesture) so
+// the OS permission dialog fires immediately — before any async/useEffect work.
+// startCapture() will reuse the cached stream, skipping a second getUserMedia.
+// ---------------------------------------------------------------------------
+let _prewarmStream: MediaStream | null = null;
+let _prewarmInFlight: Promise<void> | null = null;
+
+export function prewarmMicPermission(): void {
+  if (_prewarmInFlight || _prewarmStream) return; // already prewarm'd or in progress
+  _prewarmInFlight = navigator.mediaDevices
+    .getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } })
+    .then(stream => {
+      _prewarmStream = stream;
+      _prewarmInFlight = null;
+    })
+    .catch(() => {
+      _prewarmInFlight = null; // permission denied or device error — startCapture will handle it
+    });
+}
+
+// ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
@@ -96,14 +118,24 @@ export function useAudioCapture(options?: UseAudioCaptureOptions): UseAudioCaptu
       await audioContext.resume();
     }
 
-    const stream = await navigator.mediaDevices.getUserMedia({
-      audio: {
-        sampleRate,
-        channelCount: 1,
-        echoCancellation: true,
-        noiseSuppression: true,
-      },
-    });
+    // Wait for any in-flight prewarm (started in the button-click user gesture)
+    if (_prewarmInFlight) await _prewarmInFlight;
+
+    let stream: MediaStream;
+    if (_prewarmStream) {
+      // Reuse the stream already granted in the user gesture — no second prompt
+      stream = _prewarmStream;
+      _prewarmStream = null;
+    } else {
+      stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          sampleRate,
+          channelCount: 1,
+          echoCancellation: true,
+          noiseSuppression: true,
+        },
+      });
+    }
     streamRef.current = stream;
 
     const processorUrl = createPCMProcessorURL(bufferSize);
@@ -142,6 +174,11 @@ export function useAudioCapture(options?: UseAudioCaptureOptions): UseAudioCaptu
   // stopCapture — tears down mic, worklet, blob URL
   // -----------------------------------------------------------------------
   const stopCapture = useCallback(() => {
+    // Also discard any unclaimed prewarm stream so it doesn't leak
+    if (_prewarmStream) {
+      _prewarmStream.getTracks().forEach(t => t.stop());
+      _prewarmStream = null;
+    }
     if (streamRef.current) {
       streamRef.current.getTracks().forEach(t => t.stop());
       streamRef.current = null;

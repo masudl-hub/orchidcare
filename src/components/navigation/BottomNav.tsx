@@ -1,6 +1,7 @@
 import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Leaf, Activity, User, Terminal, MessageSquare, Phone, LayoutDashboard, FileText } from 'lucide-react';
+import { prewarmMicPermission } from '@/hooks/call/useAudioCapture';
 
 interface NavItem {
     id: string;
@@ -52,7 +53,10 @@ export function BottomNav() {
                                 <div className="w-[1px] h-6 bg-white/10 mx-1" />
                             )}
                             <button
-                                onClick={() => navigate(item.path)}
+                                onClick={() => {
+                                    if (item.path === '/call') prewarmMicPermission();
+                                    navigate(item.path);
+                                }}
                                 className="flex items-center justify-center flex-1 min-w-0 min-h-[44px]"
                                 style={{ WebkitTapHighlightColor: 'transparent' }}
                             >

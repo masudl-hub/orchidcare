@@ -323,11 +323,44 @@ export function useGeminiLive() {
       log('Creating GoogleGenAI client with ephemeral token...');
       const ai = new GoogleGenAI({ apiKey: token, httpOptions: { apiVersion: 'v1alpha' } });
 
-      // 3. Mic + camera permission + WebSocket — all in parallel.
-      //    Camera is non-fatal: if denied, call continues audio-only.
-      log(`Starting mic, camera permission, and WebSocket in parallel — model=${GEMINI_MODEL}`);
-      let micErr: unknown = null;
-      const sessionPromise = ai.live.connect({
+      // 3. Mic FIRST — acquire mic before opening the WebSocket.
+      //    This ensures the OS permission dialog fires and resolves before any
+      //    network work begins. If prewarmMicPermission() was called from the
+      //    button-click handler the stream is already ready and this is instant.
+      log('Acquiring microphone...');
+      try {
+        await capture.startCapture();
+        log('Microphone access GRANTED');
+      } catch (micErr) {
+        const isPermissionDenied = micErr instanceof Error && (micErr as Error).name === 'NotAllowedError';
+        if (isPermissionDenied) {
+          log('Microphone access DENIED by user');
+          setErrorDetail('Audio access rejected. Call ended.');
+          setStatus('ended');
+        } else {
+          const detail = micErr instanceof Error ? `${(micErr as Error).name}: ${(micErr as Error).message}` : String(micErr);
+          log(`Microphone access FAILED: ${detail}`);
+          setErrorDetail(`Mic error: ${detail}`);
+          setStatus('error');
+        }
+        connectingRef.current = false;
+        return;
+      }
+
+      // Guard: if user disconnected while waiting for mic, bail before touching network
+      if (userDisconnectedRef.current) {
+        log('connect() aborted — disconnect requested while acquiring mic');
+        capture.onAudioData.current = null;
+        capture.stopCapture();
+        playback.stopPlayback();
+        connectingRef.current = false;
+        setStatus('ended');
+        return;
+      }
+
+      // 4. NOW open the WebSocket — mic is confirmed ready
+      log(`Opening WebSocket — model=${GEMINI_MODEL}`);
+      const session = await ai.live.connect({
         model: GEMINI_MODEL,
         config: {
           responseModalities: [Modality.AUDIO],
@@ -389,45 +422,15 @@ export function useGeminiLive() {
         },
       });
 
-      // Run mic + WebSocket in parallel.
-      // Camera permission is NOT requested here — only when user toggles video.
-      const [session] = await Promise.all([
-        sessionPromise,
-        capture.startCapture().then(
-          () => { log('Microphone access GRANTED'); },
-          (err: unknown) => { micErr = err; },
-        ),
-      ]);
-
-      // If disconnect() was called while we were awaiting, clean up the
-      // just-created session and bail — this prevents zombie connections.
+      // Guard: if disconnect() was called while WebSocket was opening, bail
       if (userDisconnectedRef.current) {
-        log('connect() aborted — disconnect was requested while connecting');
+        log('connect() aborted — disconnect requested while opening WebSocket');
         try { session.close(); } catch { /* ignore */ }
         capture.onAudioData.current = null;
         capture.stopCapture();
         playback.stopPlayback();
         connectingRef.current = false;
         setStatus('ended');
-        return;
-      }
-
-      // Mic is required — bail if it failed
-      if (micErr) {
-        // Close the WebSocket session that was opened in parallel
-        try { session.close(); } catch { /* ignore */ }
-        const isPermissionDenied = micErr instanceof Error && (micErr as Error).name === 'NotAllowedError';
-        if (isPermissionDenied) {
-          log('Microphone access DENIED by user');
-          setErrorDetail('Audio access rejected. Call ended.');
-          setStatus('ended');
-        } else {
-          const detail = micErr instanceof Error ? `${(micErr as Error).name}: ${(micErr as Error).message}` : String(micErr);
-          log(`Microphone access FAILED: ${detail}`);
-          setErrorDetail(`Mic error: ${detail}`);
-          setStatus('error');
-        }
-        connectingRef.current = false;
         return;
       }
 
@@ -622,7 +625,7 @@ export function useGeminiLive() {
   // ---------------------------------------------------------------------------
   // disconnect — tears down SDK session, video, capture, and playback
   // ---------------------------------------------------------------------------
-  const disconnect = useCallback(() => {
+  const disconnect = useCallback((): Promise<void> => {
     userDisconnectedRef.current = true;
     // Flush any remaining buffered utterances
     if (currentUserUtterance.current.trim()) {
@@ -639,8 +642,9 @@ export function useGeminiLive() {
       reconnectTimerRef.current = null;
     }
 
-    // Stop recording BEFORE killing streams (stopCapture destroys the mic stream)
-    recorder.stopRecording().catch(() => { /* best-effort */ });
+    // Stop recording BEFORE killing streams (stopCapture destroys the mic stream).
+    // Returns a promise — callers can await it to get blobs before they're sent.
+    const recordingDone = recorder.stopRecording().catch(() => ({ userBlob: null, agentBlob: null, mimeType: '' }));
 
     // Only transition to 'ended' if we actually had a live session.
     // This prevents StrictMode's unmount→remount from falsely ending
@@ -672,6 +676,8 @@ export function useGeminiLive() {
       setStatus('ended');
     }
     setIsListening(false);
+
+    return recordingDone.then(() => {});
   }, [capture.onAudioData, capture.stopCapture, video.onVideoFrame, video.stopCapture, playback.stopPlayback]);
 
   // Cleanup on unmount

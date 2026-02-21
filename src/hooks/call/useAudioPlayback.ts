@@ -2,6 +2,8 @@ import { useState, useRef, useCallback } from 'react';
 
 interface UseAudioPlaybackReturn {
   isSpeaking: boolean;
+  /** Synchronous ref — always current, safe to read inside callbacks/closures. */
+  isSpeakingRef: React.RefObject<boolean>;
   outputAudioLevel: number;
   audioContext: AudioContext | null;
   startPlayback: () => AudioContext;
@@ -14,6 +16,13 @@ interface UseAudioPlaybackReturn {
 export function useAudioPlayback(): UseAudioPlaybackReturn {
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [outputAudioLevel, setOutputAudioLevel] = useState(0);
+  const isSpeakingRef = useRef(false);
+
+  // Helper to keep ref in sync with state
+  const setSpeaking = (value: boolean) => {
+    isSpeakingRef.current = value;
+    setIsSpeaking(value);
+  };
 
   const audioContextRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
@@ -43,14 +52,14 @@ export function useAudioPlayback(): UseAudioPlaybackReturn {
     source.addEventListener('ended', () => {
       activeSourcesRef.current.delete(source);
       if (activeSourcesRef.current.size === 0) {
-        setIsSpeaking(false);
+        setSpeaking(false);
       }
     });
 
     source.start(nextStartTimeRef.current);
     nextStartTimeRef.current += buffer.duration;
     activeSourcesRef.current.add(source);
-    setIsSpeaking(true);
+    setSpeaking(true);
   }, []);
 
   // -----------------------------------------------------------------------
@@ -62,7 +71,7 @@ export function useAudioPlayback(): UseAudioPlaybackReturn {
     }
     activeSourcesRef.current.clear();
     nextStartTimeRef.current = 0;
-    setIsSpeaking(false);
+    setSpeaking(false);
   }, []);
 
   // -----------------------------------------------------------------------
@@ -125,6 +134,7 @@ export function useAudioPlayback(): UseAudioPlaybackReturn {
 
   return {
     isSpeaking,
+    isSpeakingRef,
     outputAudioLevel,
     audioContext: audioContextRef.current,
     startPlayback,

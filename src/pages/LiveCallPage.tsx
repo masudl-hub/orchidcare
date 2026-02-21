@@ -159,73 +159,79 @@ function LiveCallPageInner() {
   }, [gemini.status]);
 
   // End call handler — guarded against multiple calls
-  const handleEndCall = useCallback(async () => {
+  const handleEndCall = useCallback(() => {
     if (endedRef.current) return;
     endedRef.current = true;
 
-    // Await disconnect so MediaRecorder blobs are finalized before we read them
-    await gemini.disconnect();
-    if (sessionId) {
-      try {
-        const initData = getInitData();
-        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    // Kick off disconnect immediately.
+    // status='ended' and video stop fire synchronously inside disconnect() so the
+    // UI shows "call ended" (no video) as soon as this line executes.
+    const disconnectDone = gemini.disconnect();
 
-        if (!initData) {
-          const { data: { session } } = await supabase.auth.getSession();
-          if (session?.access_token) {
-            headers['Authorization'] = `Bearer ${session.access_token}`;
+    // Capture stable values now — safe to read after navigate/unmount via closure
+    const transcript = gemini.transcript.current;
+    const currentDuration = callDuration;
+    const currentSessionId = sessionId;
+    const getBlobs = gemini.callRecording.getBlobs;
+
+    // Background cleanup — all fire-and-forget, survives navigation and unmount
+    if (currentSessionId) {
+      (async () => {
+        try {
+          const initData = getInitData();
+          const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+          if (!initData) {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (session?.access_token) headers['Authorization'] = `Bearer ${session.access_token}`;
           }
-        }
 
-        await fetch(`${SUPABASE_URL}/functions/v1/call-session/end`, {
-          method: 'POST',
-          headers,
-          body: JSON.stringify({
-            sessionId,
-            initData: initData || undefined,
-            durationSeconds: callDuration,
-            transcript: gemini.transcript.current,
-          }),
-        });
+          // /end — fire immediately with the already-captured transcript
+          fetch(`${SUPABASE_URL}/functions/v1/call-session/end`, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({
+              sessionId: currentSessionId,
+              initData: initData || undefined,
+              durationSeconds: currentDuration,
+              transcript,
+            }),
+          }).catch(() => {});
 
-        // Fire-and-forget: send recorded audio for summarization
-        const blobs = gemini.callRecording.getBlobs();
-        if (blobs.userBlob || blobs.agentBlob) {
-          (async () => {
-            try {
-              const [userB64, agentB64] = await Promise.all([
-                blobs.userBlob ? blobToBase64(blobs.userBlob) : null,
-                blobs.agentBlob ? blobToBase64(blobs.agentBlob) : null,
-              ]);
-              console.log('[LiveCall] Sending call audio for summarization...');
-              fetch(`${SUPABASE_URL}/functions/v1/summarise-call`, {
-                method: 'POST',
-                headers,
-                body: JSON.stringify({
-                  sessionId,
-                  initData: initData || undefined,
-                  userAudio: userB64,
-                  agentAudio: agentB64,
-                  audioMimeType: blobs.mimeType,
-                }),
-              }).catch(() => {});
-            } catch (err) {
-              console.warn('[LiveCall] Failed to send call audio:', err);
-            }
-          })();
+          // Recording — wait for MediaRecorder to flush, then upload
+          await disconnectDone;
+          const blobs = getBlobs();
+          if (blobs.userBlob || blobs.agentBlob) {
+            const [userB64, agentB64] = await Promise.all([
+              blobs.userBlob ? blobToBase64(blobs.userBlob) : null,
+              blobs.agentBlob ? blobToBase64(blobs.agentBlob) : null,
+            ]);
+            console.log('[LiveCall] Sending call audio for summarization...');
+            fetch(`${SUPABASE_URL}/functions/v1/summarise-call`, {
+              method: 'POST',
+              headers,
+              body: JSON.stringify({
+                sessionId: currentSessionId,
+                initData: initData || undefined,
+                userAudio: userB64,
+                agentAudio: agentB64,
+                audioMimeType: blobs.mimeType,
+              }),
+            }).catch(() => {});
+          }
+        } catch (err) {
+          console.error('[LiveCall] End session error:', err);
         }
-      } catch (err) {
-        console.error('[LiveCall] End session error:', err);
-      }
+      })();
     }
-    // Close Mini App (Telegram) or navigate to chat (web/PWA)
+
+    // Navigate after a brief "Ended" flash so the user sees the state change
     const tg = getTelegram();
     if (tg?.initData) {
       tg.close?.();
     } else {
-      navigate('/chat');
+      setTimeout(() => navigate('/chat'), 300);
     }
-  }, [gemini.disconnect, sessionId, callDuration, getInitData, getTelegram, navigate]);
+  }, [gemini.disconnect, gemini.transcript, gemini.callRecording, sessionId, callDuration, getInitData, getTelegram, navigate]);
 
   // Permission denied — clean "ended" state with friendly message
   const isPermissionDenied = gemini.status === 'ended' && gemini.errorDetail?.includes('rejected');

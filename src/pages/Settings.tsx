@@ -53,13 +53,16 @@ function TelegramConnectionCard() {
     if (!user) return;
     setGenerating(true);
 
-    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    const buf = new Uint32Array(1);
+    crypto.getRandomValues(buf);
+    const code = (100000 + (buf[0] % 900000)).toString();
     const { error } = await supabase
       .from('linking_codes')
       .insert({ user_id: user.id, code });
 
     if (error) {
-      const retry = Math.floor(100000 + Math.random() * 900000).toString();
+      crypto.getRandomValues(buf);
+      const retry = (100000 + (buf[0] % 900000)).toString();
       const { error: retryErr } = await supabase
         .from('linking_codes')
         .insert({ user_id: user.id, code: retry });

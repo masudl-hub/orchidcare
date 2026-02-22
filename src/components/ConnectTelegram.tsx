@@ -9,7 +9,9 @@ interface ConnectTelegramProps {
 }
 
 function generateCode(): string {
-  return Math.floor(100000 + Math.random() * 900000).toString();
+  const buf = new Uint32Array(1);
+  crypto.getRandomValues(buf);
+  return (100000 + (buf[0] % 900000)).toString();
 }
 
 export function ConnectTelegram({ onComplete, onSkip }: ConnectTelegramProps) {

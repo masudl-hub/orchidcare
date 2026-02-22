@@ -67,12 +67,10 @@ async function hashApiKey(plainKey: string): Promise<string> {
 }
 
 function generateApiKey(): string {
-    const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
-    let key = "orch_";
-    for (let i = 0; i < 40; i++) {
-        key += chars[Math.floor(Math.random() * chars.length)];
-    }
-    return key;
+    const bytes = new Uint8Array(20);
+    crypto.getRandomValues(bytes);
+    const hex = Array.from(bytes).map(b => b.toString(16).padStart(2, "0")).join("");
+    return "orch_" + hex;
 }
 
 // ── Types ────────────────────────────────────────────────────────────────────

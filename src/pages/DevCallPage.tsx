@@ -68,7 +68,7 @@ function DevCallPageInner() {
     (localStorage.getItem(STORAGE_KEYS.mode) as Mode) || 'quick'
   );
   const [apiKey, setApiKey] = useState(() =>
-    localStorage.getItem(STORAGE_KEYS.apiKey) || import.meta.env.VITE_GEMINI_API_KEY || ''
+    localStorage.getItem(STORAGE_KEYS.apiKey) || ''
   );
   const [devSecret, setDevSecret] = useState(() =>
     localStorage.getItem(STORAGE_KEYS.devSecret) || ''

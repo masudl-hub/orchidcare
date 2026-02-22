@@ -2085,7 +2085,7 @@ Return JSON: {"summary": "2-3 sentence summary", "key_topics": ["topic1", "topic
       summaryJson = { summary: summaryContent, key_topics: [] };
     }
 
-    console.log("[ContextEngineering] Generated summary:", summaryJson.summary);
+    console.log("[ContextEngineering] Generated summary:", summaryJson.summary?.substring(0, 100) ?? '(empty)');
 
     // Save the summary
     await supabase.from("conversation_summaries").insert({
@@ -2722,7 +2722,7 @@ ${proactiveContext.events.map((e: any) => `- ${e.message_hint}`).join("\n")}
       } else {
         const message = orchestratorData.choices[0]?.message;
 
-        console.log("Orchestrator response:", JSON.stringify(message, null, 2));
+        console.log("Orchestrator response:", JSON.stringify(message, null, 2).substring(0, 200));
 
         // Extract thought signature for Gemini 3 reasoning context circulation
         // Required for strict function calling validation in Gemini 3

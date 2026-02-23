@@ -24,6 +24,7 @@ interface LoginProps {
   onLogin: (email: string, password: string) => Promise<void>;
   onGoogleLogin: () => Promise<void>;
   onAppleLogin?: () => Promise<void>;
+  onForgotPassword?: (email: string) => Promise<void>;
   isLoading?: boolean;
   error?: string | null;
 }
@@ -34,6 +35,7 @@ export function Login({
   onLogin, 
   onGoogleLogin,
   onAppleLogin,
+  onForgotPassword,
   isLoading = false,
   error = null 
 }: LoginProps) {
@@ -240,9 +242,13 @@ export function Login({
 
           {/* Forgot password */}
           <div className="text-center mt-4">
-            <a href="#" className="font-mono text-xs text-white hover:text-stone-300 transition-colors">
+            <button
+              type="button"
+              onClick={() => onForgotPassword?.(email)}
+              className="font-mono text-xs text-white hover:text-stone-300 transition-colors"
+            >
               /recover-password
-            </a>
+            </button>
           </div>
         </div>
 

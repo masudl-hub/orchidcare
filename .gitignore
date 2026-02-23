@@ -12,9 +12,10 @@ dist
 dist-ssr
 *.local
 
-# Environment variables — never commit real credentials
-.env
-.env.*
+# Environment variables — .env contains only public VITE_ client vars (bundled into JS anyway)
+# Use .env.local for actual secrets (service role keys, API keys)
+.env.local
+.env.*.local
 !.env.example
 
 # Editor directories and files

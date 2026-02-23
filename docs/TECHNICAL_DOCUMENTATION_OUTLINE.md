@@ -122,7 +122,7 @@ Also identifies primary users and compares Orchid's positioning to existing alte
 ### Summary
 
 High-level view of how all components fit together. Covers the two user-facing surfaces
-(Telegram and PWA/web), the six Supabase edge functions that form the back-end logic tier,
+(Telegram and PWA/web), the ten Supabase edge functions that form the back-end logic tier,
 the PostgreSQL database, Supabase Storage, and the three external AI/API services. Includes
 both an ASCII block diagram and a Mermaid data-flow diagram.
 
@@ -269,8 +269,6 @@ recreate the agent from scratch.
 
        | Purpose                 | Model                                    | API endpoint                         |
        |-------------------------|------------------------------------------|--------------------------------------|
-       | Purpose                 | Model                                    | API endpoint                         |
-       |-------------------------|------------------------------------------|--------------------------------------|
        | Text orchestration      | google/gemini-3-flash-preview            | Lovable AI Gateway (OpenAI-compat.)  |
        | Vision: identify/diagnose| google/gemini-3-pro-preview (primary)   | Lovable AI Gateway                   |
        |                         | google/gemini-2.5-pro (fallback)         | Lovable AI Gateway                   |
@@ -325,7 +323,7 @@ recreate the agent from scratch.
        |----------------------------------|----------------------|---------------------------------------|
        | identify_plant                   | (always allowed)     | Vision species ID from photo          |
        | diagnose_plant                   | (always allowed)     | Health diagnosis from photo           |
-       | analyze_environment              | (always allowed)     | Analyse light/conditions from photo   |
+       | analyze_environment              | (always allowed)     | Analyze light/conditions from photo   |
        | generate_visual_guide            | generate_content     | Step-by-step illustrated care guide   |
        | analyze_video                    | (always allowed)     | Process video file                    |
        | transcribe_voice                 | (always allowed)     | Transcribe audio file                 |
@@ -736,7 +734,7 @@ against `src/integrations/supabase/types.ts` (the auto-generated type file).
 ```
 8.1  Database overview
        - PostgreSQL 15 via Supabase (Lovable Cloud)
-       - 22 tables (16 user-data + 4 developer/API + 2 system)
+       - 19 tables (verified against src/integrations/supabase/types.ts)
        - 3 custom enums
        - 2 storage buckets
        - RLS enabled on all tables
@@ -827,12 +825,18 @@ against `src/integrations/supabase/types.ts` (the auto-generated type file).
        ├── confidence (float 0.0–1.0)
        └── created_at
 
-       conversation_ratings  (user satisfaction signal)
+       conversations  (full message log — includes rating column for feedback)
        ├── id, profile_id (FK → profiles)
-       ├── conversation_id (FK → conversations, nullable)
-       ├── call_session_id (FK → call_sessions, nullable)
-       ├── rating (int 1–5), feedback_text
+       ├── channel: sms | whatsapp | telegram | pwa | voice
+       ├── direction: inbound | outbound
+       ├── content (text), media_urls (text[]), message_sid
+       ├── rating (integer: 1 = thumbs up, -1 = thumbs down, null = unrated)
+       ├── summarized (bool, default false)
        └── created_at
+
+       NOTE: There is NO separate conversation_ratings table. Message rating
+       (thumbs up/down in the PWA chat UI) is stored directly on the conversations
+       row via the rating column. Rating values: 1 (helpful) or -1 (not helpful).
 
 8.6  Voice call models
 
@@ -849,27 +853,30 @@ against `src/integrations/supabase/types.ts` (the auto-generated type file).
        agent_permissions  (per-user capability grants)
        ├── id, profile_id (FK → profiles)
        ├── capability (agent_capability enum)
-       ├── granted (bool)
+       ├── enabled (bool, nullable)
        └── created_at, updated_at
 
        agent_operations  (audit trail of autonomous actions)
        ├── id, profile_id (FK → profiles)
-       ├── operation_type, entity_type, entity_id
-       ├── tool_name, correlation_id
-       ├── status, result (jsonb), metadata (jsonb)
+       ├── operation_type (text), table_name (text), record_id (text)
+       ├── tool_name (text), correlation_id (text)
+       ├── metadata (jsonb)
        └── created_at
 
-       proactive_preferences  (when/how agent can reach out)
-       ├── id, profile_id (FK → profiles), channel
-       ├── quiet_hours_start, quiet_hours_end (time)
-       ├── care_reminders_enabled, observations_enabled (bool)
-       ├── seasonal_tips_enabled, health_followups_enabled (bool)
+       proactive_preferences  (per-topic on/off toggle per user)
+       ├── id, profile_id (FK → profiles)
+       ├── topic (text: care_reminders | observations | seasonal_tips | health_followups)
+       ├── enabled (bool)
+       ├── quiet_hours_start (time, nullable), quiet_hours_end (time, nullable)
        └── created_at, updated_at
+       NOTE: One row per topic per profile (not separate boolean columns).
 
        proactive_messages  (dedup log for proactive sends)
        ├── id, profile_id (FK → profiles)
-       ├── channel, message_type, message_preview
-       └── sent_at
+       ├── channel (text), trigger_type (text)
+       ├── trigger_data (jsonb), message_content (text)
+       ├── response_received (bool, nullable) — ⚠️ vestigial: never set by proactive-agent
+       └── sent_at, created_at
 
 8.8  Developer API models
 

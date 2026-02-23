@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import { Loader2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 
+/** Page for setting a new password after clicking the recovery link */
 export default function ResetPassword() {
   const navigate = useNavigate();
   const [password, setPassword] = useState('');

@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Loader2 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { lovable } from '@/integrations/lovable/index';
+import { supabase } from '@/integrations/supabase/client';
 
 const PIXEL_ASSETS = [
   '/plant_assets_art/Alocasia_amazonica/Alocasia_amazonica_pixel_bw_light.png',
@@ -14,7 +15,7 @@ const PIXEL_ASSETS = [
   '/plant_assets_art/Peace_Lily/Peace_Lily_pixel_bw_light.png',
 ];
 
-type AuthMode = 'signup' | 'login';
+type AuthMode = 'signup' | 'login' | 'forgot';
 
 export function PwaAuth({ defaultMode = 'signup' }: { defaultMode?: AuthMode }) {
   const { signUp, signIn } = useAuth();

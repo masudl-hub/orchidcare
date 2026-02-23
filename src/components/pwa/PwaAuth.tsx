@@ -25,10 +25,11 @@ export function PwaAuth({ defaultMode = 'signup' }: { defaultMode?: AuthMode }) 
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [forgotSent, setForgotSent] = useState(false);
   const [replacedIndex, setReplacedIndex] = useState<number | null>(null);
   const [currentAsset, setCurrentAsset] = useState<string>('');
 
-  const titleChars = mode === 'signup' ? ['/', 'S', 'T', 'A', 'R', 'T'] : ['/', 'L', 'O', 'G', 'I', 'N'];
+  const titleChars = mode === 'signup' ? ['/', 'S', 'T', 'A', 'R', 'T'] : mode === 'forgot' ? ['/', 'R', 'E', 'S', 'E', 'T'] : ['/', 'L', 'O', 'G', 'I', 'N'];
 
   useEffect(() => {
     let timeoutId: any;
@@ -52,7 +53,14 @@ export function PwaAuth({ defaultMode = 'signup' }: { defaultMode?: AuthMode }) 
     setIsLoading(true);
 
     try {
-      if (mode === 'signup') {
+      if (mode === 'forgot') {
+        const { error } = await supabase.auth.resetPasswordForEmail(email, {
+          redirectTo: `${window.location.origin}/reset-password`,
+        });
+        if (error) throw error;
+        setError(null);
+        setForgotSent(true);
+      } else if (mode === 'signup') {
         if (password !== confirmPassword) {
           setError('Passwords do not match');
           setIsLoading(false);
@@ -133,135 +141,208 @@ export function PwaAuth({ defaultMode = 'signup' }: { defaultMode?: AuthMode }) 
             ))}
           </h1>
           <p className="font-mono text-sm text-white">
-            {mode === 'signup' ? 'Begin your botanical journey.' : 'Welcome back.'}
+            {mode === 'signup' ? 'Begin your botanical journey.' : mode === 'forgot' ? 'Enter your email to recover.' : 'Welcome back.'}
           </p>
         </div>
 
         {/* Auth container */}
         <div className="bg-black border border-white p-8">
-          {/* Social login */}
-          <p className="font-mono text-[10px] uppercase tracking-[0.25em] text-stone-500 text-center mb-3">Continue with</p>
-          <div className="flex gap-3">
-            <motion.button
-              whileHover={{ scale: isLoading ? 1 : 1.02 }}
-              whileTap={{ scale: isLoading ? 1 : 0.98 }}
-              onClick={() => handleOAuth("apple")}
-              disabled={isLoading}
-              className="flex-1 border border-white bg-black hover:bg-stone-900 text-white px-4 py-4 font-mono text-xs uppercase tracking-widest transition-colors flex items-center justify-center gap-2.5 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <svg className="w-5 h-5" viewBox="0 0 24 24" fill="white">
-                <path d="M17.05 20.28c-.98.95-2.05.88-3.08.4-1.09-.5-2.08-.48-3.24 0-1.44.62-2.2.44-3.06-.4C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z" />
-              </svg>
-              Apple
-            </motion.button>
-            <motion.button
-              whileHover={{ scale: isLoading ? 1 : 1.02 }}
-              whileTap={{ scale: isLoading ? 1 : 0.98 }}
-              onClick={() => handleOAuth("google")}
-              disabled={isLoading}
-              className="flex-1 border border-white bg-black hover:bg-stone-900 text-white px-4 py-4 font-mono text-xs uppercase tracking-widest transition-colors flex items-center justify-center gap-2.5 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <svg className="w-[18px] h-[18px]" viewBox="0 0 24 24" fill="none">
-                <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.07 5.07 0 0 1-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="white" />
-                <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="white" />
-                <path d="M5.84 14.09A6.97 6.97 0 0 1 5.49 12c0-.72.13-1.43.35-2.09V7.07H2.18A11.96 11.96 0 0 0 1 12c0 1.78.43 3.45 1.18 4.93l3.66-2.84z" fill="white" />
-                <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="white" />
-              </svg>
-              Google
-            </motion.button>
-          </div>
-
-          {/* Divider */}
-          <div className="relative my-8">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-stone-700" />
-            </div>
-            <div className="relative flex justify-center">
-              <span className="bg-black px-4 font-mono text-xs uppercase tracking-widest text-white">Or</span>
-            </div>
-          </div>
-
-          {/* Email/Password form */}
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label htmlFor="pwa-email" className="block font-mono text-xs uppercase tracking-wider text-white mb-2">
-                Email
-              </label>
-              <input
-                type="email"
-                id="pwa-email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                disabled={isLoading}
-                className="w-full border border-white bg-black px-4 py-3 font-mono text-sm text-white focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-black disabled:opacity-50 disabled:cursor-not-allowed placeholder-stone-500"
-                placeholder="you@example.com"
-                required
-              />
-            </div>
-
-            <div>
-              <label htmlFor="pwa-password" className="block font-mono text-xs uppercase tracking-wider text-white mb-2">
-                Password
-              </label>
-              <input
-                type="password"
-                id="pwa-password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                disabled={isLoading}
-                className="w-full border border-white bg-black px-4 py-3 font-mono text-sm text-white focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-black disabled:opacity-50 disabled:cursor-not-allowed placeholder-stone-500"
-                placeholder="••••••••"
-                required
-              />
-            </div>
-
-            {mode === 'signup' && (
-              <div>
-                <label htmlFor="pwa-confirm" className="block font-mono text-xs uppercase tracking-wider text-white mb-2">
-                  Confirm Password
-                </label>
-                <input
-                  type="password"
-                  id="pwa-confirm"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  disabled={isLoading}
-                  className="w-full border border-white bg-black px-4 py-3 font-mono text-sm text-white focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-black disabled:opacity-50 disabled:cursor-not-allowed placeholder-stone-500"
-                  placeholder="••••••••"
-                  required
-                />
-              </div>
-            )}
-
-            {error && (
-              <motion.div
-                initial={{ opacity: 0, y: -10 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="p-3 bg-red-950/20 border border-red-500"
-              >
-                <p className="font-mono text-xs text-red-500 uppercase tracking-wider">{error}</p>
+          {mode === 'forgot' ? (
+            /* Forgot password form */
+            forgotSent ? (
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center py-4">
+                <p className="font-mono text-xs uppercase tracking-wider text-green-400 mb-4">
+                  ✓ Recovery email sent
+                </p>
+                <p className="font-mono text-xs text-stone-400 mb-6">
+                  Check your inbox for a password reset link.
+                </p>
+                <button
+                  onClick={() => { setMode('login'); setForgotSent(false); setError(null); }}
+                  className="font-mono text-xs text-white hover:text-stone-300 transition-colors"
+                >
+                  &larr; back to login
+                </button>
               </motion.div>
-            )}
+            ) : (
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div>
+                  <label htmlFor="pwa-email" className="block font-mono text-xs uppercase tracking-wider text-white mb-2">
+                    Email
+                  </label>
+                  <input
+                    type="email"
+                    id="pwa-email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    disabled={isLoading}
+                    className="w-full border border-white bg-black px-4 py-3 font-mono text-sm text-white focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-black disabled:opacity-50 disabled:cursor-not-allowed placeholder-stone-500"
+                    placeholder="you@example.com"
+                    required
+                  />
+                </div>
 
-            <motion.button
-              whileHover={{ scale: isLoading ? 1 : 1.02 }}
-              whileTap={{ scale: isLoading ? 1 : 0.98 }}
-              type="submit"
-              disabled={isLoading}
-              className="w-full border border-white bg-white hover:bg-stone-100 text-black px-6 py-4 font-mono text-sm uppercase tracking-widest transition-colors mt-6 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-            >
-              {isLoading ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  {mode === 'signup' ? 'Creating account...' : 'Signing in...'}
-                </>
-              ) : mode === 'signup' ? (
-                'Create Account'
-              ) : (
-                'Sign In'
+                {error && (
+                  <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="p-3 bg-red-950/20 border border-red-500">
+                    <p className="font-mono text-xs text-red-500 uppercase tracking-wider">{error}</p>
+                  </motion.div>
+                )}
+
+                <motion.button
+                  whileHover={{ scale: isLoading ? 1 : 1.02 }}
+                  whileTap={{ scale: isLoading ? 1 : 0.98 }}
+                  type="submit"
+                  disabled={isLoading}
+                  className="w-full border border-white bg-white hover:bg-stone-100 text-black px-6 py-4 font-mono text-sm uppercase tracking-widest transition-colors mt-6 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  {isLoading ? (
+                    <><Loader2 className="w-4 h-4 animate-spin" /> Sending...</>
+                  ) : (
+                    'Send Recovery Email'
+                  )}
+                </motion.button>
+              </form>
+            )
+          ) : (
+            <>
+              {/* Social login */}
+              <p className="font-mono text-[10px] uppercase tracking-[0.25em] text-stone-500 text-center mb-3">Continue with</p>
+              <div className="flex gap-3">
+                <motion.button
+                  whileHover={{ scale: isLoading ? 1 : 1.02 }}
+                  whileTap={{ scale: isLoading ? 1 : 0.98 }}
+                  onClick={() => handleOAuth("apple")}
+                  disabled={isLoading}
+                  className="flex-1 border border-white bg-black hover:bg-stone-900 text-white px-4 py-4 font-mono text-xs uppercase tracking-widest transition-colors flex items-center justify-center gap-2.5 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="white">
+                    <path d="M17.05 20.28c-.98.95-2.05.88-3.08.4-1.09-.5-2.08-.48-3.24 0-1.44.62-2.2.44-3.06-.4C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z" />
+                  </svg>
+                  Apple
+                </motion.button>
+                <motion.button
+                  whileHover={{ scale: isLoading ? 1 : 1.02 }}
+                  whileTap={{ scale: isLoading ? 1 : 0.98 }}
+                  onClick={() => handleOAuth("google")}
+                  disabled={isLoading}
+                  className="flex-1 border border-white bg-black hover:bg-stone-900 text-white px-4 py-4 font-mono text-xs uppercase tracking-widest transition-colors flex items-center justify-center gap-2.5 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <svg className="w-[18px] h-[18px]" viewBox="0 0 24 24" fill="none">
+                    <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.07 5.07 0 0 1-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="white" />
+                    <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="white" />
+                    <path d="M5.84 14.09A6.97 6.97 0 0 1 5.49 12c0-.72.13-1.43.35-2.09V7.07H2.18A11.96 11.96 0 0 0 1 12c0 1.78.43 3.45 1.18 4.93l3.66-2.84z" fill="white" />
+                    <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="white" />
+                  </svg>
+                  Google
+                </motion.button>
+              </div>
+
+              {/* Divider */}
+              <div className="relative my-8">
+                <div className="absolute inset-0 flex items-center">
+                  <div className="w-full border-t border-stone-700" />
+                </div>
+                <div className="relative flex justify-center">
+                  <span className="bg-black px-4 font-mono text-xs uppercase tracking-widest text-white">Or</span>
+                </div>
+              </div>
+
+              {/* Email/Password form */}
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div>
+                  <label htmlFor="pwa-email" className="block font-mono text-xs uppercase tracking-wider text-white mb-2">
+                    Email
+                  </label>
+                  <input
+                    type="email"
+                    id="pwa-email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    disabled={isLoading}
+                    className="w-full border border-white bg-black px-4 py-3 font-mono text-sm text-white focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-black disabled:opacity-50 disabled:cursor-not-allowed placeholder-stone-500"
+                    placeholder="you@example.com"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="pwa-password" className="block font-mono text-xs uppercase tracking-wider text-white mb-2">
+                    Password
+                  </label>
+                  <input
+                    type="password"
+                    id="pwa-password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    disabled={isLoading}
+                    className="w-full border border-white bg-black px-4 py-3 font-mono text-sm text-white focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-black disabled:opacity-50 disabled:cursor-not-allowed placeholder-stone-500"
+                    placeholder="••••••••"
+                    required
+                  />
+                </div>
+
+                {mode === 'signup' && (
+                  <div>
+                    <label htmlFor="pwa-confirm" className="block font-mono text-xs uppercase tracking-wider text-white mb-2">
+                      Confirm Password
+                    </label>
+                    <input
+                      type="password"
+                      id="pwa-confirm"
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      disabled={isLoading}
+                      className="w-full border border-white bg-black px-4 py-3 font-mono text-sm text-white focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-black disabled:opacity-50 disabled:cursor-not-allowed placeholder-stone-500"
+                      placeholder="••••••••"
+                      required
+                    />
+                  </div>
+                )}
+
+                {error && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="p-3 bg-red-950/20 border border-red-500"
+                  >
+                    <p className="font-mono text-xs text-red-500 uppercase tracking-wider">{error}</p>
+                  </motion.div>
+                )}
+
+                <motion.button
+                  whileHover={{ scale: isLoading ? 1 : 1.02 }}
+                  whileTap={{ scale: isLoading ? 1 : 0.98 }}
+                  type="submit"
+                  disabled={isLoading}
+                  className="w-full border border-white bg-white hover:bg-stone-100 text-black px-6 py-4 font-mono text-sm uppercase tracking-widest transition-colors mt-6 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  {isLoading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      {mode === 'signup' ? 'Creating account...' : 'Signing in...'}
+                    </>
+                  ) : mode === 'signup' ? (
+                    'Create Account'
+                  ) : (
+                    'Sign In'
+                  )}
+                </motion.button>
+              </form>
+
+              {/* Forgot password link - only in login mode */}
+              {mode === 'login' && (
+                <div className="text-center mt-4">
+                  <button
+                    type="button"
+                    onClick={() => { setMode('forgot'); setError(null); }}
+                    className="font-mono text-xs text-stone-500 hover:text-white transition-colors"
+                  >
+                    /recover-password
+                  </button>
+                </div>
               )}
-            </motion.button>
-          </form>
+            </>
+          )}
         </div>
 
         {/* Toggle auth mode */}
@@ -271,18 +352,27 @@ export function PwaAuth({ defaultMode = 'signup' }: { defaultMode?: AuthMode }) 
           transition={{ delay: 0.3 }}
           className="text-center mt-6"
         >
-          <p className="font-mono text-sm text-white">
-            {mode === 'signup' ? 'Already have an account? ' : "Don't have an account? "}
+          {mode === 'forgot' ? (
             <button
-              onClick={() => {
-                setMode(mode === 'signup' ? 'login' : 'signup');
-                setError(null);
-              }}
-              className="text-white font-bold hover:text-stone-300 transition-colors"
+              onClick={() => { setMode('login'); setError(null); setForgotSent(false); }}
+              className="font-mono text-sm text-white hover:text-stone-300 transition-colors"
             >
-              {mode === 'signup' ? '/login' : '/signup'}
+              &larr; back to login
             </button>
-          </p>
+          ) : (
+            <p className="font-mono text-sm text-white">
+              {mode === 'signup' ? 'Already have an account? ' : "Don't have an account? "}
+              <button
+                onClick={() => {
+                  setMode(mode === 'signup' ? 'login' : 'signup');
+                  setError(null);
+                }}
+                className="text-white font-bold hover:text-stone-300 transition-colors"
+              >
+                {mode === 'signup' ? '/login' : '/signup'}
+              </button>
+            </p>
+          )}
         </motion.div>
       </motion.div>
     </div>

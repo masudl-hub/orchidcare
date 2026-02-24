@@ -41,7 +41,7 @@ graph TD
         UI[User Interface]
         PC[Pixel Canvas (PixiJS)]
         Audio[Audio Worklet]
-        State[Zustand Store]
+        State[React State]
     end
 
     subgraph Backend [Supabase Edge Functions]
@@ -53,8 +53,8 @@ graph TD
 
     subgraph AI [Google Gemini Models]
         Live[Gemini Live API]
-        Flash[Gemini 1.5 Flash]
-        Pro[Gemini 1.5 Pro]
+        Flash[Gemini 2.5/3 Flash]
+        Pro[Gemini Pro]
         Imagen[Imagen 3 (Image Gen)]
     end
 

@@ -93,6 +93,7 @@ flowchart TD
         History[(conversations)]
         Memory[(user_insights)]
         Vector[(plant_identifications)]
+        Snapshots[(plant_snapshots)]
     end
 
     subgraph AI ["AI Services Layer"]
@@ -116,8 +117,8 @@ flowchart TD
     CS_Fn -->|Tool Execution| OA_Fn
 
     %% Core -> Data
-    OA_Fn -->|Read Context| Profiles & Plants & History & Memory & Vector
-    OA_Fn -->|Write| History & Memory & Plants
+    OA_Fn -->|Read Context| Profiles & Plants & History & Memory & Vector & Snapshots
+    OA_Fn -->|Write| History & Memory & Plants & Snapshots
 
     %% Core -> AI
     OA_Fn -->|Chat Completion| Gateway
@@ -150,9 +151,9 @@ Orchid uses a tiered memory system to balance context window usage with long-ter
 │  user_insights ← all rows for profileId                             │
 │  "I have a cat", "I live in a dry climate", "I prefer brief answers"│
 ├─────────────────────────────────────────────────────────────────────┤
-│  TIER 4: Visual Memory (Recent Identifications)                      │
-│  plant_identifications ← last 5, created within 24h                 │
-│  "This is the Monstera I showed you earlier today"                  │
+│  TIER 4: Visual Memory (Plant Snapshots)                             │
+│  plant_identifications (Recent) + plant_snapshots (Visual History)  │
+│  "Here's how your Monstera looked 3 months ago vs today"            │
 ├─────────────────────────────────────────────────────────────────────┤
 │  TIER 5: Care Schedule (Active Reminders)                            │
 │  reminders ← active only, ordered by next_due ASC, limit 10         │
@@ -180,13 +181,15 @@ sequenceDiagram
             Agent->>DB: SELECT conversation_summaries (Limit 3)
         and Fetch User Insights
             Agent->>DB: SELECT user_insights (All)
-        and Fetch Visual Memory
+        and Fetch Recent IDs
             Agent->>DB: SELECT plant_identifications (Last 24h)
+        and Fetch Visual Snapshots
+            Agent->>DB: SELECT plant_snapshots (via buildPlantsContext)
         and Fetch Reminders
             Agent->>DB: SELECT reminders (Active, Limit 10)
         end
 
-        DB-->>Agent: Returns 5 datasets
+        DB-->>Agent: Returns 6 datasets
     end
 
     Agent->>Agent: buildEnrichedSystemPrompt()<br/>(Combine Core Persona + User Facts + History + Context)

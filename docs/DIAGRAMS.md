@@ -25,7 +25,8 @@ stateDiagram-v2
             [*] --> DemoPage
             DemoPage --> First_Interaction: Upload Photo / Ask Q
             First_Interaction --> First_Value: Receive ID/Diagnosis
-            First_Value --> Call_To_Action: "Save your progress"
+            First_Value --> Limit_Reached: Free Turns Used
+            Limit_Reached --> Telegram_Handoff: "Open @orchidcare_bot"
         }
     }
 
@@ -96,6 +97,10 @@ flowchart TD
         Snapshots[(plant_snapshots)]
     end
 
+    subgraph Storage ["Supabase Storage"]
+        Photos[plant-photos]
+    end
+
     subgraph AI ["AI Services Layer"]
         Gateway[Lovable AI Gateway]
         Gemini[Google Gemini 3 Flash/Pro]
@@ -105,7 +110,7 @@ flowchart TD
 
     %% Client -> Edge
     TG -->|Webhook| TB_Fn
-    PWA -->|HTTPS (JSON Body)| PA_Fn
+    PWA -->|HTTPS (JSON Body + Base64)| PA_Fn
     Dev -->|HTTPS + Key| API_Fn
     Voice -->|WebSocket (Audio)| Live
     Voice -->|HTTPS (Tools)| CS_Fn
@@ -119,6 +124,9 @@ flowchart TD
     %% Core -> Data
     OA_Fn -->|Read Context| Profiles & Plants & History & Memory & Vector & Snapshots
     OA_Fn -->|Write| History & Memory & Plants & Snapshots
+
+    %% Core -> Storage
+    OA_Fn -->|Upload Base64 Media| Photos
 
     %% Core -> AI
     OA_Fn -->|Chat Completion| Gateway
@@ -151,8 +159,8 @@ Orchid uses a tiered memory system to balance context window usage with long-ter
 │  user_insights ← all rows for profileId                             │
 │  "I have a cat", "I live in a dry climate", "I prefer brief answers"│
 ├─────────────────────────────────────────────────────────────────────┤
-│  TIER 4: Visual Memory (Plant Snapshots)                             │
-│  plant_identifications (Recent) + plant_snapshots (Visual History)  │
+│  TIER 4: Visual Memory (Plant Snapshots & Context)                   │
+│  plant_snapshots (Visual History) + plant_identifications (Context) │
 │  "Here's how your Monstera looked 3 months ago vs today"            │
 ├─────────────────────────────────────────────────────────────────────┤
 │  TIER 5: Care Schedule (Active Reminders)                            │
@@ -181,7 +189,7 @@ sequenceDiagram
             Agent->>DB: SELECT conversation_summaries (Limit 3)
         and Fetch User Insights
             Agent->>DB: SELECT user_insights (All)
-        and Fetch Recent IDs
+        and Fetch Recent Context
             Agent->>DB: SELECT plant_identifications (Last 24h)
         and Fetch Visual Snapshots
             Agent->>DB: SELECT plant_snapshots (via buildPlantsContext)

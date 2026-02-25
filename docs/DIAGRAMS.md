@@ -8,9 +8,9 @@ This diagram illustrates the multiple entry points into the Orchid ecosystem and
 
 ```mermaid
 stateDiagram-v2
-    state "Landing Page" as Landing
+    state "Landing Page (Web)" as Landing
     state "Telegram Bot" as Telegram
-    state "PWA / Web App" as PWA
+    state "PWA / Mobile App" as PWA
 
     [*] --> Landing
     [*] --> Telegram
@@ -18,8 +18,8 @@ stateDiagram-v2
 
     state Landing {
         [*] --> Hero
-        Hero --> Demo_Flow: Click "Try Demo"
-        Hero --> Auth_Flow: Click "Login" / "Begin"
+        Hero --> Demo_Flow: Click "Try It" (Demo)
+        Hero --> Auth_Flow: Click "Get Started" (/begin -> /login)
 
         state Demo_Flow {
             [*] --> DemoPage
@@ -31,35 +31,35 @@ stateDiagram-v2
 
     state Telegram {
         [*] --> Start_Command: /start
-        Start_Command --> Onboarding_Questions: Name, Exp, Pets
-        Onboarding_Questions --> Profile_Created
+        Start_Command --> Onboarding_Chat: Name, Exp, Pets (In-Chat)
+        Onboarding_Chat --> Profile_Created
         Profile_Created --> TG_Menu: "How can I help?"
         TG_Menu --> TG_Interaction: Send Photo / Text
         TG_Interaction --> First_Value
     }
 
     state PWA {
-        [*] --> Check_Session
-        Check_Session --> Login_Page: No Session
-        Check_Session --> Dashboard: Valid Session
+        [*] --> App_Entry: /app
+        App_Entry --> Check_Session
+        Check_Session --> PWA_Auth: No Session
+        Check_Session --> Chat_Interface: Valid Session (Direct to Chat)
 
-        state Login_Page {
-            [*] --> Magic_Link_Request
-            Magic_Link_Request --> Email_Sent
-            Email_Sent --> Auth_Confirmed: Click Link
+        state PWA_Auth {
+            [*] --> Login_Or_Signup
+            Login_Or_Signup --> Email_Magic_Link
+            Email_Magic_Link --> Auth_Confirmed
         }
 
         Auth_Confirmed --> New_User_Check
-        New_User_Check --> Onboarding_Flow: New Profile
-        New_User_Check --> Dashboard: Existing Profile
+        New_User_Check --> PWA_Onboarding: New Profile
+        New_User_Check --> Chat_Interface: Existing Profile
 
-        Onboarding_Flow --> Dashboard
+        PWA_Onboarding --> Chat_Interface: Complete Setup
 
-        state Dashboard {
-            [*] --> Collection_Tab
-            Collection_Tab --> Nav_To_Chat: Click Chat Icon / Use Input Bar
-            Nav_To_Chat --> Chat_Interface
-            Chat_Interface --> First_Value: Send Photo / Ask Question
+        state Chat_Interface {
+            [*] --> Chat_Input
+            Chat_Input --> PWA_Interaction: Send Photo / Ask Question
+            PWA_Interaction --> First_Value
         }
     }
 
@@ -104,14 +104,14 @@ flowchart TD
 
     %% Client -> Edge
     TG -->|Webhook| TB_Fn
-    PWA -->|HTTPS| PA_Fn
+    PWA -->|HTTPS (JSON Body)| PA_Fn
     Dev -->|HTTPS + Key| API_Fn
-    Voice -->|WebSocket| Live
-    Voice -->|HTTPS| CS_Fn
+    Voice -->|WebSocket (Audio)| Live
+    Voice -->|HTTPS (Tools)| CS_Fn
 
     %% Edge -> Core
     TB_Fn -->|Internal Call| OA_Fn
-    PA_Fn -->|Internal Call| OA_Fn
+    PA_Fn -->|Internal Call (NDJSON Stream)| OA_Fn
     API_Fn -->|Internal Call| OA_Fn
     CS_Fn -->|Tool Execution| OA_Fn
 
@@ -126,7 +126,8 @@ flowchart TD
 
     %% Live Voice Special Path
     Live <-->|Audio Stream| Voice
-    Live -->|Tool Call| CS_Fn
+    Live -->|Tool Call (Server)| CS_Fn
+    Voice -->|Visual Tool (Client)| Voice
 ```
 
 ## 3. Semantic & Visual Memory Architecture

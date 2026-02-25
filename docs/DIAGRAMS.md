@@ -56,9 +56,10 @@ stateDiagram-v2
         Onboarding_Flow --> Dashboard
 
         state Dashboard {
-            [*] --> Home_Tab
-            Home_Tab --> PWA_Interaction: Click "Identify" / "Ask"
-            PWA_Interaction --> First_Value
+            [*] --> Collection_Tab
+            Collection_Tab --> Nav_To_Chat: Click Chat Icon / Use Input Bar
+            Nav_To_Chat --> Chat_Interface
+            Chat_Interface --> First_Value: Send Photo / Ask Question
         }
     }
 

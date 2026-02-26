@@ -20,7 +20,7 @@ Orchid is an advanced AI plant care companion that blends **Generative UI (Pixel
 voice_interaction = "Real-time, low-latency conversation with Gemini Live"
 pixel_canvas = "Dynamic 70x98 grid that morphs into plant silhouettes, tools, and text"
 generative_ui = "On-the-fly creation of structured artifacts (care guides, diagnosis cards)"
-plant_id = "Computer vision identification of 82+ plant species"
+plant_id = "Computer vision identification of common indoor and outdoor plant species"
 diagnosis = "Visual symptom analysis and step-by-step treatment plans"
 
 [integrations]
@@ -135,7 +135,7 @@ Follow these steps to set up Orchid locally.
     ```toml
     # .env
     VITE_SUPABASE_URL = "your_supabase_url"
-    VITE_SUPABASE_ANON_KEY = "your_supabase_anon_key"
+    VITE_SUPABASE_PUBLISHABLE_KEY = "your_supabase_publishable_key"
     GOOGLE_API_KEY = "your_gemini_api_key"
     ```
 

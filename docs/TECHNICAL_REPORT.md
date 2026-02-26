@@ -107,11 +107,148 @@ Three factors align to make this feasible in 2025–2026:
 | Real-time research | ✗ | ✗ | ✓ (Perplexity) |
 | Zero-install path | ✗ | ✗ | ✓ (Telegram) |
 
+### 3.5 User Journey (Entry to First Value)
+
+This diagram illustrates the multiple entry points into the Orchid ecosystem and the path a user takes to reach their "first value" — typically a successful plant identification, diagnosis, or care advice.
+
+```mermaid
+stateDiagram-v2
+    state "Landing Page (Web)" as Landing
+    state "Telegram Bot" as Telegram
+    state "PWA / Mobile App" as PWA
+
+    [*] --> Landing
+    [*] --> Telegram
+    [*] --> PWA
+
+    state Landing {
+        [*] --> Hero
+        Hero --> Demo_Flow: Click "Try It" (Demo)
+        Hero --> Auth_Flow: Click "Get Started" (/begin -> /login)
+
+        state Demo_Flow {
+            [*] --> DemoPage
+            DemoPage --> First_Interaction: Upload Photo / Ask Q
+            First_Interaction --> First_Value: Receive ID/Diagnosis
+            First_Value --> Limit_Reached: Free Turns Used
+            Limit_Reached --> Telegram_Handoff: "Open @orchidcare_bot"
+        }
+    }
+
+    state Telegram {
+        [*] --> Start_Command: /start
+        Start_Command --> Onboarding_Chat: Name, Exp, Pets (In-Chat)
+        Onboarding_Chat --> Profile_Created
+        Profile_Created --> TG_Menu: "How can I help?"
+        TG_Menu --> TG_Interaction: Send Photo / Text
+        TG_Interaction --> First_Value
+    }
+
+    state PWA {
+        [*] --> App_Entry: /app
+        App_Entry --> Check_Session
+        Check_Session --> PWA_Auth: No Session
+        Check_Session --> Chat_Interface: Valid Session (Direct to Chat)
+
+        state PWA_Auth {
+            [*] --> Login_Or_Signup
+            Login_Or_Signup --> Email_Magic_Link
+            Email_Magic_Link --> Auth_Confirmed
+        }
+
+        Auth_Confirmed --> New_User_Check
+        New_User_Check --> PWA_Onboarding: New Profile
+        New_User_Check --> Chat_Interface: Existing Profile
+
+        PWA_Onboarding --> Chat_Interface: Complete Setup
+
+        state Chat_Interface {
+            [*] --> Chat_Input
+            Chat_Input --> PWA_Interaction: Send Photo / Ask Question
+            PWA_Interaction --> First_Value
+        }
+    }
+
+    First_Value --> Retention_Loop: Save Plant / Set Reminder
+```
+
 ---
 
 ## 4. System Architecture Overview
 
-### 4.1 Component Inventory
+### 4.1 Component & Data Flow
+
+This high-level diagram shows how data moves between the client interfaces, the Supabase backend (Edge Functions + Database), and the external AI services.
+
+```mermaid
+flowchart TD
+    subgraph Clients ["Client Layer"]
+        TG[Telegram Bot]
+        PWA[PWA / Web App]
+        Voice[Voice Call UI]
+        Dev[External Developer]
+    end
+
+    subgraph Edge ["Supabase Edge Layer"]
+        TB_Fn[telegram-bot]
+        PA_Fn[pwa-agent]
+        CS_Fn[call-session]
+        API_Fn[api (REST)]
+        OA_Fn[orchid-agent (Core Logic)]
+    end
+
+    subgraph Data ["Data Layer (PostgreSQL)"]
+        Profiles[(profiles)]
+        Plants[(plants)]
+        History[(conversations)]
+        Memory[(user_insights)]
+        Vector[(plant_identifications)]
+        Snapshots[(plant_snapshots)]
+    end
+
+    subgraph Storage ["Supabase Storage"]
+        Photos[plant-photos]
+    end
+
+    subgraph AI ["AI Services Layer"]
+        Gateway[Lovable AI Gateway]
+        Gemini[Google Gemini 3 Flash/Pro]
+        Live[Gemini Live API (WebSocket)]
+        Sonar[Perplexity Sonar]
+    end
+
+    %% Client -> Edge
+    TG -->|Webhook| TB_Fn
+    PWA -->|HTTPS (JSON Body + Base64)| PA_Fn
+    Dev -->|HTTPS + Key| API_Fn
+    Voice -->|WebSocket (Audio)| Live
+    Voice -->|HTTPS (Tools)| CS_Fn
+
+    %% Edge -> Core
+    TB_Fn -->|Internal Call| OA_Fn
+    PA_Fn -->|Internal Call (NDJSON Stream)| OA_Fn
+    API_Fn -->|Internal Call| OA_Fn
+    CS_Fn -->|Tool Execution| OA_Fn
+
+    %% Core -> Data
+    OA_Fn -->|Read Context| Profiles & Plants & History & Memory & Vector & Snapshots
+    OA_Fn -->|Write| History & Memory & Plants & Snapshots
+
+    %% Core -> Storage
+    OA_Fn -->|Upload Base64 Media| Photos
+
+    %% Core -> AI
+    OA_Fn -->|Chat Completion| Gateway
+    Gateway --> Gemini
+    OA_Fn -->|Research| Sonar
+
+    %% Live Voice Special Path
+    Live <-->|Audio Stream| Voice
+    Live -->|Tool Call (Server)| CS_Fn
+    Voice -->|Visual Tool (Client)| Voice
+```
+
+### 4.2 Component Inventory (ASCII)
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -510,7 +647,38 @@ Orchid supports live voice calls powered by the Gemini 2.5 Flash Native Audio mo
 The voice model identifier: `models/gemini-2.5-flash-native-audio-preview-12-2025`  
 Default voice: **Algenib** (Google prebuilt voice)
 
-### 7.2 Call-Session Edge Function Architecture
+### 7.2 Audio/Video Pipeline (ASCII)
+
+The live call system bypasses the standard HTTP request/response cycle, establishing a direct WebSocket connection between the client browser and Google's Gemini Live API, with the Supabase Edge Function acting only as an authenticator and tool execution proxy.
+
+```ascii
+[ User Environment ]                   [ Supabase Edge ]                [ Google Cloud ]
+
+   Microphone                                                          Gemini Live API
+       │                                                                  (Server)
+       ▼                                                                     ▲
+[ Web Audio API ]                                                            │
+(16kHz PCM Node) ──────────────────► [ WebSocket ] ──────────────────────► [ Model ]
+       │                             (Client Side)                           │
+       │                                   ▲                                 │
+       │                                   │                                 │
+   [ Speaker ] ◄───────────────────────────┘                                 │
+(24kHz PCM Player)                                                           │
+                                                                             │
+   [ Camera ]                                                                │
+       │                                                                     │
+       ▼                                                                     │
+ [ Video Element ] ──► [ Canvas ] ──► [ Base64 JPEG ] ───────────────────────┘
+                                           ▲
+                                           │
+                                    (Tool Execution)
+                                           │
+                                           ▼
+                                    [ call-session ] ◄───► [ Database ]
+                                    (Edge Function)
+```
+
+### 7.3 Call-Session Edge Function Architecture
 
 The `call-session` edge function exposes four routes, each authenticated independently:
 
@@ -523,7 +691,7 @@ The `call-session` edge function exposes four routes, each authenticated indepen
 
 The `dev-call-proxy` edge function mirrors all four routes but uses `DEV_AUTH_SECRET + telegramChatId` instead of HMAC-signed initData — enabling desktop testing without a real Telegram session.
 
-### 7.3 Call Lifecycle
+### 7.4 Call Lifecycle
 
 ```mermaid
 sequenceDiagram
@@ -560,7 +728,7 @@ sequenceDiagram
     SC->>CS: INSERT conversation_summaries
 ```
 
-### 7.4 Connection State Machine
+### 7.5 Connection State Machine
 
 ```mermaid
 stateDiagram-v2
@@ -577,7 +745,7 @@ stateDiagram-v2
     error --> [*]
 ```
 
-### 7.5 Disabled Features (Commented Out)
+### 7.6 Disabled Features (Commented Out)
 
 The following features are defined in the codebase but disabled with explicit comments:
 
@@ -597,7 +765,7 @@ The following features are defined in the codebase but disabled with explicit co
 
 > ⚠️ These are not bugs — they are intentional workarounds for API limitations in the ephemeral token (BidiGenerateContentConstrained) endpoint. They should be re-evaluated as the Gemini Live API matures.
 
-### 7.6 show_visual Tool — PixiJS Formation Queue
+### 7.7 show_visual Tool — PixiJS Formation Queue
 
 The voice call screen renders a PixiJS canvas called **Pixel Canvas**. The agent can trigger visual formations client-side by calling `show_visual` — this is handled entirely in the browser without an HTTP round-trip:
 
@@ -622,7 +790,7 @@ if (fc.name === 'show_visual') {
 
 Formation types include `template` (pre-defined patterns), `text` (display text), `list` (bullet list), and `clear`. The LLM can fire multiple `show_visual` calls in sequence; the queue ensures they play in order.
 
-### 7.7 Post-Call Audio Summarisation
+### 7.8 Post-Call Audio Summarisation
 
 The `summarise-call` function accepts base64-encoded audio blobs (user mic + agent output) and passes them directly to Gemini as `inlineData` for audio analysis. It retries up to 3 times with exponential backoff (2s, 4s, 8s). On success it:
 
@@ -1094,6 +1262,47 @@ export async function validateInitData(
 
 `loadHierarchicalContext()` in `_shared/context.ts` fires all five database queries in parallel:
 
+```mermaid
+sequenceDiagram
+    participant Agent as orchid-agent
+    participant DB as PostgreSQL
+    participant LLM as Gemini 3
+
+    Note over Agent: Request received (Message M)
+
+    rect rgb(240, 248, 255)
+        Note right of Agent: Parallel Context Loading (loadHierarchicalContext)
+        par Fetch Recent Chat
+            Agent->>DB: SELECT conversations (Limit 5)
+        and Fetch Summaries
+            Agent->>DB: SELECT conversation_summaries (Limit 3)
+        and Fetch User Insights
+            Agent->>DB: SELECT user_insights (All)
+        and Fetch Recent Context
+            Agent->>DB: SELECT plant_identifications (Last 24h)
+        and Fetch Visual Snapshots
+            Agent->>DB: SELECT plant_snapshots (via buildPlantsContext)
+        and Fetch Reminders
+            Agent->>DB: SELECT reminders (Active, Limit 10)
+        end
+
+        DB-->>Agent: Returns 6 datasets
+    end
+
+    Agent->>Agent: buildEnrichedSystemPrompt()<br/>(Combine Core Persona + User Facts + History + Context)
+
+    Agent->>LLM: Chat Completion (System Prompt + Message M)
+    LLM-->>Agent: Response (with Tool Calls if needed)
+
+    opt Tool Execution (e.g., Save Insight)
+        Agent->>DB: INSERT user_insights
+        Agent->>LLM: Tool Result
+        LLM-->>Agent: Final Response
+    end
+
+    Agent->>DB: INSERT conversations (Store Interaction)
+```
+
 ```typescript
 const [recentResult, summariesResult, insightsResult, 
        identificationsResult, remindersResult] = await Promise.all([
@@ -1189,6 +1398,44 @@ Orchid exposes a public REST API for third-party developers, accessible at `orch
 - `api_usage_log` table — per-request usage logging
 - `api` edge function — authentication, rate limiting, request routing
 
+The following sequence illustrates how third-party developers interact with the Orchid platform via the public REST API:
+
+```mermaid
+sequenceDiagram
+    participant Dev as Developer Client
+    participant API as api (Edge Fn)
+    participant DB as PostgreSQL
+    participant Agent as orchid-agent
+
+    Dev->>API: POST /api (Authorization: Bearer orch_...)
+
+    Note over API: 1. Authentication
+    API->>API: hashApiKey(orch_...)
+    API->>DB: SELECT developer_api_keys WHERE hash = ?
+    alt Invalid Key
+        DB-->>API: null
+        API-->>Dev: 401 Unauthorized
+    end
+
+    Note over API: 2. Rate Limiting
+    API->>DB: SELECT COUNT(*) FROM api_usage_log (Last 1 min)
+    alt Over Limit
+        DB-->>API: > limit
+        API-->>Dev: 429 Too Many Requests
+    end
+
+    Note over API: 3. Proxy to Agent
+    API->>Agent: POST /orchid-agent (Internal Call)
+    Agent->>DB: Load Context & Execute Tools
+    Agent-->>API: Response JSON
+
+    Note over API: 4. Logging
+    API->>DB: INSERT api_usage_log (status=success, latency=ms)
+    API->>DB: UPDATE developer_api_keys (total_calls + 1)
+
+    API-->>Dev: 200 OK { success: true, data: ... }
+```
+
 ### 12.2 API Key Lifecycle
 
 Keys are generated with the prefix `orch_` followed by random bytes. Only a SHA-256 hash of the key is stored in the database — the plaintext key is shown once at generation and never stored:
@@ -1239,7 +1486,19 @@ All test cases are evaluated on 4 dimensions, each scored 1–5:
 | **Tone** | Generic, robotic | Mostly natural | Indistinguishable from a knowledgeable friend |
 | **Actionability** | "Water when dry" vagueness | General instructions | Specific, immediately actionable steps |
 
-### 13.3 Test Cases
+### 13.3 Visual Diagnosis Examples
+
+To evaluate the system's vision capabilities, we tested it against common plant ailments.
+
+**Figure 13.1: Spider Mites Diagnosis**
+![Spider Mites on Palm](../public/mites_palm.png)
+*Input image used for Test Case 1 evaluation. The system correctly identified the stippling pattern characteristic of spider mites.*
+
+**Figure 13.2: General Health Diagnosis**
+![Sad/Wilting Palm](../public/sad_palm.png)
+*Input image showing yellowing and drooping. The system identified this as likely overwatering/root rot based on the leaf discoloration pattern.*
+
+### 13.4 Test Cases
 
 **Test Case 1 — Species Identification from Photo**
 - Input: Photo of a Monstera deliciosa with yellow leaves
@@ -1271,7 +1530,7 @@ All test cases are evaluated on 4 dimensions, each scored 1–5:
 - Observed: Agent correctly reported low-confidence identification ("possibly a seedling — hard to tell from this angle") and asked for a closer photo
 - Score: Accuracy 4 (honest uncertainty), Tone 5, Actionability 4
 
-### 13.4 Observed Failure Modes
+### 13.5 Observed Failure Modes
 
 1. **Long Telegram messages truncated.** The `splitMessage()` function splits at 4000 chars, but grammY sometimes drops the second chunk if Telegram rate-limits rapid sends. Mitigation: add a delay between splits.
 

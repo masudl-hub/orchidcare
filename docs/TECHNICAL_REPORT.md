@@ -4,7 +4,6 @@
 **Author:** Masud Lewis  
 **Production URL:** https://orchid.masudlewis.com  
 **Repository:** https://github.com/masudl-hub/orchidcare  
-**Demo Video:** *(link here)*  
 **Report Date:** February 2026
 
 ---
@@ -809,7 +808,7 @@ The `summarise-call` function accepts base64-encoded audio blobs (user mic + age
 | `/` | `OrchidPage` | Public | Landing page; de-pixelation canvas animation, QR morph |
 | `/login` | `LoginPage` | Public | Supabase Auth email magic link |
 | `/begin`, `/signup` | — | Public | Redirects to `/login` |
-| `/onboarding` | `Onboarding` | Protected | Web onboarding; ⚠️ phone link step has `TODO` comment |
+| `/onboarding` | `Onboarding` | Protected | Web onboarding; ⚠️ phone link step is a placeholder (future work) |
 | `/chat` | `ChatPage` | Protected | Full web chat interface |
 | `/dashboard` | `Dashboard` | Protected | DashboardShell + 3 tab views |
 | `/dashboard/collection` | `Dashboard` | Protected | Plant collection view |
@@ -847,7 +846,7 @@ stateDiagram-v2
 
 `PwaAuth` checks for an existing Supabase session and falls through to anonymous-style access if none exists. `PwaChat` sends messages to `pwa-agent`, which authenticates and routes to `orchid-agent`.
 
-> ⚠️ **Vestigial:** `Onboarding.tsx` contains a phone verification step with the comment `// TODO: Wire to backend phone verification (new flow - iMessage based)`. This step is skipped in the current flow and the phone verification backend was never implemented.
+> ⚠️ **Vestigial:** `Onboarding.tsx` contains a phone verification step which is currently skipped. The backend implementation for phone verification is pending future work.
 
 ### 8.3 Demo Page
 
@@ -1557,7 +1556,7 @@ To evaluate the system's vision capabilities, we tested it against common plant 
 
 **Incomplete integrations:**
 - SMS/WhatsApp: `phone_number` and `whatsapp_number` columns exist, `get_profile_by_phone` DB function exists, but no Twilio webhook is wired
-- Phone verification in web onboarding has a `TODO` comment and was never implemented
+- Phone verification in web onboarding is currently unimplemented (placeholder UI only)
 - `viridisml.lovable.app/settings` hardcoded in capability error message (old project URL)
 
 ### 14.2 Production Priority Roadmap
@@ -1608,7 +1607,6 @@ Orchid can autonomously delete plants, create reminders, and update profiles wit
 
 - **Repository:** https://github.com/masudl-hub/orchidcare
 - **Production:** https://orchid.masudlewis.com
-- **Demo Video:** *(link here)*
 
 ### AI Disclosure
 

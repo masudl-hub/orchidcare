@@ -62,6 +62,10 @@ Through this project I developed production-grade skills in: multi-modal LLM int
 
 Plant care is a $21B market dominated by passive apps that show generic watering schedules. These tools fail the moment a user encounters an unexpected yellow leaf, an unidentified specimen, or a care question that depends on their specific environment. The result is plant anxiety and preventable plant death.
 
+**Figure 2.1: Orchid Homepage**
+![Orchid Landing Page](../public/orchid_homepage.png)
+*The web entry point at orchid.masudlewis.com, illustrating the minimalist "Botanical Pixels" design language.*
+
 Orchid solves this with a conversational AI assistant — the same name whether accessed through Telegram, a PWA, or a live voice call. The assistant is powered by a multi-modal Gemini 3 architecture routed through the Lovable AI Gateway, enriched with Perplexity Sonar for real-time research, and backed by a hierarchical memory system that spans a PostgreSQL database. The system is built on ten Supabase Edge Functions running Deno, making it serverless and zero-infrastructure to operate.
 
 **Key results:** Species identification from photos in under 3 seconds; proactive care reminders delivered via Telegram on user-defined schedules; sub-200ms PWA response latency for text queries; live voice calls with real-time audio streaming and a post-call memory pipeline.
@@ -635,6 +639,34 @@ The `proactive-agent` edge function is triggered on a schedule (cron). It:
 
 > ⚠️ **Note:** `proactive_messages.response_received` is defined in the schema but is never set by the proactive-agent — it remains `null` on all rows. This field was intended to track whether users replied to proactive messages for engagement analytics.
 
+### 6.7 Telegram Interface Gallery
+
+The Telegram bot serves as the primary "in-the-field" interface for quick capture and care.
+
+**Figure 6.1: Identification & Diagnosis Flow**
+![Identification and Diagnosis](../public/orchid_telegram_identificationanddiagnosis.PNG)
+*User sends a photo; Orchid identifies the species (Maranta leuconeura) and immediately diagnoses "prayer plant pattern" behavior.*
+
+**Figure 6.2: Guide Generation**
+![Guide Generation](../public/orchid_telegram_diagnosisandguides.PNG)
+*Following diagnosis, the user requests a visual guide. The agent triggers the image generation tool.*
+
+**Figure 6.3: Visual Care Guide**
+![Visual Guide](../public/orchid_telegram_visualguides.PNG)
+*The resulting AI-generated visual guide, delivered directly in chat.*
+
+**Figure 6.4: Proactive Alerts**
+![Proactive Alerts](../public/orchid_telegram_proactivealertsandreminders.PNG)
+*A scheduled watering reminder delivered at the user's preferred time.*
+
+**Figure 6.5: Local Shopping Integration**
+![Local Shopping](../public/orchid_telegram_localshopping.PNG)
+*The agent uses Perplexity Sonar to find real local stores carrying specific plants.*
+
+**Figure 6.6: Voice Note Input**
+![Voice Notes](../public/orchid_telegram_voicenotes.PNG)
+*Users can send voice notes for complex questions; Orchid transcribes and responds in text.*
+
 ---
 
 ## 7. Real-Time Voice Call System
@@ -861,6 +893,10 @@ const SESSION_MAX_AGE_SECONDS = 86400;  // 24-hour reset
 
 The token payload `{ sid, txt, vox, img, ts }` is signed with `HMAC-SHA256` using `DEMO_SECRET` and returned to the client as a JWT-style string. The client stores it in `localStorage` and sends it with each request. The server verifies and increments the counters.
 
+**Figure 8.1: Web Interface & Shopping**
+![Shopping Interface](../public/orchid_web_shopping.png)
+*The PWA chat interface showing rich-text responses and local shopping results.*
+
 ### 8.4 Design System — Botanical Pixels
 
 Orchid uses a custom design language called **Botanical Pixels** — a fusion of botanical illustration aesthetics with pixel art / retro computing references. Key elements:
@@ -870,6 +906,14 @@ Orchid uses a custom design language called **Botanical Pixels** — a fusion of
 - **Motion:** `ScrambleText` components cycle through block characters (`█ ▓ ▒ ░`) before settling on real text — used on CTAs and interactive elements
 - **Patterns:** `BrutalistPatterns` components render ASCII/Unicode botanical motifs as decorative elements
 - **Canvas:** PixiJS pixel canvas on the voice call screen for ambient animation
+
+**Figure 8.2: Visual Guide Generation (Web)**
+![Visual Guide 1](../public/orchid_web_visualguides1.png)
+*The web interface displaying a generated visual guide card.*
+
+**Figure 8.3: Detailed Visual Guide**
+![Visual Guide 2](../public/orchid_web_visualguides2.png)
+*Expanded view of the step-by-step visual care instructions.*
 
 ### 8.5 TanStack Query Strategy
 
@@ -1491,11 +1535,15 @@ To evaluate the system's vision capabilities, we tested it against common plant 
 
 **Figure 13.1: Spider Mites Diagnosis**
 ![Spider Mites on Palm](../public/mites_palm.png)
-*Input image used for Test Case 1 evaluation. The system correctly identified the stippling pattern characteristic of spider mites.*
+*Input image demonstrating the system's ability to identify the fine stippling pattern characteristic of spider mites.*
 
 **Figure 13.2: General Health Diagnosis**
 ![Sad/Wilting Palm](../public/sad_palm.png)
 *Input image showing yellowing and drooping. The system identified this as likely overwatering/root rot based on the leaf discoloration pattern.*
+
+**Figure 13.3: Visual Diagnosis in Context**
+![Visual Diagnosis Context](../public/orchid_telegram_diagnosis.PNG)
+*The end-to-end diagnosis flow in Telegram, showing the user's photo and the agent's immediate analysis.*
 
 ### 13.4 Test Cases
 

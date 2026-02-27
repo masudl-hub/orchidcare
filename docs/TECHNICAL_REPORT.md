@@ -234,8 +234,8 @@ flowchart TD
     CS_Fn -->|Tool Execution| OA_Fn
 
     %% Core -> Data
-    OA_Fn -->|Read Context| Profiles & Plants & History & Memory & Vector & Snapshots
-    OA_Fn -->|Write| History & Memory & Plants & Snapshots
+    OA_Fn -->|Read Context| Profiles & Plants & History & Memory & Vector & Snapshots & Reminders
+    OA_Fn -->|Write| History & Memory & Plants & Snapshots & Reminders
 
     %% Core -> Storage
     OA_Fn -->|Upload Base64 Media| Photos

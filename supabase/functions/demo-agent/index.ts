@@ -131,11 +131,15 @@ async function verifyToken(
 // Helpers
 // ---------------------------------------------------------------------------
 
-function jsonResponse(data: unknown, status = 200) {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
-  });
+function getCookie(req: Request, name: string): string | null {
+  const match = req.headers.get("cookie")?.match(new RegExp(`(^|;\s*)(${name})=([^;]*)`));
+  return match ? match[3] : null;
+}
+
+function jsonResponse(data: unknown, status = 200, cookieStr?: string) {
+  const headers = new Headers({ ...corsHeaders, "Content-Type": "application/json" });
+  if (cookieStr) headers.append("Set-Cookie", cookieStr);
+  return new Response(JSON.stringify(data), { status, headers });
 }
 
 /** Parse LLM content as JSON with fallback strategies */
@@ -953,7 +957,8 @@ async function handleChat(
   GEMINI_API_KEY?: string,
 ): Promise<Response> {
   const body: DemoChatRequest = await req.json();
-  const { messages, media, demoToken } = body;
+  const { messages, media } = body;
+  const demoToken = body.demoToken || getCookie(req, "orchid-demo-token");
 
   // 1. Validate or create HMAC token
   let payload: DemoTokenPayload;
@@ -965,11 +970,11 @@ async function handleChat(
           error: "invalid_token",
           message:
             "Session expired or invalid. Please start a new conversation.",
-          // Legacy compat: include content for old callers
           content:
             "Session expired or invalid. Please start a new conversation.",
         },
         401,
+        "orchid-demo-token=; HttpOnly; Secure; SameSite=None; Path=/; Max-Age=0"
       );
     }
     payload = verified;
@@ -989,10 +994,8 @@ async function handleChat(
     const token = await signToken(payload, DEMO_HMAC_SECRET);
     return jsonResponse({
       error: "limit_reached",
-      message:
-        "You've used all your demo turns! Message me on Telegram for unlimited chats.",
-      content:
-        "You've used all your demo turns! Message me on Telegram @orchidcare_bot for unlimited chats.",
+      message: "You've used all your demo turns! Message me on Telegram for unlimited chats.",
+      content: "You've used all your demo turns! Message me on Telegram @orchidcare_bot for unlimited chats.",
       signupUrl: "https://t.me/orchidcare_bot?start=demo",
       demoToken: token,
       turnsRemaining: {
@@ -1001,7 +1004,7 @@ async function handleChat(
         images: MAX_IMAGES - payload.img,
       },
       limitReached: true,
-    });
+    }, 200, `orchid-demo-token=${token}; HttpOnly; Secure; SameSite=None; Path=/; Max-Age=86400`);
   }
 
   console.log(
@@ -1306,6 +1309,7 @@ async function handleChat(
       ...corsHeaders,
       "Content-Type": "application/x-ndjson",
       "Cache-Control": "no-cache",
+      "Set-Cookie": `orchid-demo-token=${newDemoToken}; HttpOnly; Secure; SameSite=None; Path=/; Max-Age=86400`
     },
   });
 }
@@ -1320,19 +1324,20 @@ async function handleVoiceToken(
   GEMINI_API_KEY: string,
 ): Promise<Response> {
   const body: VoiceTokenRequest = await req.json();
+  const demoToken = body.demoToken || getCookie(req, "orchid-demo-token");
 
   // 1. Validate HMAC token — or create fresh session if none provided
   let payload: DemoTokenPayload;
-  if (body.demoToken) {
-    const verified = await verifyToken(body.demoToken, DEMO_HMAC_SECRET);
+  if (demoToken) {
+    const verified = await verifyToken(demoToken, DEMO_HMAC_SECRET);
     if (!verified) {
       return jsonResponse(
         {
           error: "invalid_token",
-          message:
-            "Session expired or invalid. Please start a new conversation.",
+          message: "Session expired or invalid. Please start a new conversation.",
         },
         401,
+        "orchid-demo-token=; HttpOnly; Secure; SameSite=None; Path=/; Max-Age=0"
       );
     }
     payload = verified;
@@ -1506,7 +1511,7 @@ async function handleVoiceToken(
         voice: MAX_VOICE_TURNS - payload.vox,
         images: MAX_IMAGES - payload.img,
       },
-    });
+    }, 200, `orchid-demo-token=${newDemoToken}; HttpOnly; Secure; SameSite=None; Path=/; Max-Age=86400`);
   } catch (error) {
     console.error("[DemoAgent] Voice token error:", error);
     // Don't consume a turn on error — revert vox increment

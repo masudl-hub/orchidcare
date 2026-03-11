@@ -64,7 +64,6 @@ interface DemoResponse {
 // LocalStorage keys
 // ---------------------------------------------------------------------------
 
-const LS_TOKEN = 'orchid-demo-token';
 const LS_MESSAGES = 'orchid-demo-messages';
 const LS_ARTIFACTS = 'orchid-demo-artifacts';
 const LS_TURNS = 'orchid-demo-turns';
@@ -99,9 +98,7 @@ export default function DemoPage() {
 
   // State
   const [mode, setMode] = useState<DemoMode>('text');
-  const [demoToken, setDemoToken] = useState<string | null>(
-    () => localStorage.getItem(LS_TOKEN),
-  );
+  const [demoToken, setDemoToken] = useState<string | null>(null);
   const [messages, setMessages] = useState<DemoMessage[]>(
     () => loadJson<DemoMessage[]>(LS_MESSAGES, []),
   );
@@ -130,12 +127,6 @@ export default function DemoPage() {
     window.addEventListener('resize', handler);
     return () => window.removeEventListener('resize', handler);
   }, []);
-
-  // Persist state to localStorage
-  useEffect(() => {
-    if (demoToken) localStorage.setItem(LS_TOKEN, demoToken);
-    else localStorage.removeItem(LS_TOKEN);
-  }, [demoToken]);
 
   useEffect(() => {
     localStorage.setItem(LS_MESSAGES, JSON.stringify(messages));
@@ -239,6 +230,7 @@ export default function DemoPage() {
         const response = await fetch(`${SUPABASE_URL}/functions/v1/demo-agent/chat`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
           body: JSON.stringify({
             messages: updatedMessages.slice(-6), // last 3 turns
             media: media ?? undefined,

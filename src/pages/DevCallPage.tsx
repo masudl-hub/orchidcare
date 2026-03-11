@@ -67,15 +67,9 @@ function DevCallPageInner() {
   const [mode, setMode] = useState<Mode>(() =>
     (localStorage.getItem(STORAGE_KEYS.mode) as Mode) || 'quick'
   );
-  const [apiKey, setApiKey] = useState(() =>
-    localStorage.getItem(STORAGE_KEYS.apiKey) || ''
-  );
-  const [devSecret, setDevSecret] = useState(() =>
-    localStorage.getItem(STORAGE_KEYS.devSecret) || ''
-  );
-  const [chatId, setChatId] = useState(() =>
-    localStorage.getItem(STORAGE_KEYS.chatId) || ''
-  );
+  const [apiKey, setApiKey] = useState('');
+  const [devSecret, setDevSecret] = useState('');
+  const [chatId, setChatId] = useState('');
   const [voice, setVoice] = useState<string>('Aoede');
   const [systemPrompt, setSystemPrompt] = useState(DEFAULT_SYSTEM_PROMPT);
   const [callDuration, setCallDuration] = useState(0);
@@ -89,15 +83,6 @@ function DevCallPageInner() {
   const gemini = useGeminiLive();
 
   // Persist config
-  useEffect(() => {
-    if (apiKey) localStorage.setItem(STORAGE_KEYS.apiKey, apiKey);
-  }, [apiKey]);
-  useEffect(() => {
-    if (devSecret) localStorage.setItem(STORAGE_KEYS.devSecret, devSecret);
-  }, [devSecret]);
-  useEffect(() => {
-    if (chatId) localStorage.setItem(STORAGE_KEYS.chatId, chatId);
-  }, [chatId]);
   useEffect(() => {
     localStorage.setItem(STORAGE_KEYS.mode, mode);
   }, [mode]);

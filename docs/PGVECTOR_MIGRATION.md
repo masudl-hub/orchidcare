@@ -2,43 +2,41 @@
 
 The goal is to transition from Orchid's rigid, 5-tier chronological memory (Conversations, Summaries, Insights, Plant IDs, Reminders) to a **Semantic Vector Space** using Supabase `pgvector`.
 
-Crucially, this transition must be **100% additive**. We will not replace the existing 5-tier query system; we will build a "Shadow Index" alongside it. Once the vector index proves reliable, we can use it to *augment* the existing context, rather than replace it.
+### The Single-Index Constraint
+Why not just add a `vector` column to the existing 5 tables?
+Because approximate nearest neighbor (ANN) searches require traversing an HNSW index. An index **cannot span multiple tables**. If we had 5 tables, we would have to perform 5 separate vector searches on every chat message, which would destroy the current <4s p95 latency.
+
+To solve this without duplicating data and creating a maintenance nightmare, we use a **Polymorphic Vector Index** alongside **Native Postgres Triggers**.
 
 ---
 
-## 1. The Additive Schema: `semantic_events`
+## 1. The Polymorphic Schema: `semantic_index`
 
-Instead of altering `conversations` or `user_insights`, we introduce a new unifying table called `semantic_events`. This table acts as a read-only projection of all other tables, embedded as vectors.
+Instead of duplicating the `content` of a conversation or insight, we introduce a single table (`semantic_index`) that stores *only* the vector embedding and a pointer back to the original row.
+
+This acts as a high-speed search index, not a data store.
 
 ```sql
 -- Enable the extension in Supabase
 CREATE EXTENSION IF NOT EXISTS vector;
 
--- The unified shadow table
-CREATE TABLE semantic_events (
+-- The unified vector index
+CREATE TABLE semantic_index (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   profile_id UUID REFERENCES profiles(id) ON DELETE CASCADE,
 
-  -- The source of the memory (e.g., 'conversation', 'insight', 'plant_id', 'reminder')
-  source_type VARCHAR(50) NOT NULL,
-
-  -- The UUID of the original row in its respective table
-  source_id UUID NOT NULL,
-
-  -- The raw text representation of the event
-  content TEXT NOT NULL,
-
   -- The embedding (using OpenAI text-embedding-3-small or Google text-embedding-004: 1536 dims)
-  embedding VECTOR(1536),
+  embedding VECTOR(1536) NOT NULL,
 
-  -- Contextual metadata (e.g., {"plant_id": "...", "sentiment": "negative"})
-  metadata JSONB DEFAULT '{}'::jsonb,
+  -- Polymorphic pointer: which table and which row does this vector represent?
+  source_table VARCHAR(50) NOT NULL, -- e.g., 'conversations', 'user_insights'
+  source_id UUID NOT NULL,
 
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Create an HNSW index for lightning-fast approximate nearest neighbor (ANN) search
-CREATE INDEX ON semantic_events USING hnsw (embedding vector_cosine_ops);
+-- Create a single HNSW index for lightning-fast approximate nearest neighbor (ANN) search
+CREATE INDEX ON semantic_index USING hnsw (embedding vector_cosine_ops);
 ```
 
 ### Schema Relationship Diagram
@@ -49,48 +47,47 @@ erDiagram
     profiles ||--o{ user_insights : "1:N"
     profiles ||--o{ plant_identifications : "1:N"
 
-    profiles ||--o{ semantic_events : "1:N"
+    profiles ||--o{ semantic_index : "1:N"
 
-    semantic_events ||--o| conversations : "References (source_id)"
-    semantic_events ||--o| user_insights : "References (source_id)"
-    semantic_events ||--o| plant_identifications : "References (source_id)"
-
-    %% Note: semantic_events does not replace existing tables. It points to them.
+    %% The index points back to the original data, but holds no text itself
+    semantic_index }o--|| conversations : "Pointer (source_id, 'conversations')"
+    semantic_index }o--|| user_insights : "Pointer (source_id, 'user_insights')"
+    semantic_index }o--|| plant_identifications : "Pointer (source_id, 'plant_identifications')"
 ```
 
 ---
 
-## 2. Asynchronous Ingestion (The "Shadow" Writer)
+## 2. Zero-Maintenance Ingestion (Database Triggers + Edge Function)
 
-We cannot slow down the primary chat latency (currently <4s p95 text, <6s p95 vision) by forcing the agent to compute and store embeddings during the critical path.
+You pointed out redundancy and maintenance overhead. To completely eliminate the need for the application (`orchid-agent`) to manage this, we push the responsibility to the database layer.
 
-Instead, we use **Supabase Database Webhooks** to trigger a lightweight background Edge Function (`vector-indexer`) whenever a new memory is created in the primary tables.
+When a row is inserted or updated in `conversations`, a native Postgres trigger fires. This trigger calls a Supabase Edge Function to fetch the embedding, which then writes directly to `semantic_index`.
 
-### Data Flow: Ingestion
+**If a row in `conversations` is deleted, `ON DELETE CASCADE` or a trigger automatically deletes the pointer in `semantic_index`. Zero drift.**
+
+### Data Flow: Ingestion (Application is Unaware)
 
 ```mermaid
 sequenceDiagram
     participant User
     participant Agent as orchid-agent
     participant DB as Postgres (Primary Tables)
-    participant WH as Supabase Webhook
-    participant Indexer as vector-indexer (Edge Function)
+    participant Trigger as Postgres Trigger
     participant Embed API as Gemini Embeddings API
+    participant Index as Postgres (semantic_index)
 
     User->>Agent: "The Monstera by the window has brown tips."
+
+    %% The agent just inserts the text exactly as it does today.
     Agent->>DB: INSERT INTO conversations (text)
-    Agent->>DB: INSERT INTO user_insights (insight)
     Agent-->>User: "I'll help you with that Monstera..."
 
-    %% Background Process
-    DB-->>WH: Trigger on INSERT (conversations, insights)
-    WH->>Indexer: POST Payload (New Row Data)
-    Indexer->>Embed API: Create Vector Embedding
-    Embed API-->>Indexer: [0.012, -0.045, ...]
-    Indexer->>DB: INSERT INTO semantic_events (embedding, source_type)
+    %% Background transactional process
+    DB-->>Trigger: ON INSERT trigger fires
+    Trigger->>Embed API: pg_net extension POSTs text to Embedding API
+    Embed API-->>Trigger: Returns Vector [0.012, -0.045, ...]
+    Trigger->>Index: INSERT INTO semantic_index (embedding, source_table, source_id)
 ```
-
-**Why this works:** The core app doesn't even know `pgvector` exists yet. If the `vector-indexer` function fails, the user still gets their chat response, and the 5-tier memory still works perfectly.
 
 ---
 
@@ -98,12 +95,12 @@ sequenceDiagram
 
 Currently, `_shared/context.ts` fires 5 parallel queries to load the last N items from each table chronologically.
 
-We will add a **6th parallel query**: a similarity search against `semantic_events`.
+We will add a **6th parallel query**: a single similarity search against `semantic_index`.
 
-When a user asks a question, we embed their prompt and query the database for the *nearest neighbors* regardless of chronological age.
+When the database finds the nearest vectors, it uses the `source_table` and `source_id` pointers to `JOIN` back to the original tables and fetch the text in milliseconds.
 
-### Creating the Matching Function
-We need a Postgres function to perform the cosine similarity search:
+### Creating the Unified Matching Function
+We need a Postgres function to perform the search and join:
 
 ```sql
 CREATE OR REPLACE FUNCTION match_semantic_events (
@@ -113,25 +110,38 @@ CREATE OR REPLACE FUNCTION match_semantic_events (
   p_profile_id uuid
 )
 RETURNS TABLE (
-  id uuid,
+  source_table varchar,
+  source_id uuid,
   content text,
-  source_type varchar,
-  metadata jsonb,
   similarity float
 )
 LANGUAGE sql STABLE
 AS $$
+  WITH closest_matches AS (
+    SELECT
+      source_table,
+      source_id,
+      1 - (embedding <=> query_embedding) AS similarity
+    FROM semantic_index
+    WHERE profile_id = p_profile_id
+      AND 1 - (embedding <=> query_embedding) > match_threshold
+    ORDER BY embedding <=> query_embedding
+    LIMIT match_count
+  )
+  -- Dynamically join back to the original tables to fetch the actual text
   SELECT
-    id,
-    content,
-    source_type,
-    metadata,
-    1 - (embedding <=> query_embedding) AS similarity
-  FROM semantic_events
-  WHERE 1 - (embedding <=> query_embedding) > match_threshold
-    AND profile_id = p_profile_id
-  ORDER BY embedding <=> query_embedding
-  LIMIT match_count;
+    cm.source_table,
+    cm.source_id,
+    COALESCE(
+      c.text_content,
+      u.insight_text,
+      p.notes
+    ) as content,
+    cm.similarity
+  FROM closest_matches cm
+  LEFT JOIN conversations c ON cm.source_table = 'conversations' AND cm.source_id = c.id
+  LEFT JOIN user_insights u ON cm.source_table = 'user_insights' AND cm.source_id = u.id
+  LEFT JOIN plant_identifications p ON cm.source_table = 'plant_identifications' AND cm.source_id = p.id;
 $$;
 ```
 
@@ -170,6 +180,6 @@ sequenceDiagram
 
 ## 4. Why this is "2100"
 
-1. **Defeats the Time Boundary:** Currently, if a user mentioned moving their plant 6 conversations ago, it falls out of the "Immediate Context" (last 5 messages) and relies on the LLM's summarized history. With vectors, the exact quote from 6 months ago instantly snaps to the top of the context window because it is *semantically identical* to the question.
+1. **Defeats the Time Boundary:** If a user mentioned moving their plant 6 conversations ago, it falls out of the "Immediate Context" (last 5 messages) and relies on the LLM's summarized history. With vectors, the exact quote from 6 months ago instantly snaps to the top of the context window because it is *semantically identical* to the question.
 2. **Cross-Pollination of Modalities:** A `plant_identification` event (a photo) and a `user_insight` (text) live in different tables. In the vector space, they are mapped to the same coordinate area if they discuss the same plant, allowing the LLM to instantly link a visual diagnosis from Tuesday with a text complaint from Friday.
-3. **Zero Risk:** Because it runs in parallel (`Promise.all` in `context.ts`), if the vector search times out or errors, we simply catch the error and fallback to the existing 5-tier context array. The user experience is never degraded.
+3. **Zero Maintenance:** Because the `semantic_index` is purely a pointer table managed entirely by database triggers, the application code (`orchid-agent`) requires zero logic to maintain it. It simply queries `match_semantic_events`.

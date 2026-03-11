@@ -36,6 +36,7 @@ export function DemoVoiceOverlay({
         const res = await fetch(`${SUPABASE_URL}/functions/v1/demo-agent/voice-token`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
           body: JSON.stringify({ demoToken }),
           signal: abort.signal,
         });

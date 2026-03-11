@@ -95,7 +95,7 @@ export const voiceToolDeclarations = [
           type: "OBJECT",
           properties: {
             insight_key: { type: "STRING", description: "Category: has_pets, pet_type, home_lighting, watering_style, experience_level, plant_goals, etc." },
-            insight_value: { type: "STRING", description: "The fact to remember" },
+            insight_value: { type: "STRING", description: "The fact to remember. DO NOT use single words like 'yes' or 'true'. Write a full descriptive sentence." },
           },
           required: ["insight_key", "insight_value"],
         },

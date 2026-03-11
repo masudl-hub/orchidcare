@@ -480,6 +480,13 @@ export async function saveUserInsight(
   sourceMessageId?: string,
 ): Promise<{ success: boolean; error?: string }> {
   try {
+    const valueLower = (args.insight_value || "").trim().toLowerCase();
+    if (valueLower.length < 4 || ["true", "false", "none"].includes(valueLower)) {
+      return {
+        success: false,
+        error: "Insight value is too short or non-descriptive. Please rewrite it as a full, descriptive sentence (e.g. 'The user has a cat' instead of just 'yes' or 'cat')."
+      };
+    }
     console.log(`[ContextEngineering] Saving insight: ${args.insight_key} = ${args.insight_value}`);
 
     const { error } = await supabase.from("user_insights").upsert(

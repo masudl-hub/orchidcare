@@ -1659,3 +1659,11 @@ Orchid can autonomously delete plants, create reminders, and update profiles wit
 ### AI Disclosure
 
 GitHub Copilot was used during development to suggest boilerplate code, generate type annotations, and assist with edge case handling in TypeScript. Claude (Anthropic) was used to assist in writing and structuring this technical report — specifically for diagram generation, prose editing, and section organisation. All technical facts, architecture decisions, and code were written, verified, and reviewed by the author. All AI-generated content was checked against the source code for accuracy before inclusion.
+
+## PR: 🧹 [code health improvement] Simplify `toast` Function Props Destructuring
+
+### Description
+🎯 **What:** The `toast` function in `src/hooks/use-toast.ts` originally used destructuring in its parameters (`function toast({ ...props }: Toast)`). This has been simplified to just `function toast(props: Toast)`.
+💡 **Why:** Destructuring using `{ ...props }` for the parameter of a function when all properties are meant to be accepted and used as the same object type is functionally identical to just taking `props`. Changing it removes unnecessary object shallow-copying at the argument level, making the codebase cleaner and improving readability.
+✅ **Verification:** Verified by running the local test suite using `bun test`, ensuring no regressions were introduced. Evaluated usage to confirm it has zero side effects since `props` acts perfectly as it used to.
+✨ **Result:** A more readable, slightly optimized codebase that maintains original behavior without unnecessary syntax overhead.

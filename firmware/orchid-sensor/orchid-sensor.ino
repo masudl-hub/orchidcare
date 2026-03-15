@@ -60,6 +60,18 @@ void setup() {
   analogSetAttenuation(ADC_11db);  // Set ADC to read full 0-3.3V range
   dht.begin();
   Wire.begin();
+  // Scan I2C bus to see what's connected
+  Serial.println("Scanning I2C bus...");
+  int devicesFound = 0;
+  for (byte addr = 1; addr < 127; addr++) {
+    Wire.beginTransmission(addr);
+    if (Wire.endTransmission() == 0) {
+      Serial.printf("  Found device at address 0x%02X\n", addr);
+      devicesFound++;
+    }
+  }
+  Serial.printf("  %d device(s) found\n", devicesFound);
+
   if (!lightMeter.begin(BH1750::CONTINUOUS_HIGH_RES_MODE)) {
     Serial.println("[WARN] BH1750 not found — light readings will be skipped");
   }

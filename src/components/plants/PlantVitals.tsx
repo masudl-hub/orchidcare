@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useSensorData, type MetricStatus, type SensorReading } from "@/hooks/useSensorData";
 import { useDevices, useUpdateDevice, useCreateDevice } from "@/hooks/useDevices";
-import { Droplets, Thermometer, Wind, AlertTriangle, ChevronRight, Wifi, Plus, Copy, Check, ChevronDown } from "lucide-react";
+import { Droplets, Thermometer, Wind, AlertTriangle, ChevronRight, Wifi, Plus, Copy, Check, ChevronDown, X } from "lucide-react";
 import SensorHistoryChart from "./SensorHistoryChart";
 
 const mono = "ui-monospace, monospace";
@@ -405,7 +405,14 @@ function SensorPicker({ plantId, onDone }: { plantId: string; onDone?: () => voi
             >
               <Wifi size={10} />
               <span style={{ flex: 1 }}>{d.name}</span>
-              <span style={{ fontSize: '8px', color: 'rgba(74,222,128,0.5)' }}>active</span>
+              <button
+                onClick={() => updateDevice.mutate({ id: d.id, plant_id: null })}
+                className="cursor-pointer"
+                title="Remove sensor"
+                style={{ background: 'none', border: 'none', padding: '2px', color: 'rgba(255,255,255,0.25)' }}
+              >
+                <X size={12} />
+              </button>
             </div>
           ))}
         </div>

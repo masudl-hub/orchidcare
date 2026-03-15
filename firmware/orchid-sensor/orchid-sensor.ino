@@ -132,7 +132,9 @@ void loop() {
   HTTPClient http;
   http.begin(client, ENDPOINT);
   http.addHeader("Content-Type", "application/json");
-  http.addHeader("Authorization", String("Bearer ") + DEVICE_TOKEN);
+  http.addHeader("Authorization", String("Bearer ") + ANON_KEY);
+  http.addHeader("apikey", ANON_KEY);
+  http.addHeader("x-device-token", DEVICE_TOKEN);
 
   int httpCode = http.POST(json);
   String response = http.getString();

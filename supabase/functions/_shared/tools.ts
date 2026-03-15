@@ -523,10 +523,18 @@ export async function updateNotificationPreferences(
 
     // Handle notification_frequency - this updates the profile, not proactive_preferences
     if (args.action === "set_frequency" && args.notification_frequency) {
+      // Normalize to valid values only
+      const VALID_FREQUENCIES = ['off', 'daily', 'weekly', 'realtime'];
+      const normalized = args.notification_frequency.toLowerCase().trim();
+      if (!VALID_FREQUENCIES.includes(normalized)) {
+        console.warn(`[NotificationPrefs] Rejected invalid frequency: "${args.notification_frequency}"`);
+        return { success: false, error: `Invalid frequency. Must be one of: ${VALID_FREQUENCIES.join(', ')}` };
+      }
+
       const { error: profileError } = await supabase
         .from("profiles")
         .update({
-          notification_frequency: args.notification_frequency,
+          notification_frequency: normalized,
           updated_at: new Date().toISOString(),
         })
         .eq("id", profileId);

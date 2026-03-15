@@ -17,6 +17,7 @@ interface Profile {
   experience_level: "beginner" | "intermediate" | "expert" | null;
   primary_concerns: string[] | null;
   pets: string[] | null;
+  proactive_enabled: boolean;
 }
 
 interface AuthContextType {
@@ -71,6 +72,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       experience_level: (data.experience_level as Profile['experience_level']) || null,
       primary_concerns: data.primary_concerns,
       pets: data.pets || [],
+      proactive_enabled: data.proactive_enabled ?? true,
     };
   };
 
@@ -190,6 +192,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         experience_level: (existingProfile.experience_level as Profile['experience_level']) || null,
         primary_concerns: existingProfile.primary_concerns,
         pets: existingProfile.pets || [],
+        proactive_enabled: existingProfile.proactive_enabled ?? true,
       });
     } else {
       // Create new profile for this user
@@ -222,6 +225,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         experience_level: (newProfile.experience_level as Profile['experience_level']) || null,
         primary_concerns: newProfile.primary_concerns,
         pets: newProfile.pets || [],
+        proactive_enabled: newProfile.proactive_enabled ?? true,
       });
     }
 
@@ -258,6 +262,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       experience_level: (newProfile.experience_level as Profile['experience_level']) || null,
       primary_concerns: newProfile.primary_concerns,
       pets: newProfile.pets || [],
+      proactive_enabled: newProfile.proactive_enabled ?? true,
     });
 
     return { error: null };
@@ -295,6 +300,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       experience_level: (data.experience_level as Profile['experience_level']) || null,
       primary_concerns: data.primary_concerns,
       pets: data.pets || [],
+      proactive_enabled: data.proactive_enabled ?? true,
     });
     return { error: null };
   };

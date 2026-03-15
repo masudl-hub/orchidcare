@@ -3,11 +3,13 @@ import { useNavigate } from 'react-router-dom';
 import {
     MapPin, Phone, Edit2, Save, X, Loader2, LogOut, Key, Download, ChevronRight,
     Dog, Cat, Bird, Fish, Rabbit, Sun, Zap, Lightbulb, Microscope,
-    Droplets, Brain, Calendar, Trash2, Database, Leaf
+    Droplets, Brain, Calendar, Trash2, Database, Leaf, Power
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { SystemProtocols } from './SystemProtocols';
+import { NotificationActivity } from './NotificationActivity';
 import { useSystemSettings, useUpdateQuietHours, useTogglePreference, useToggleAgentPermission, useInitializeSettings } from '@/hooks/useSettings';
+import { useToggleProactiveEnabled } from '@/hooks/useAudit';
 import { useUserInsights, useDeleteInsight } from '@/hooks/useInsights';
 import { useInView, revealStyle } from './DashboardShell';
 
@@ -200,6 +202,43 @@ export function ProfileView() {
     const togglePreference = useTogglePreference();
     const toggleAgentPermission = useToggleAgentPermission();
     const initializeSettings = useInitializeSettings();
+    const toggleProactive = useToggleProactiveEnabled();
+    const proactiveEnabled = authProfile?.proactive_enabled ?? true;
+
+    const ProactiveKillSwitch = () => (
+        <div style={{ border: '1px solid rgba(255,255,255,0.06)', padding: '16px 20px' }}>
+            <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                    <Power size={14} style={{ color: proactiveEnabled ? 'rgba(34,197,94,0.6)' : 'rgba(239,68,68,0.5)' }} />
+                    <div>
+                        <div style={{ fontFamily: mono, fontSize: '12px', fontWeight: 'bold', color: proactiveEnabled ? 'rgba(255,255,255,0.6)' : 'rgba(239,68,68,0.6)' }}>
+                            {proactiveEnabled ? 'Proactive Messages Active' : 'Proactive Messages Paused'}
+                        </div>
+                        <div style={{ fontFamily: mono, fontSize: '9px', color: 'rgba(255,255,255,0.2)', marginTop: '2px' }}>
+                            {proactiveEnabled ? 'Orchid can send you care reminders & tips' : 'All proactive outreach is disabled'}
+                        </div>
+                    </div>
+                </div>
+                <div
+                    onClick={() => toggleProactive.mutate(!proactiveEnabled)}
+                    className="cursor-pointer"
+                    style={{
+                        width: '36px', height: '18px', borderRadius: '9px', position: 'relative',
+                        transition: 'all 200ms',
+                        backgroundColor: proactiveEnabled ? 'rgba(34,197,94,0.4)' : 'rgba(255,255,255,0.08)',
+                        border: '1px solid',
+                        borderColor: proactiveEnabled ? 'rgba(34,197,94,0.6)' : 'rgba(255,255,255,0.12)',
+                    }}
+                >
+                    <div style={{
+                        position: 'absolute', top: '2px', width: '12px', height: '12px', borderRadius: '6px',
+                        backgroundColor: 'white', transition: 'transform 200ms',
+                        transform: proactiveEnabled ? 'translateX(18px)' : 'translateX(2px)',
+                    }} />
+                </div>
+            </div>
+        </div>
+    );
     const initializationAttempted = useRef(false);
 
     useEffect(() => {
@@ -434,6 +473,11 @@ export function ProfileView() {
                 </div>
             </div>
 
+            {/* ── Kill Switch ── */}
+            <div style={revealStyle(visible, 150)}>
+                <ProactiveKillSwitch />
+            </div>
+
             {/* ── System protocols ── */}
             <div style={revealStyle(visible, 200)}>
                 <SystemProtocols
@@ -447,6 +491,11 @@ export function ProfileView() {
                     toggleTempProtocol={toggleTempProtocol}
                     QuietHoursClock={QuietHoursClock}
                 />
+            </div>
+
+            {/* ── Notification Activity ── */}
+            <div style={revealStyle(visible, 300)}>
+                <NotificationActivity />
             </div>
 
             {/* ── AI Insights ── */}

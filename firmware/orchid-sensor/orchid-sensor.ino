@@ -33,8 +33,8 @@ const char* DEVICE_TOKEN   = "odev_hp4wGjI0wPwDx18KSAHXSSvOXxWVnTRkH7Wu4E9fuFg";
 const int READ_INTERVAL_SEC = 5;   // Short interval for debugging — change to 30 for production
 
 // Soil moisture calibration (run calibration mode to find your values)
-const int SOIL_DRY_VALUE   = 3800; // Raw ADC value in dry air
-const int SOIL_WET_VALUE   = 1500; // Raw ADC value submerged in water
+const int SOIL_DRY_VALUE   = 3100; // Raw ADC value in dry air
+const int SOIL_WET_VALUE   = 1522; // Raw ADC value submerged in water
 // ==========================================================================
 
 // Pin assignments

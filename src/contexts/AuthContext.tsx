@@ -192,6 +192,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         experience_level: (existingProfile.experience_level as Profile['experience_level']) || null,
         primary_concerns: existingProfile.primary_concerns,
         pets: existingProfile.pets || [],
+        proactive_enabled: existingProfile.proactive_enabled ?? true,
       });
     } else {
       // Create new profile for this user

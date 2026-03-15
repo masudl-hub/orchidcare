@@ -3,11 +3,13 @@ import { useNavigate } from 'react-router-dom';
 import {
     MapPin, Phone, Edit2, Save, X, Loader2, LogOut, Key, Download, ChevronRight,
     Dog, Cat, Bird, Fish, Rabbit, Sun, Zap, Lightbulb, Microscope,
-    Droplets, Brain, Calendar, Trash2, Database, Leaf
+    Droplets, Brain, Calendar, Trash2, Database, Leaf, Power
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { SystemProtocols } from './SystemProtocols';
+import { NotificationActivity } from './NotificationActivity';
 import { useSystemSettings, useUpdateQuietHours, useTogglePreference, useToggleAgentPermission, useInitializeSettings } from '@/hooks/useSettings';
+import { useToggleProactiveEnabled } from '@/hooks/useAudit';
 import { useUserInsights, useDeleteInsight } from '@/hooks/useInsights';
 import { useInView, revealStyle } from './DashboardShell';
 

@@ -980,6 +980,7 @@ bot.on("message:text", async (ctx) => {
 
   // Call the agent with continuous typing indicator
   const stopTyping = startTypingIndicator(chatId);
+  const correlationId = generateCorrelationId('tg_text');
   try {
     const { reply, mediaToSend } = await callAgent(profile.id, text, "telegram", undefined, undefined, chatId);
 
@@ -991,6 +992,17 @@ bot.on("message:text", async (ctx) => {
       console.log(`[TelegramBot] message:text: chunk ${i + 1}/${chunks.length} sent (${chunks[i].length} chars)`);
     }
 
+    // Audit log the outbound reply
+    await logOutboundMessage(supabase, {
+      sourceFunction: 'telegram-bot',
+      sourceMode: 'telegram_reply',
+      profileId: profile.id,
+      telegramChatId: chatId,
+      correlationId,
+      messagePreview: reply,
+      deliveryStatus: 'delivered',
+    });
+
     // Send any generated media
     if (mediaToSend.length > 0) {
       console.log(`[TelegramBot] message:text: sending ${mediaToSend.length} media items`);
@@ -999,13 +1011,31 @@ bot.on("message:text", async (ctx) => {
       try {
         await ctx.replyWithPhoto(media.url, { caption: media.caption || undefined });
         console.log(`[TelegramBot] message:text: media sent — url=${media.url.substring(0, 80)}...`);
+        await logOutboundMessage(supabase, {
+          sourceFunction: 'telegram-bot',
+          sourceMode: 'media_followup',
+          profileId: profile.id,
+          telegramChatId: chatId,
+          correlationId,
+          messagePreview: media.caption || '[photo]',
+          deliveryStatus: 'delivered',
+        });
       } catch (mediaErr) {
         const errStr = mediaErr instanceof Error ? mediaErr.message : String(mediaErr);
         console.error(`[TelegramBot] message:text: media send FAILED — url=${media.url.substring(0, 80)}, error=${errStr}`);
+        await logOutboundMessage(supabase, {
+          sourceFunction: 'telegram-bot',
+          sourceMode: 'media_followup',
+          profileId: profile.id,
+          telegramChatId: chatId,
+          correlationId,
+          deliveryStatus: 'failed',
+          errorDetail: errStr,
+        });
       }
     }
 
-    // NL call initiation — if user asked for a call, send Mini App button
+    // NL call initiation
     const CALL_INTENT = /\b(call\s*me|give\s*me\s*a\s*call|start\s*a\s*call|voice\s*call|video\s*call|let'?s\s*talk|can\s*(we|i)\s*talk|talk\s*to\s*(you|orchid)|speak\s*with|live\s*call|want\s*to\s*call|can\s*you\s*call)\b/i;
     if (CALL_INTENT.test(text)) {
       console.log(`[TelegramBot] message:text: call intent detected — appending Mini App button`);

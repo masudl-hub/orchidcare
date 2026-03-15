@@ -171,9 +171,36 @@ async function handleDeviceReading(req: Request) {
     .eq("id", device.id)
     .then();
 
-  console.log(`[SensorReading] Device ${device.id} → reading ${reading.id} (plant: ${reading.plant_id || "unassociated"})`);
+  // Delta detection: auto-log care events when significant changes occur
+  let careEvent: string | null = null;
+  const meta = payload.metadata as Record<string, unknown> | null;
+  if (meta?.trigger === "delta" && reading.plant_id) {
+    const soilDelta = meta.soil_delta as number | undefined;
+    if (soilDelta != null && soilDelta > 0 && soilDelta >= 15) {
+      // Soil moisture jumped up significantly → watering detected
+      careEvent = "water";
+      supabase
+        .from("care_events")
+        .insert({
+          plant_id: reading.plant_id,
+          event_type: "water",
+          notes: `Auto-detected by sensor: soil moisture increased by ${soilDelta}%`,
+        })
+        .then(({ error }) => {
+          if (error) console.error("[SensorReading] Failed to log care event:", error);
+          else console.log(`[SensorReading] Auto-logged watering event for plant ${reading.plant_id}`);
+        });
+    }
+  }
 
-  return json({ success: true, reading_id: reading.id, plant_id: reading.plant_id });
+  console.log(`[SensorReading] Device ${device.id} → reading ${reading.id} (plant: ${reading.plant_id || "unassociated"})${careEvent ? ` [auto: ${careEvent}]` : ""}`);
+
+  return json({
+    success: true,
+    reading_id: reading.id,
+    plant_id: reading.plant_id,
+    care_event: careEvent,
+  });
 }
 
 // ============================================================================

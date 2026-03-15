@@ -55,6 +55,52 @@ export function useUpdateDevice() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["devices"] });
       queryClient.invalidateQueries({ queryKey: ["sensorStatusBatch"] });
+      queryClient.invalidateQueries({ queryKey: ["sensorData"] });
+    },
+  });
+}
+
+export function useCreateDevice() {
+  const queryClient = useQueryClient();
+  const { profile } = useAuth();
+
+  return useMutation({
+    mutationFn: async ({ name, plantId }: { name?: string; plantId?: string }) => {
+      if (!profile?.id) throw new Error("No profile");
+
+      // Generate a device token client-side
+      const bytes = new Uint8Array(32);
+      crypto.getRandomValues(bytes);
+      const token = "odev_" + btoa(String.fromCharCode(...bytes)).replace(/[+/=]/g, (c) =>
+        c === '+' ? '-' : c === '/' ? '_' : ''
+      );
+      const prefix = token.slice(0, 12);
+
+      // Hash the token (SHA-256)
+      const encoder = new TextEncoder();
+      const hashBuffer = await crypto.subtle.digest("SHA-256", encoder.encode(token));
+      const hashArray = Array.from(new Uint8Array(hashBuffer));
+      const hash = hashArray.map(b => b.toString(16).padStart(2, "0")).join("");
+
+      const { data, error } = await supabase
+        .from("devices")
+        .insert({
+          profile_id: profile.id,
+          plant_id: plantId || null,
+          device_token_hash: hash,
+          device_token_prefix: prefix,
+          name: name || "New Sensor",
+          status: "active",
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+      // Return the plaintext token — this is the only time it's visible
+      return { device: data as Device, token };
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["devices"] });
     },
   });
 }

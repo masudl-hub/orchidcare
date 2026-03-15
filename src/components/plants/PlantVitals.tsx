@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useSensorData, type MetricStatus, type SensorReading } from "@/hooks/useSensorData";
-import { Droplets, Thermometer, Wind, AlertTriangle, ChevronRight } from "lucide-react";
+import { useDevices, useUpdateDevice, useCreateDevice } from "@/hooks/useDevices";
+import { Droplets, Thermometer, Wind, AlertTriangle, ChevronRight, Wifi, Plus, Copy, Check, ChevronDown } from "lucide-react";
 import SensorHistoryChart from "./SensorHistoryChart";
 
 const mono = "ui-monospace, monospace";
@@ -198,6 +199,241 @@ function MetricRow({ name, metric, history, ranges, expanded, onTap, plantId }: 
   );
 }
 
+// Inline sensor picker — used in both empty state and header
+function SensorPicker({ plantId, onDone }: { plantId: string; onDone?: () => void }) {
+  const { data: devices } = useDevices();
+  const updateDevice = useUpdateDevice();
+  const createDevice = useCreateDevice();
+  const [showAddNew, setShowAddNew] = useState(false);
+  const [newToken, setNewToken] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+  const [newName, setNewName] = useState("Plant Sensor");
+
+  const activeDevices = (devices || []).filter(d => d.status === "active");
+  const unassigned = activeDevices.filter(d => !d.plant_id);
+  const assignedElsewhere = activeDevices.filter(d => d.plant_id && d.plant_id !== plantId);
+  const assignedHere = activeDevices.filter(d => d.plant_id === plantId);
+
+  const handleAssign = (deviceId: string) => {
+    updateDevice.mutate({ id: deviceId, plant_id: plantId }, { onSuccess: () => onDone?.() });
+  };
+
+  const handleCreateAndAssign = async () => {
+    try {
+      const result = await createDevice.mutateAsync({ name: newName, plantId });
+      setNewToken(result.token);
+    } catch (e) {
+      console.error("Failed to create device:", e);
+    }
+  };
+
+  const handleCopy = () => {
+    if (newToken) {
+      navigator.clipboard.writeText(newToken);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
+
+  // Just created a new device — show the token
+  if (newToken) {
+    return (
+      <div style={{ padding: '12px 0' }}>
+        <div style={{ fontFamily: mono, fontSize: '10px', color: '#4ade80', marginBottom: '8px' }}>
+          sensor created & assigned
+        </div>
+        <div style={{ fontFamily: mono, fontSize: '9px', color: 'rgba(255,255,255,0.4)', marginBottom: '8px' }}>
+          Copy this token into your ESP32 firmware. It won't be shown again.
+        </div>
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: '6px',
+          padding: '8px 10px', background: 'rgba(255,255,255,0.04)',
+          border: '1px solid rgba(255,255,255,0.1)',
+        }}>
+          <code style={{ fontFamily: mono, fontSize: '10px', color: 'rgba(255,255,255,0.7)', flex: 1, wordBreak: 'break-all' }}>
+            {newToken}
+          </code>
+          <button onClick={handleCopy} className="cursor-pointer" style={{
+            background: 'none', border: 'none', padding: '4px', color: copied ? '#4ade80' : 'rgba(255,255,255,0.3)', flexShrink: 0,
+          }}>
+            {copied ? <Check size={14} /> : <Copy size={14} />}
+          </button>
+        </div>
+        <button
+          onClick={() => { setNewToken(null); onDone?.(); }}
+          className="cursor-pointer"
+          style={{
+            fontFamily: mono, fontSize: '9px', color: 'rgba(255,255,255,0.3)',
+            background: 'none', border: 'none', padding: '6px 0', marginTop: '8px',
+          }}
+        >
+          done
+        </button>
+      </div>
+    );
+  }
+
+  // Add new device form
+  if (showAddNew) {
+    return (
+      <div style={{ padding: '12px 0' }}>
+        <div style={{ fontFamily: mono, fontSize: '10px', color: 'rgba(255,255,255,0.4)', marginBottom: '8px' }}>
+          new sensor
+        </div>
+        <input
+          type="text"
+          value={newName}
+          onChange={e => setNewName(e.target.value)}
+          placeholder="Sensor name"
+          style={{
+            fontFamily: mono, fontSize: '11px', color: 'white', width: '100%',
+            backgroundColor: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)',
+            padding: '6px 10px', outline: 'none', marginBottom: '8px',
+          }}
+        />
+        <div style={{ display: 'flex', gap: '6px' }}>
+          <button
+            onClick={handleCreateAndAssign}
+            disabled={createDevice.isPending}
+            className="cursor-pointer"
+            style={{
+              fontFamily: mono, fontSize: '9px', padding: '5px 12px',
+              color: '#4ade80', border: '1px solid rgba(74,222,128,0.3)',
+              background: 'rgba(74,222,128,0.06)',
+            }}
+          >
+            {createDevice.isPending ? 'creating...' : 'create & assign'}
+          </button>
+          <button
+            onClick={() => setShowAddNew(false)}
+            className="cursor-pointer"
+            style={{
+              fontFamily: mono, fontSize: '9px', padding: '5px 12px',
+              color: 'rgba(255,255,255,0.3)', border: '1px solid rgba(255,255,255,0.06)',
+              background: 'transparent',
+            }}
+          >
+            cancel
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Device list
+  return (
+    <div style={{ padding: '12px 0' }}>
+      {/* Unassigned devices — one-tap assign */}
+      {unassigned.length > 0 && (
+        <div style={{ marginBottom: '8px' }}>
+          <div style={{ fontFamily: mono, fontSize: '8px', color: 'rgba(255,255,255,0.2)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: '6px' }}>
+            available sensors
+          </div>
+          {unassigned.map(d => (
+            <button
+              key={d.id}
+              onClick={() => handleAssign(d.id)}
+              disabled={updateDevice.isPending}
+              className="cursor-pointer"
+              style={{
+                display: 'flex', alignItems: 'center', gap: '8px', width: '100%',
+                fontFamily: mono, fontSize: '11px', color: 'rgba(255,255,255,0.5)',
+                padding: '8px 10px', marginBottom: '4px',
+                border: '1px solid rgba(255,255,255,0.08)', background: 'transparent',
+                textAlign: 'left',
+              }}
+            >
+              <Wifi size={10} style={{ color: d.last_seen_at ? '#4ade80' : 'rgba(255,255,255,0.2)' }} />
+              <span style={{ flex: 1 }}>{d.name}</span>
+              <span style={{ fontSize: '8px', color: 'rgba(255,255,255,0.2)' }}>{d.device_token_prefix}...</span>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Devices assigned to other plants — reassign with note */}
+      {assignedElsewhere.length > 0 && (
+        <div style={{ marginBottom: '8px' }}>
+          <div style={{ fontFamily: mono, fontSize: '8px', color: 'rgba(255,255,255,0.2)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: '6px' }}>
+            move from another plant
+          </div>
+          {assignedElsewhere.map(d => (
+            <button
+              key={d.id}
+              onClick={() => handleAssign(d.id)}
+              disabled={updateDevice.isPending}
+              className="cursor-pointer"
+              style={{
+                display: 'flex', alignItems: 'center', gap: '8px', width: '100%',
+                fontFamily: mono, fontSize: '11px', color: 'rgba(255,255,255,0.35)',
+                padding: '8px 10px', marginBottom: '4px',
+                border: '1px solid rgba(255,255,255,0.06)', background: 'transparent',
+                textAlign: 'left',
+              }}
+            >
+              <Wifi size={10} style={{ color: 'rgba(255,255,255,0.2)' }} />
+              <span style={{ flex: 1 }}>{d.name}</span>
+              <span style={{ fontSize: '8px', color: 'rgba(250,204,21,0.4)' }}>in use</span>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Already assigned here */}
+      {assignedHere.length > 0 && (
+        <div style={{ marginBottom: '8px' }}>
+          <div style={{ fontFamily: mono, fontSize: '8px', color: 'rgba(255,255,255,0.2)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: '6px' }}>
+            currently assigned
+          </div>
+          {assignedHere.map(d => (
+            <div
+              key={d.id}
+              style={{
+                display: 'flex', alignItems: 'center', gap: '8px',
+                fontFamily: mono, fontSize: '11px', color: '#4ade80',
+                padding: '8px 10px', marginBottom: '4px',
+                border: '1px solid rgba(74,222,128,0.15)', background: 'rgba(74,222,128,0.04)',
+              }}
+            >
+              <Wifi size={10} />
+              <span style={{ flex: 1 }}>{d.name}</span>
+              <span style={{ fontSize: '8px', color: 'rgba(74,222,128,0.5)' }}>active</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Add new sensor */}
+      <button
+        onClick={() => setShowAddNew(true)}
+        className="cursor-pointer"
+        style={{
+          display: 'flex', alignItems: 'center', gap: '6px', width: '100%',
+          fontFamily: mono, fontSize: '10px', color: 'rgba(255,255,255,0.25)',
+          padding: '8px 10px',
+          border: '1px dashed rgba(255,255,255,0.08)', background: 'transparent',
+          textAlign: 'left',
+        }}
+      >
+        <Plus size={10} /> add new sensor
+      </button>
+
+      {onDone && (
+        <button
+          onClick={onDone}
+          className="cursor-pointer"
+          style={{
+            fontFamily: mono, fontSize: '9px', color: 'rgba(255,255,255,0.2)',
+            background: 'none', border: 'none', padding: '6px 0', marginTop: '6px',
+          }}
+        >
+          cancel
+        </button>
+      )}
+    </div>
+  );
+}
+
 interface PlantVitalsProps {
   plantId: string;
 }
@@ -205,6 +441,7 @@ interface PlantVitalsProps {
 export default function PlantVitals({ plantId }: PlantVitalsProps) {
   const { data, isLoading } = useSensorData(plantId);
   const [expandedMetric, setExpandedMetric] = useState<string | null>(null);
+  const [showSensorPicker, setShowSensorPicker] = useState(false);
 
   const toggleMetric = (name: string) => setExpandedMetric(prev => prev === name ? null : name);
 
@@ -224,17 +461,10 @@ export default function PlantVitals({ plantId }: PlantVitalsProps) {
   if (!data?.latest) {
     return (
       <div style={cardStyle}>
-        <div style={{ fontFamily: pressStart, fontSize: '9px', color: 'rgba(255,255,255,0.25)', letterSpacing: '0.05em' }}>
+        <div style={{ fontFamily: pressStart, fontSize: '9px', color: 'rgba(255,255,255,0.25)', letterSpacing: '0.05em', marginBottom: '12px' }}>
           PLANT VITALS
         </div>
-        <div style={{ textAlign: 'center', padding: '24px 0' }}>
-          <div style={{ fontFamily: mono, fontSize: '11px', color: 'rgba(255,255,255,0.3)', marginBottom: '8px' }}>
-            no sensor data
-          </div>
-          <div style={{ fontFamily: mono, fontSize: '9px', color: 'rgba(255,255,255,0.2)' }}>
-            assign a sensor to this plant to see vitals
-          </div>
-        </div>
+        <SensorPicker plantId={plantId} />
       </div>
     );
   }
@@ -249,8 +479,17 @@ export default function PlantVitals({ plantId }: PlantVitalsProps) {
     }}>
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-        <div style={{ fontFamily: pressStart, fontSize: '9px', color: 'rgba(255,255,255,0.25)', letterSpacing: '0.05em' }}>
-          PLANT VITALS
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <div style={{ fontFamily: pressStart, fontSize: '9px', color: 'rgba(255,255,255,0.25)', letterSpacing: '0.05em' }}>
+            PLANT VITALS
+          </div>
+          <button
+            onClick={() => setShowSensorPicker(!showSensorPicker)}
+            className="cursor-pointer"
+            style={{ background: 'none', border: 'none', padding: '2px', color: 'rgba(255,255,255,0.15)' }}
+          >
+            <ChevronDown size={10} style={{ transform: showSensorPicker ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
+          </button>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
           {lastReadingAge && (
@@ -269,6 +508,13 @@ export default function PlantVitals({ plantId }: PlantVitalsProps) {
           )}
         </div>
       </div>
+
+      {/* Sensor picker (expandable from header) */}
+      {showSensorPicker && (
+        <div style={{ borderBottom: '1px solid rgba(255,255,255,0.06)', marginBottom: '12px' }}>
+          <SensorPicker plantId={plantId} onDone={() => setShowSensorPicker(false)} />
+        </div>
+      )}
 
       {/* Alert banner */}
       {alerts.length > 0 && (

@@ -437,9 +437,7 @@ export function ProfileView() {
             </div>
 
             {/* ── Kill Switch ── */}
-            <div style={revealStyle(visible, 150)}>
-                <KillSwitch />
-            </div>
+            <KillSwitchBlock visible={visible} />
 
             {/* ── System protocols ── */}
             <div style={revealStyle(visible, 200)}>

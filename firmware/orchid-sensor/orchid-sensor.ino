@@ -56,6 +56,7 @@ void setup() {
   Serial.println("\n=== Orchid Sensor ===");
 
   // Init sensors
+  analogSetAttenuation(ADC_11db);  // Set ADC to read full 0-3.3V range
   dht.begin();
   Wire.begin();
   if (!lightMeter.begin(BH1750::CONTINUOUS_HIGH_RES_MODE)) {

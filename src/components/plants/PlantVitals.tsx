@@ -8,7 +8,7 @@ const mono = "ui-monospace, monospace";
 const pressStart = '"Press Start 2P", cursive';
 
 const cardStyle = { border: '1px solid rgba(255,255,255,0.06)', padding: '24px' };
-const labelStyle = { fontFamily: mono, fontSize: '9px', color: 'rgba(255,255,255,0.35)', textTransform: 'uppercase' as const, letterSpacing: '0.1em' };
+const labelStyle = { fontFamily: mono, fontSize: '9px', color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase' as const, letterSpacing: '0.1em' };
 
 // Color palette matching existing event type colors
 const metricColors: Record<string, { ok: string; warning: string; critical: string; bg: string }> = {
@@ -157,9 +157,9 @@ function MetricRow({ name, metric, history, ranges, expanded, onTap, plantId }: 
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             {Icon && <Icon size={12} style={{ color: statusColor, opacity: 0.8 }} />}
-            <span style={{ ...labelStyle, color: 'rgba(255,255,255,0.4)' }}>{label}</span>
+            <span style={{ ...labelStyle, color: 'rgba(255,255,255,0.8)' }}>{label}</span>
             <ChevronRight size={10} style={{
-              color: 'rgba(255,255,255,0.15)',
+              color: 'rgba(255,255,255,0.5)',
               transform: expanded ? 'rotate(90deg)' : 'none',
               transition: 'transform 0.2s',
             }} />
@@ -185,7 +185,7 @@ function MetricRow({ name, metric, history, ranges, expanded, onTap, plantId }: 
             <Sparkline data={history} metric={name} ranges={ranges} />
             <RangeBar metric={metric} />
             {metric.idealMin != null && metric.idealMax != null && (
-              <div style={{ fontFamily: mono, fontSize: '8px', color: 'rgba(255,255,255,0.2)', marginTop: '4px' }}>
+              <div style={{ fontFamily: mono, fontSize: '8px', color: 'rgba(255,255,255,0.55)', marginTop: '4px' }}>
                 ideal: {metric.idealMin}–{metric.idealMax}{metric.unit}
               </div>
             )}
@@ -200,7 +200,7 @@ function MetricRow({ name, metric, history, ranges, expanded, onTap, plantId }: 
 }
 
 function deviceWifiColor(lastSeenAt: string | null): string {
-  if (!lastSeenAt) return 'rgba(255,255,255,0.2)';
+  if (!lastSeenAt) return 'rgba(255,255,255,0.55)';
   const ageMs = Date.now() - new Date(lastSeenAt).getTime();
   if (ageMs > 24 * 60 * 60 * 1000) return '#ef4444';       // offline — red
   if (ageMs > 30 * 60 * 1000) return '#facc15';             // stale — amber
@@ -250,7 +250,7 @@ function SensorPicker({ plantId, onDone }: { plantId: string; onDone?: () => voi
         <div style={{ fontFamily: mono, fontSize: '10px', color: '#4ade80', marginBottom: '8px' }}>
           sensor created & assigned
         </div>
-        <div style={{ fontFamily: mono, fontSize: '9px', color: 'rgba(255,255,255,0.4)', marginBottom: '8px' }}>
+        <div style={{ fontFamily: mono, fontSize: '9px', color: 'rgba(255,255,255,0.8)', marginBottom: '8px' }}>
           Copy this token into your ESP32 firmware. It won't be shown again.
         </div>
         <div style={{
@@ -258,11 +258,11 @@ function SensorPicker({ plantId, onDone }: { plantId: string; onDone?: () => voi
           padding: '8px 10px', background: 'rgba(255,255,255,0.04)',
           border: '1px solid rgba(255,255,255,0.1)',
         }}>
-          <code style={{ fontFamily: mono, fontSize: '10px', color: 'rgba(255,255,255,0.7)', flex: 1, wordBreak: 'break-all' }}>
+          <code style={{ fontFamily: mono, fontSize: '10px', color: 'rgba(255,255,255,0.95)', flex: 1, wordBreak: 'break-all' }}>
             {newToken}
           </code>
           <button onClick={handleCopy} className="cursor-pointer" style={{
-            background: 'none', border: 'none', padding: '4px', color: copied ? '#4ade80' : 'rgba(255,255,255,0.3)', flexShrink: 0,
+            background: 'none', border: 'none', padding: '4px', color: copied ? '#4ade80' : 'rgba(255,255,255,0.65)', flexShrink: 0,
           }}>
             {copied ? <Check size={14} /> : <Copy size={14} />}
           </button>
@@ -271,7 +271,7 @@ function SensorPicker({ plantId, onDone }: { plantId: string; onDone?: () => voi
           onClick={() => { setNewToken(null); onDone?.(); }}
           className="cursor-pointer"
           style={{
-            fontFamily: mono, fontSize: '9px', color: 'rgba(255,255,255,0.3)',
+            fontFamily: mono, fontSize: '9px', color: 'rgba(255,255,255,0.65)',
             background: 'none', border: 'none', padding: '6px 0', marginTop: '8px',
           }}
         >
@@ -285,7 +285,7 @@ function SensorPicker({ plantId, onDone }: { plantId: string; onDone?: () => voi
   if (showAddNew) {
     return (
       <div style={{ padding: '12px 0' }}>
-        <div style={{ fontFamily: mono, fontSize: '10px', color: 'rgba(255,255,255,0.4)', marginBottom: '8px' }}>
+        <div style={{ fontFamily: mono, fontSize: '10px', color: 'rgba(255,255,255,0.8)', marginBottom: '8px' }}>
           new sensor
         </div>
         <input
@@ -317,7 +317,7 @@ function SensorPicker({ plantId, onDone }: { plantId: string; onDone?: () => voi
             className="cursor-pointer"
             style={{
               fontFamily: mono, fontSize: '9px', padding: '5px 12px',
-              color: 'rgba(255,255,255,0.3)', border: '1px solid rgba(255,255,255,0.06)',
+              color: 'rgba(255,255,255,0.65)', border: '1px solid rgba(255,255,255,0.06)',
               background: 'transparent',
             }}
           >
@@ -334,7 +334,7 @@ function SensorPicker({ plantId, onDone }: { plantId: string; onDone?: () => voi
       {/* Unassigned devices — one-tap assign */}
       {unassigned.length > 0 && (
         <div style={{ marginBottom: '8px' }}>
-          <div style={{ fontFamily: mono, fontSize: '8px', color: 'rgba(255,255,255,0.2)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: '6px' }}>
+          <div style={{ fontFamily: mono, fontSize: '8px', color: 'rgba(255,255,255,0.55)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: '6px' }}>
             available sensors
           </div>
           {unassigned.map(d => (
@@ -345,7 +345,7 @@ function SensorPicker({ plantId, onDone }: { plantId: string; onDone?: () => voi
               className="cursor-pointer"
               style={{
                 display: 'flex', alignItems: 'center', gap: '8px', width: '100%',
-                fontFamily: mono, fontSize: '11px', color: 'rgba(255,255,255,0.5)',
+                fontFamily: mono, fontSize: '11px', color: 'rgba(255,255,255,0.85)',
                 padding: '8px 10px', marginBottom: '4px',
                 border: '1px solid rgba(255,255,255,0.08)', background: 'transparent',
                 textAlign: 'left',
@@ -353,7 +353,7 @@ function SensorPicker({ plantId, onDone }: { plantId: string; onDone?: () => voi
             >
               <Wifi size={10} style={{ color: deviceWifiColor(d.last_seen_at) }} />
               <span style={{ flex: 1 }}>{d.name}</span>
-              <span style={{ fontSize: '8px', color: 'rgba(255,255,255,0.2)' }}>{d.device_token_prefix}...</span>
+              <span style={{ fontSize: '8px', color: 'rgba(255,255,255,0.55)' }}>{d.device_token_prefix}...</span>
             </button>
           ))}
         </div>
@@ -362,7 +362,7 @@ function SensorPicker({ plantId, onDone }: { plantId: string; onDone?: () => voi
       {/* Devices assigned to other plants — reassign with note */}
       {assignedElsewhere.length > 0 && (
         <div style={{ marginBottom: '8px' }}>
-          <div style={{ fontFamily: mono, fontSize: '8px', color: 'rgba(255,255,255,0.2)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: '6px' }}>
+          <div style={{ fontFamily: mono, fontSize: '8px', color: 'rgba(255,255,255,0.55)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: '6px' }}>
             move from another plant
           </div>
           {assignedElsewhere.map(d => (
@@ -373,15 +373,15 @@ function SensorPicker({ plantId, onDone }: { plantId: string; onDone?: () => voi
               className="cursor-pointer"
               style={{
                 display: 'flex', alignItems: 'center', gap: '8px', width: '100%',
-                fontFamily: mono, fontSize: '11px', color: 'rgba(255,255,255,0.35)',
+                fontFamily: mono, fontSize: '11px', color: 'rgba(255,255,255,0.7)',
                 padding: '8px 10px', marginBottom: '4px',
                 border: '1px solid rgba(255,255,255,0.06)', background: 'transparent',
                 textAlign: 'left',
               }}
             >
-              <Wifi size={10} style={{ color: 'rgba(255,255,255,0.2)' }} />
+              <Wifi size={10} style={{ color: 'rgba(255,255,255,0.55)' }} />
               <span style={{ flex: 1 }}>{d.name}</span>
-              <span style={{ fontSize: '8px', color: 'rgba(250,204,21,0.4)' }}>in use</span>
+              <span style={{ fontSize: '8px', color: 'rgba(250,204,21,0.8)' }}>in use</span>
             </button>
           ))}
         </div>
@@ -390,7 +390,7 @@ function SensorPicker({ plantId, onDone }: { plantId: string; onDone?: () => voi
       {/* Already assigned here */}
       {assignedHere.length > 0 && (
         <div style={{ marginBottom: '8px' }}>
-          <div style={{ fontFamily: mono, fontSize: '8px', color: 'rgba(255,255,255,0.2)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: '6px' }}>
+          <div style={{ fontFamily: mono, fontSize: '8px', color: 'rgba(255,255,255,0.55)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: '6px' }}>
             currently assigned
           </div>
           {assignedHere.map(d => (
@@ -409,7 +409,7 @@ function SensorPicker({ plantId, onDone }: { plantId: string; onDone?: () => voi
                 onClick={() => updateDevice.mutate({ id: d.id, plant_id: null })}
                 className="cursor-pointer"
                 title="Remove sensor"
-                style={{ background: 'none', border: 'none', padding: '2px', color: 'rgba(255,255,255,0.25)' }}
+                style={{ background: 'none', border: 'none', padding: '2px', color: 'rgba(255,255,255,0.6)' }}
               >
                 <X size={12} />
               </button>
@@ -424,7 +424,7 @@ function SensorPicker({ plantId, onDone }: { plantId: string; onDone?: () => voi
         className="cursor-pointer"
         style={{
           display: 'flex', alignItems: 'center', gap: '6px', width: '100%',
-          fontFamily: mono, fontSize: '10px', color: 'rgba(255,255,255,0.25)',
+          fontFamily: mono, fontSize: '10px', color: 'rgba(255,255,255,0.6)',
           padding: '8px 10px',
           border: '1px dashed rgba(255,255,255,0.08)', background: 'transparent',
           textAlign: 'left',
@@ -438,7 +438,7 @@ function SensorPicker({ plantId, onDone }: { plantId: string; onDone?: () => voi
           onClick={onDone}
           className="cursor-pointer"
           style={{
-            fontFamily: mono, fontSize: '9px', color: 'rgba(255,255,255,0.2)',
+            fontFamily: mono, fontSize: '9px', color: 'rgba(255,255,255,0.55)',
             background: 'none', border: 'none', padding: '6px 0', marginTop: '6px',
           }}
         >
@@ -463,10 +463,10 @@ export default function PlantVitals({ plantId }: PlantVitalsProps) {
   if (isLoading) {
     return (
       <div style={cardStyle}>
-        <div style={{ fontFamily: pressStart, fontSize: '9px', color: 'rgba(255,255,255,0.25)', letterSpacing: '0.05em' }}>
+        <div style={{ fontFamily: pressStart, fontSize: '9px', color: 'rgba(255,255,255,0.6)', letterSpacing: '0.05em' }}>
           PLANT VITALS
         </div>
-        <div style={{ fontFamily: mono, fontSize: '11px', color: 'rgba(255,255,255,0.3)', marginTop: '16px' }}>
+        <div style={{ fontFamily: mono, fontSize: '11px', color: 'rgba(255,255,255,0.65)', marginTop: '16px' }}>
           Loading sensor data...
         </div>
       </div>
@@ -476,7 +476,7 @@ export default function PlantVitals({ plantId }: PlantVitalsProps) {
   if (!data?.latest) {
     return (
       <div style={cardStyle}>
-        <div style={{ fontFamily: pressStart, fontSize: '9px', color: 'rgba(255,255,255,0.25)', letterSpacing: '0.05em', marginBottom: '12px' }}>
+        <div style={{ fontFamily: pressStart, fontSize: '9px', color: 'rgba(255,255,255,0.6)', letterSpacing: '0.05em', marginBottom: '12px' }}>
           PLANT VITALS
         </div>
         <SensorPicker plantId={plantId} />
@@ -495,20 +495,20 @@ export default function PlantVitals({ plantId }: PlantVitalsProps) {
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <div style={{ fontFamily: pressStart, fontSize: '9px', color: 'rgba(255,255,255,0.25)', letterSpacing: '0.05em' }}>
+          <div style={{ fontFamily: pressStart, fontSize: '9px', color: 'rgba(255,255,255,0.6)', letterSpacing: '0.05em' }}>
             PLANT VITALS
           </div>
           <button
             onClick={() => setShowSensorPicker(!showSensorPicker)}
             className="cursor-pointer"
-            style={{ background: 'none', border: 'none', padding: '2px', color: 'rgba(255,255,255,0.15)' }}
+            style={{ background: 'none', border: 'none', padding: '2px', color: 'rgba(255,255,255,0.5)' }}
           >
             <ChevronDown size={10} style={{ transform: showSensorPicker ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
           </button>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
           {lastReadingAge && (
-            <span style={{ fontFamily: mono, fontSize: '9px', color: 'rgba(255,255,255,0.25)' }}>
+            <span style={{ fontFamily: mono, fontSize: '9px', color: 'rgba(255,255,255,0.6)' }}>
               {lastReadingAge}
             </span>
           )}
@@ -543,7 +543,7 @@ export default function PlantVitals({ plantId }: PlantVitalsProps) {
           border: `1px solid ${alerts.some(a => a.severity === 'critical') ? 'rgba(239,68,68,0.15)' : 'rgba(250,204,21,0.15)'}`,
         }}>
           <AlertTriangle size={12} style={{ color: alerts.some(a => a.severity === 'critical') ? '#ef4444' : '#facc15', marginTop: '1px', flexShrink: 0 }} />
-          <div style={{ fontFamily: mono, fontSize: '10px', color: 'rgba(255,255,255,0.6)', lineHeight: 1.5 }}>
+          <div style={{ fontFamily: mono, fontSize: '10px', color: 'rgba(255,255,255,0.9)', lineHeight: 1.5 }}>
             {alerts.map(a => a.message).join(" · ")}
           </div>
         </div>
@@ -559,7 +559,7 @@ export default function PlantVitals({ plantId }: PlantVitalsProps) {
 
       {/* No ranges hint */}
       {!ranges && (
-        <div style={{ fontFamily: mono, fontSize: '8px', color: 'rgba(255,255,255,0.15)', marginTop: '8px', textAlign: 'center' }}>
+        <div style={{ fontFamily: mono, fontSize: '8px', color: 'rgba(255,255,255,0.5)', marginTop: '8px', textAlign: 'center' }}>
           ask orchid to set ideal ranges for this plant
         </div>
       )}

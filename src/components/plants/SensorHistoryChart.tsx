@@ -27,7 +27,7 @@ function CustomTooltip({ active, payload, period, unit }: any) {
   const d = payload[0].payload;
   return (
     <div style={{
-      fontFamily: mono, fontSize: "10px", color: "rgba(255,255,255,0.7)",
+      fontFamily: mono, fontSize: "10px", color: "rgba(255,255,255,0.95)",
       padding: "6px 10px", background: "rgba(0,0,0,0.85)", border: "1px solid rgba(255,255,255,0.1)",
     }}>
       <div>{formatTime(d.created_at, period)}</div>
@@ -94,7 +94,7 @@ export default function SensorHistoryChart({ plantId, metric, onClose }: Props) 
         <button
           onClick={onClose}
           className="cursor-pointer"
-          style={{ fontFamily: mono, fontSize: "9px", color: "rgba(255,255,255,0.3)", background: "none", border: "none", padding: "2px 6px" }}
+          style={{ fontFamily: mono, fontSize: "9px", color: "rgba(255,255,255,0.65)", background: "none", border: "none", padding: "2px 6px" }}
         >
           CLOSE
         </button>
@@ -110,7 +110,7 @@ export default function SensorHistoryChart({ plantId, metric, onClose }: Props) 
             style={{
               fontFamily: mono, fontSize: "9px", letterSpacing: "0.05em",
               padding: "3px 10px",
-              color: p === period ? cfg.color : "rgba(255,255,255,0.3)",
+              color: p === period ? cfg.color : "rgba(255,255,255,0.65)",
               border: `1px solid ${p === period ? cfg.color + "40" : "rgba(255,255,255,0.06)"}`,
               background: p === period ? cfg.color + "10" : "transparent",
             }}
@@ -122,11 +122,11 @@ export default function SensorHistoryChart({ plantId, metric, onClose }: Props) 
 
       {/* Chart */}
       {isLoading ? (
-        <div style={{ fontFamily: mono, fontSize: "11px", color: "rgba(255,255,255,0.2)", padding: "32px 0", textAlign: "center" }}>
+        <div style={{ fontFamily: mono, fontSize: "11px", color: "rgba(255,255,255,0.55)", padding: "32px 0", textAlign: "center" }}>
           loading...
         </div>
       ) : chartData.length < 2 ? (
-        <div style={{ fontFamily: mono, fontSize: "11px", color: "rgba(255,255,255,0.2)", padding: "32px 0", textAlign: "center" }}>
+        <div style={{ fontFamily: mono, fontSize: "11px", color: "rgba(255,255,255,0.55)", padding: "32px 0", textAlign: "center" }}>
           not enough data for {period}
         </div>
       ) : (
@@ -203,8 +203,8 @@ export default function SensorHistoryChart({ plantId, metric, onClose }: Props) 
             { label: "READINGS", val: String(chartData.length) },
           ].map(s => (
             <div key={s.label}>
-              <div style={{ fontFamily: mono, fontSize: "8px", color: "rgba(255,255,255,0.2)", letterSpacing: "0.1em" }}>{s.label}</div>
-              <div style={{ fontFamily: mono, fontSize: "11px", color: "rgba(255,255,255,0.5)" }}>{s.val}{s.label !== "READINGS" ? cfg.unit : ""}</div>
+              <div style={{ fontFamily: mono, fontSize: "8px", color: "rgba(255,255,255,0.55)", letterSpacing: "0.1em" }}>{s.label}</div>
+              <div style={{ fontFamily: mono, fontSize: "11px", color: "rgba(255,255,255,0.85)" }}>{s.val}{s.label !== "READINGS" ? cfg.unit : ""}</div>
             </div>
           ))}
         </div>

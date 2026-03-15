@@ -44,7 +44,7 @@ const ScrambleButton = ({ text, onClick }: { text: string, onClick: () => void }
                 fontFamily: pressStart,
                 fontSize: '11px',
                 letterSpacing: '0.06em',
-                color: 'rgba(255,255,255,0.7)',
+                color: 'rgba(255,255,255,0.95)',
                 backgroundColor: 'transparent',
                 border: 'none',
                 padding: '6px 10px',
@@ -221,14 +221,14 @@ export default function DashboardShell() {
                                 fontFamily: mono,
                                 fontSize: '11px',
                                 letterSpacing: '0.06em',
-                                color: activeTab === tab.id ? 'white' : 'rgba(255,255,255,0.3)',
+                                color: activeTab === tab.id ? 'white' : 'rgba(255,255,255,0.65)',
                                 backgroundColor: 'transparent',
                                 border: 'none',
                                 borderBottom: activeTab === tab.id ? '1px solid white' : '1px solid transparent',
                                 padding: '6px 10px',
                             }}
-                            onMouseEnter={(e) => { if (activeTab !== tab.id) e.currentTarget.style.color = 'rgba(255,255,255,0.7)'; }}
-                            onMouseLeave={(e) => { if (activeTab !== tab.id) e.currentTarget.style.color = 'rgba(255,255,255,0.3)'; }}
+                            onMouseEnter={(e) => { if (activeTab !== tab.id) e.currentTarget.style.color = 'rgba(255,255,255,0.95)'; }}
+                            onMouseLeave={(e) => { if (activeTab !== tab.id) e.currentTarget.style.color = 'rgba(255,255,255,0.65)'; }}
                         >
                             {tab.label}
                         </button>
@@ -249,7 +249,7 @@ export default function DashboardShell() {
                                     fontFamily: mono,
                                     fontSize: '11px',
                                     letterSpacing: '0.06em',
-                                    color: isAction ? 'white' : 'rgba(255,255,255,0.3)',
+                                    color: isAction ? 'white' : 'rgba(255,255,255,0.65)',
                                     fontWeight: isAction ? 'bold' : 'normal',
                                     backgroundColor: isAction ? 'rgba(255,255,255,0.1)' : 'transparent',
                                     border: isAction ? '1px solid rgba(255,255,255,0.5)' : 'none',
@@ -257,8 +257,8 @@ export default function DashboardShell() {
                                     padding: '6px 10px',
                                     borderRadius: '0',
                                 }}
-                                onMouseEnter={(e) => { if (!isAction) e.currentTarget.style.color = 'rgba(255,255,255,0.7)'; }}
-                                onMouseLeave={(e) => { if (!isAction) e.currentTarget.style.color = 'rgba(255,255,255,0.3)'; }}
+                                onMouseEnter={(e) => { if (!isAction) e.currentTarget.style.color = 'rgba(255,255,255,0.95)'; }}
+                                onMouseLeave={(e) => { if (!isAction) e.currentTarget.style.color = 'rgba(255,255,255,0.65)'; }}
                             >
                                 {link.label}
                             </button>

@@ -59,9 +59,9 @@ export function NotificationActivity() {
         <div className="flex items-center justify-between mb-4" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '10px' }}>
           <div className="flex items-center gap-2">
             <Radio size={14} style={{ color: 'rgba(255,255,255,0.3)' }} />
-            <span style={{ fontFamily: mono, fontSize: '12px', color: 'rgba(255,255,255,0.5)' }}>notification activity</span>
+            <span style={{ fontFamily: mono, fontSize: '12px', color: 'rgba(255,255,255,0.85)' }}>notification activity</span>
           </div>
-          <span style={{ fontFamily: mono, fontSize: '10px', color: 'rgba(255,255,255,0.2)' }}>
+          <span style={{ fontFamily: mono, fontSize: '10px', color: 'rgba(255,255,255,0.55)' }}>
             {auditEntries.length} entries
           </span>
         </div>
@@ -79,7 +79,7 @@ export function NotificationActivity() {
                 border: '1px solid',
                 borderColor: filter === f.id ? 'rgba(255,255,255,0.3)' : 'rgba(255,255,255,0.06)',
                 backgroundColor: filter === f.id ? 'rgba(255,255,255,0.05)' : 'transparent',
-                color: filter === f.id ? 'white' : 'rgba(255,255,255,0.3)',
+                color: filter === f.id ? 'white' : 'rgba(255,255,255,0.65)',
               }}
             >
               {f.label}
@@ -90,11 +90,11 @@ export function NotificationActivity() {
         {/* Entries */}
         <div className="flex flex-col gap-2 max-h-96 overflow-y-auto" style={{ scrollbarWidth: 'thin', scrollbarColor: 'rgba(255,255,255,0.1) transparent' }}>
           {isLoading ? (
-            <div style={{ fontFamily: mono, fontSize: '12px', color: 'rgba(255,255,255,0.25)', padding: '16px 0', textAlign: 'center' }}>
+            <div style={{ fontFamily: mono, fontSize: '12px', color: 'rgba(255,255,255,0.6)', padding: '16px 0', textAlign: 'center' }}>
               loading audit trail...
             </div>
           ) : filtered.length === 0 ? (
-            <div style={{ fontFamily: mono, fontSize: '12px', color: 'rgba(255,255,255,0.2)', padding: '16px 0', textAlign: 'center' }}>
+            <div style={{ fontFamily: mono, fontSize: '12px', color: 'rgba(255,255,255,0.55)', padding: '16px 0', textAlign: 'center' }}>
               no entries found
             </div>
           ) : (
@@ -116,20 +116,20 @@ export function NotificationActivity() {
                       <StatusIcon size={12} className="mt-0.5 shrink-0" style={{ color: statusColor }} />
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2 mb-1">
-                          <span style={{ fontFamily: mono, fontSize: '10px', fontWeight: 'bold', color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                          <span style={{ fontFamily: mono, fontSize: '10px', fontWeight: 'bold', color: 'rgba(255,255,255,0.85)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                             {entry.source_mode}
                           </span>
-                          <span style={{ fontFamily: mono, fontSize: '9px', color: 'rgba(255,255,255,0.2)' }}>
+                          <span style={{ fontFamily: mono, fontSize: '9px', color: 'rgba(255,255,255,0.55)' }}>
                             via {entry.source_function}
                           </span>
                         </div>
                         {entry.message_preview && (
-                          <div style={{ fontFamily: mono, fontSize: '11px', color: 'rgba(255,255,255,0.35)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          <div style={{ fontFamily: mono, fontSize: '11px', color: 'rgba(255,255,255,0.7)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                             {entry.message_preview.substring(0, 120)}
                           </div>
                         )}
                         {entry.error_detail && (
-                          <div style={{ fontFamily: mono, fontSize: '10px', color: 'rgba(239,68,68,0.5)', marginTop: '2px' }}>
+                          <div style={{ fontFamily: mono, fontSize: '10px', color: 'rgba(239,68,68,0.85)', marginTop: '2px' }}>
                             {entry.error_detail.substring(0, 100)}
                           </div>
                         )}
@@ -140,7 +140,7 @@ export function NotificationActivity() {
                         )}
                       </div>
                     </div>
-                    <span style={{ fontFamily: mono, fontSize: '10px', color: 'rgba(255,255,255,0.2)', whiteSpace: 'nowrap' }}>
+                    <span style={{ fontFamily: mono, fontSize: '10px', color: 'rgba(255,255,255,0.55)', whiteSpace: 'nowrap' }}>
                       {formatTime(entry.created_at)}
                     </span>
                   </div>

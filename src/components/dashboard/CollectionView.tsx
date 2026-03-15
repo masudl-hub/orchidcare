@@ -48,7 +48,7 @@ export function CollectionView({ onSelectPlant }: CollectionViewProps) {
         return (
             <div className="flex items-center justify-center py-24" style={{ fontFamily: mono }}>
                 <Loader2 className="w-5 h-5 animate-spin" style={{ color: 'rgba(255,255,255,0.3)' }} />
-                <span style={{ marginLeft: 12, fontSize: '12px', color: 'rgba(255,255,255,0.3)' }}>loading...</span>
+                <span style={{ marginLeft: 12, fontSize: '12px', color: 'rgba(255,255,255,0.65)' }}>loading...</span>
             </div>
         );
     }
@@ -82,7 +82,7 @@ export function CollectionView({ onSelectPlant }: CollectionViewProps) {
                         padding: '10px 14px',
                         backgroundColor: showCompare ? 'rgba(255,255,255,0.05)' : 'transparent',
                         border: `1px solid ${showCompare ? 'rgba(255,255,255,0.15)' : 'rgba(255,255,255,0.08)'}`,
-                        color: showCompare ? 'white' : 'rgba(255,255,255,0.4)',
+                        color: showCompare ? 'white' : 'rgba(255,255,255,0.8)',
                         display: 'flex',
                         alignItems: 'center',
                         gap: '6px',
@@ -101,7 +101,7 @@ export function CollectionView({ onSelectPlant }: CollectionViewProps) {
             )}
 
             {/* Count */}
-            <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.25)', letterSpacing: '0.12em', textTransform: 'uppercase' as const, marginBottom: '24px' }}>
+            <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.6)', letterSpacing: '0.12em', textTransform: 'uppercase' as const, marginBottom: '24px' }}>
                 {filteredPlants?.length || 0} specimens
             </div>
 
@@ -112,7 +112,7 @@ export function CollectionView({ onSelectPlant }: CollectionViewProps) {
                     <p style={{ fontFamily: pressStart, fontSize: '11px', marginBottom: '8px' }}>
                         {searchQuery ? 'no matches' : 'no plants yet'}
                     </p>
-                    <p style={{ fontSize: '12px', color: 'rgba(255,255,255,0.3)', marginBottom: '24px' }}>
+                    <p style={{ fontSize: '12px', color: 'rgba(255,255,255,0.65)', marginBottom: '24px' }}>
                         {searchQuery ? 'Try a different search' : (
                             <>Start building your collection via <button onClick={() => navigate('/chat')} className="underline hover:text-white transition-colors cursor-pointer bg-transparent border-none p-0 inline font-inherit text-inherit">chat</button></>
                         )}
@@ -182,7 +182,7 @@ export function CollectionView({ onSelectPlant }: CollectionViewProps) {
                                             fontSize: '9px',
                                             letterSpacing: '0.12em',
                                             textTransform: 'uppercase' as const,
-                                            color: 'rgba(255,255,255,0.25)',
+                                            color: 'rgba(255,255,255,0.6)',
                                         }}>
                                             {plant.id.slice(0, 8)}
                                         </span>
@@ -200,7 +200,7 @@ export function CollectionView({ onSelectPlant }: CollectionViewProps) {
                                     <div className="truncate" style={{ fontSize: '14px', color: 'white', marginBottom: '2px' }}>
                                         {plant.nickname || plant.name}
                                     </div>
-                                    <div className="truncate" style={{ fontSize: '11px', color: 'rgba(255,255,255,0.35)' }}>
+                                    <div className="truncate" style={{ fontSize: '11px', color: 'rgba(255,255,255,0.7)' }}>
                                         {plant.species || 'Unknown species'}
                                     </div>
                                 </div>
@@ -209,20 +209,20 @@ export function CollectionView({ onSelectPlant }: CollectionViewProps) {
                             {/* Meta row */}
                             <div className="grid grid-cols-3 gap-3 mt-4" style={{ borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '12px' }}>
                                 <div>
-                                    <div style={{ fontSize: '9px', color: 'rgba(255,255,255,0.2)', letterSpacing: '0.1em', textTransform: 'uppercase' as const, marginBottom: '4px' }}>location</div>
-                                    <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)' }}>{plant.location_in_home || '—'}</div>
+                                    <div style={{ fontSize: '9px', color: 'rgba(255,255,255,0.55)', letterSpacing: '0.1em', textTransform: 'uppercase' as const, marginBottom: '4px' }}>location</div>
+                                    <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.85)' }}>{plant.location_in_home || '—'}</div>
                                 </div>
                                 <div>
-                                    <div style={{ fontSize: '9px', color: 'rgba(255,255,255,0.2)', letterSpacing: '0.1em', textTransform: 'uppercase' as const, marginBottom: '4px' }}>added</div>
-                                    <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)' }}>
+                                    <div style={{ fontSize: '9px', color: 'rgba(255,255,255,0.55)', letterSpacing: '0.1em', textTransform: 'uppercase' as const, marginBottom: '4px' }}>added</div>
+                                    <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.85)' }}>
                                         {plant.created_at
                                             ? new Date(plant.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
                                             : '—'}
                                     </div>
                                 </div>
                                 <div>
-                                    <div style={{ fontSize: '9px', color: 'rgba(255,255,255,0.2)', letterSpacing: '0.1em', textTransform: 'uppercase' as const, marginBottom: '4px' }}>care</div>
-                                    <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)' }}>{plant.nextReminder ? 'Due' : '—'}</div>
+                                    <div style={{ fontSize: '9px', color: 'rgba(255,255,255,0.55)', letterSpacing: '0.1em', textTransform: 'uppercase' as const, marginBottom: '4px' }}>care</div>
+                                    <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.85)' }}>{plant.nextReminder ? 'Due' : '—'}</div>
                                 </div>
                             </div>
                         </button>

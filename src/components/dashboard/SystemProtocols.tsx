@@ -57,10 +57,10 @@ export const SystemProtocols: React.FC<SystemProtocolsProps> = ({
       <div style={{ border: '1px solid rgba(255,255,255,0.06)', padding: '24px' }}>
         <div className="flex items-center gap-2 mb-4" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '10px' }}>
           <Shield size={14} style={{ color: 'rgba(255,255,255,0.3)' }} />
-          <span style={{ fontFamily: mono, fontSize: '12px', color: 'rgba(255,255,255,0.5)' }}>system protocols</span>
+          <span style={{ fontFamily: mono, fontSize: '12px', color: 'rgba(255,255,255,0.85)' }}>system protocols</span>
         </div>
         <div className="flex items-center justify-center py-8">
-          <p style={{ fontFamily: mono, fontSize: '12px', color: 'rgba(255,255,255,0.25)' }}>initializing settings...</p>
+          <p style={{ fontFamily: mono, fontSize: '12px', color: 'rgba(255,255,255,0.6)' }}>initializing settings...</p>
         </div>
       </div>
     );
@@ -107,11 +107,11 @@ export const SystemProtocols: React.FC<SystemProtocolsProps> = ({
           <div>
             <div style={{
               fontFamily: mono, fontSize: '12px', fontWeight: 'bold',
-              color: isDestructive && isEnabled ? 'rgba(239,68,68,0.7)' : 'rgba(255,255,255,0.6)',
+              color: isDestructive && isEnabled ? 'rgba(239,68,68,0.95)' : 'rgba(255,255,255,0.9)',
             }}>
               {item.label}
             </div>
-            <div style={{ fontFamily: mono, fontSize: '9px', color: 'rgba(255,255,255,0.2)', marginTop: '2px' }}>
+            <div style={{ fontFamily: mono, fontSize: '9px', color: 'rgba(255,255,255,0.55)', marginTop: '2px' }}>
               {item.desc}
             </div>
           </div>
@@ -144,7 +144,7 @@ export const SystemProtocols: React.FC<SystemProtocolsProps> = ({
       <div className="flex items-center justify-between mb-6" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '10px' }}>
         <div className="flex items-center gap-2">
           <Shield size={14} style={{ color: 'rgba(255,255,255,0.3)' }} />
-          <span style={{ fontFamily: mono, fontSize: '12px', color: 'rgba(255,255,255,0.5)' }}>system protocols</span>
+          <span style={{ fontFamily: mono, fontSize: '12px', color: 'rgba(255,255,255,0.85)' }}>system protocols</span>
         </div>
 
         {!isEditingProtocols ? (
@@ -172,7 +172,7 @@ export const SystemProtocols: React.FC<SystemProtocolsProps> = ({
         }}>
           <div className="flex items-center gap-2 mb-4">
             <Bell size={12} style={{ color: 'rgba(255,255,255,0.3)' }} />
-            <span style={{ fontFamily: mono, fontSize: '9px', textTransform: 'uppercase', fontWeight: 'bold', letterSpacing: '0.1em', color: 'rgba(255,255,255,0.35)' }}>quiet hours</span>
+            <span style={{ fontFamily: mono, fontSize: '9px', textTransform: 'uppercase', fontWeight: 'bold', letterSpacing: '0.1em', color: 'rgba(255,255,255,0.7)' }}>quiet hours</span>
           </div>
           <div className="flex items-center justify-center py-2">
             <QuietHoursClock
@@ -183,7 +183,7 @@ export const SystemProtocols: React.FC<SystemProtocolsProps> = ({
               disabled={!isEditingProtocols}
             />
           </div>
-          <div style={{ textAlign: 'center', fontFamily: mono, fontSize: '9px', color: 'rgba(255,255,255,0.2)', marginTop: '8px' }}>
+          <div style={{ textAlign: 'center', fontFamily: mono, fontSize: '9px', color: 'rgba(255,255,255,0.55)', marginTop: '8px' }}>
             no notifications during these hours
           </div>
         </div>
@@ -192,7 +192,7 @@ export const SystemProtocols: React.FC<SystemProtocolsProps> = ({
         <div>
           <div className="flex items-center gap-2 mb-3">
             <Brain size={12} style={{ color: 'rgba(255,255,255,0.25)' }} />
-            <span style={{ fontFamily: mono, fontSize: '9px', textTransform: 'uppercase', fontWeight: 'bold', letterSpacing: '0.1em', color: 'rgba(255,255,255,0.3)' }}>proactive features</span>
+            <span style={{ fontFamily: mono, fontSize: '9px', textTransform: 'uppercase', fontWeight: 'bold', letterSpacing: '0.1em', color: 'rgba(255,255,255,0.65)' }}>proactive features</span>
           </div>
           <div className="flex flex-col gap-3">
             {proactiveSettings.map((item) => <ToggleRow key={item.key} item={item} />)}
@@ -203,7 +203,7 @@ export const SystemProtocols: React.FC<SystemProtocolsProps> = ({
         <div>
           <div className="flex items-center gap-2 mb-3">
             <Shield size={12} style={{ color: 'rgba(255,255,255,0.25)' }} />
-            <span style={{ fontFamily: mono, fontSize: '9px', textTransform: 'uppercase', fontWeight: 'bold', letterSpacing: '0.1em', color: 'rgba(255,255,255,0.3)' }}>agent permissions</span>
+            <span style={{ fontFamily: mono, fontSize: '9px', textTransform: 'uppercase', fontWeight: 'bold', letterSpacing: '0.1em', color: 'rgba(255,255,255,0.65)' }}>agent permissions</span>
           </div>
           <div className="flex flex-col gap-3">
             {agentPermissions.filter(p => !p.key.includes('Delete')).map((item) => <ToggleRow key={item.key} item={item} />)}
@@ -213,7 +213,7 @@ export const SystemProtocols: React.FC<SystemProtocolsProps> = ({
           <div style={{ marginTop: '16px', paddingTop: '16px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
             <div className="flex items-center gap-2 mb-3">
               <Trash2 size={10} style={{ color: 'rgba(239,68,68,0.4)' }} />
-              <span style={{ fontFamily: mono, fontSize: '9px', textTransform: 'uppercase', color: 'rgba(239,68,68,0.5)' }}>destructive actions</span>
+              <span style={{ fontFamily: mono, fontSize: '9px', textTransform: 'uppercase', color: 'rgba(239,68,68,0.85)' }}>destructive actions</span>
             </div>
             <div className="flex flex-col gap-3">
               {agentPermissions.filter(p => p.key.includes('Delete')).map((item) => <ToggleRow key={item.key} item={item} isDestructive />)}

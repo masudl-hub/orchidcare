@@ -247,7 +247,7 @@ export function DeveloperDashboard() {
                 <h2 style={{ fontFamily: pressStart, fontSize: "16px", marginBottom: "8px" }}>
                     {titleKey}
                 </h2>
-                <p style={{ fontSize: "13px", color: "rgba(255,255,255,0.5)", lineHeight: 1.8 }}>
+                <p style={{ fontSize: "13px", color: "rgba(255,255,255,0.85)", lineHeight: 1.8 }}>
                     Generate an API key to integrate Orchid's plant intelligence
                     into your own applications. Your key will only be shown once — copy it immediately.
                 </p>
@@ -291,7 +291,7 @@ export function DeveloperDashboard() {
                         }}
                     >
                         <div style={{
-                            fontSize: "10px", color: "rgba(255,255,255,0.4)", marginBottom: "10px",
+                            fontSize: "10px", color: "rgba(255,255,255,0.8)", marginBottom: "10px",
                             textTransform: "uppercase", letterSpacing: "0.12em",
                         }}>
                             ⚠ copy now — will not be shown again
@@ -311,7 +311,7 @@ export function DeveloperDashboard() {
                                     padding: "10px 18px",
                                     border: "1px solid rgba(255,255,255,0.15)",
                                     backgroundColor: copied ? "rgba(74,222,128,0.1)" : "transparent",
-                                    color: copied ? "#4ade80" : "rgba(255,255,255,0.6)",
+                                    color: copied ? "#4ade80" : "rgba(255,255,255,0.9)",
                                     fontFamily: mono, fontSize: "11px", whiteSpace: "nowrap",
                                 }}
                             >
@@ -330,10 +330,10 @@ export function DeveloperDashboard() {
                     }}>
                         <div>
                             <div style={{ fontSize: "13px", marginBottom: "4px" }}>
-                                <span style={{ color: "rgba(255,255,255,0.4)" }}>key: </span>
-                                <code style={{ color: "rgba(255,255,255,0.7)" }}>{keyRecord.key_prefix}</code>
+                                <span style={{ color: "rgba(255,255,255,0.8)" }}>key: </span>
+                                <code style={{ color: "rgba(255,255,255,0.95)" }}>{keyRecord.key_prefix}</code>
                             </div>
-                            <div style={{ fontSize: "11px", color: "rgba(255,255,255,0.25)" }}>
+                            <div style={{ fontSize: "11px", color: "rgba(255,255,255,0.6)" }}>
                                 created {new Date(keyRecord.created_at).toLocaleDateString()}
                                 {keyRecord.last_used_at && ` · last used ${new Date(keyRecord.last_used_at).toLocaleDateString()}`}
                             </div>
@@ -348,7 +348,7 @@ export function DeveloperDashboard() {
                                         padding: "6px 14px",
                                         border: "1px solid rgba(255,80,80,0.2)",
                                         backgroundColor: "transparent",
-                                        color: "rgba(255,80,80,0.6)",
+                                        color: "rgba(255,80,80,0.9)",
                                         fontFamily: mono, fontSize: "11px",
                                     }}
                                 >
@@ -376,7 +376,7 @@ export function DeveloperDashboard() {
                                             padding: "6px 14px",
                                             border: "1px solid rgba(255,255,255,0.15)",
                                             backgroundColor: "transparent",
-                                            color: "rgba(255,255,255,0.4)",
+                                            color: "rgba(255,255,255,0.8)",
                                             fontFamily: mono, fontSize: "11px",
                                         }}
                                     >
@@ -411,7 +411,7 @@ export function DeveloperDashboard() {
                             }}
                         >
                             <div style={{
-                                fontSize: "10px", color: "rgba(255,255,255,0.3)",
+                                fontSize: "10px", color: "rgba(255,255,255,0.65)",
                                 textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: "10px",
                             }}>
                                 {stat.label}
@@ -431,7 +431,7 @@ export function DeveloperDashboard() {
                 </h2>
 
                 {recentLogs.length === 0 ? (
-                    <div style={{ fontSize: "13px", color: "rgba(255,255,255,0.3)" }}>
+                    <div style={{ fontSize: "13px", color: "rgba(255,255,255,0.65)" }}>
                         No API calls yet. Make your first request to see activity here.
                     </div>
                 ) : (
@@ -443,7 +443,7 @@ export function DeveloperDashboard() {
                                 padding: "10px 16px",
                                 borderBottom: "1px solid rgba(255,255,255,0.08)",
                                 fontSize: "10px", textTransform: "uppercase",
-                                letterSpacing: "0.1em", color: "rgba(255,255,255,0.3)",
+                                letterSpacing: "0.1em", color: "rgba(255,255,255,0.65)",
                             }}
                         >
                             <div>time</div>
@@ -463,10 +463,10 @@ export function DeveloperDashboard() {
                                     fontSize: "12px",
                                 }}
                             >
-                                <div style={{ color: "rgba(255,255,255,0.4)" }}>
+                                <div style={{ color: "rgba(255,255,255,0.8)" }}>
                                     {new Date(log.created_at).toLocaleTimeString()}
                                 </div>
-                                <div style={{ color: "rgba(255,255,255,0.6)" }}>
+                                <div style={{ color: "rgba(255,255,255,0.9)" }}>
                                     {log.end_user_id.length > 16
                                         ? log.end_user_id.slice(0, 16) + "…"
                                         : log.end_user_id}
@@ -476,7 +476,7 @@ export function DeveloperDashboard() {
                                         {log.status}
                                     </span>
                                 </div>
-                                <div style={{ color: "rgba(255,255,255,0.4)" }}>
+                                <div style={{ color: "rgba(255,255,255,0.8)" }}>
                                     {log.latency_ms != null ? `${log.latency_ms}ms` : "—"}
                                 </div>
                             </div>
@@ -489,7 +489,7 @@ export function DeveloperDashboard() {
             {keyRecord && (
                 <section style={revealStyle(visible, 700)}>
                     <div style={{
-                        fontSize: "11px", color: "rgba(255,255,255,0.25)",
+                        fontSize: "11px", color: "rgba(255,255,255,0.6)",
                         borderTop: "1px solid rgba(255,255,255,0.06)", paddingTop: "16px",
                     }}>
                         rate limit: {keyRecord.rate_limit_per_minute} requests/minute

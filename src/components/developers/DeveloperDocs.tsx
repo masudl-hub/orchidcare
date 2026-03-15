@@ -93,7 +93,7 @@ function CodeBlock({ children }: { children: string }) {
                     fontFamily: mono,
                     fontSize: "10px",
                     letterSpacing: "0.06em",
-                    color: copied ? "#4ade80" : "rgba(255,255,255,0.25)",
+                    color: copied ? "#4ade80" : "rgba(255,255,255,0.6)",
                     backgroundColor: "transparent",
                     border: copied ? "1px solid rgba(74,222,128,0.3)" : "1px solid rgba(255,255,255,0.1)",
                     borderRadius: "4px",
@@ -101,8 +101,8 @@ function CodeBlock({ children }: { children: string }) {
                     cursor: "pointer",
                     transition: "all 200ms",
                 }}
-                onMouseEnter={(e) => { if (!copied) e.currentTarget.style.color = "rgba(255,255,255,0.6)"; }}
-                onMouseLeave={(e) => { if (!copied) e.currentTarget.style.color = "rgba(255,255,255,0.25)"; }}
+                onMouseEnter={(e) => { if (!copied) e.currentTarget.style.color = "rgba(255,255,255,0.9)"; }}
+                onMouseLeave={(e) => { if (!copied) e.currentTarget.style.color = "rgba(255,255,255,0.6)"; }}
             >
                 {copied ? "COPIED" : "COPY"}
             </button>
@@ -161,7 +161,7 @@ function Section({
             <h3 style={{ fontFamily: pressStart, fontSize: "12px", marginBottom: "16px", color: "white" }}>
                 {decryptedTitle}
             </h3>
-            <div style={{ fontSize: "13px", lineHeight: 1.8, color: "rgba(255,255,255,0.6)" }}>
+            <div style={{ fontSize: "13px", lineHeight: 1.8, color: "rgba(255,255,255,0.9)" }}>
                 {children}
             </div>
         </section>
@@ -174,11 +174,11 @@ function ToolEntry({ name, desc, params }: { name: string; desc: string; params?
     return (
         <div style={{ border: "1px solid rgba(255,255,255,0.06)", padding: "12px 14px", marginBottom: "4px" }}>
             <code style={{ color: "#4ade80", fontSize: "12px" }}>{name}</code>
-            <div style={{ fontSize: "12px", color: "rgba(255,255,255,0.45)", marginTop: "4px" }}>
+            <div style={{ fontSize: "12px", color: "rgba(255,255,255,0.8)", marginTop: "4px" }}>
                 {desc}
             </div>
             {params && (
-                <div style={{ fontSize: "11px", color: "rgba(255,255,255,0.25)", marginTop: "6px", fontStyle: "italic" }}>
+                <div style={{ fontSize: "11px", color: "rgba(255,255,255,0.6)", marginTop: "6px", fontStyle: "italic" }}>
                     {params}
                 </div>
             )}
@@ -195,7 +195,7 @@ function Note({ children }: { children: React.ReactNode }) {
             paddingLeft: "12px",
             marginTop: "12px",
             fontSize: "12px",
-            color: "rgba(255,255,255,0.4)",
+            color: "rgba(255,255,255,0.8)",
         }}>
             {children}
         </div>
@@ -220,7 +220,7 @@ export function DeveloperDocs() {
                 <h2 style={{ fontFamily: pressStart, fontSize: "16px", marginBottom: "12px" }}>
                     {introTitle}
                 </h2>
-                <p style={{ fontSize: "13px", color: "rgba(255,255,255,0.4)", lineHeight: 1.8 }}>
+                <p style={{ fontSize: "13px", color: "rgba(255,255,255,0.8)", lineHeight: 1.8 }}>
                     The Orchid API gives your application access to the same plant AI that powers the
                     Orchid chat. Identify species from photos, diagnose issues, manage plant collections,
                     set care reminders, research the web, find local stores, generate visual guides —
@@ -258,7 +258,7 @@ export function DeveloperDocs() {
                     <code style={{ color: "#4ade80" }}>Authorization</code> header:
                 </p>
                 <CodeBlock>{`Authorization: Bearer orch_YOUR_API_KEY`}</CodeBlock>
-                <div style={{ marginTop: "12px", fontSize: "12px", color: "rgba(255,255,255,0.3)" }}>
+                <div style={{ marginTop: "12px", fontSize: "12px", color: "rgba(255,255,255,0.65)" }}>
                     Keys start with <code>orch_</code> and are 45 characters long. They are shown only
                     once on generation — if lost, revoke and create a new one from the dashboard.
                 </div>
@@ -268,7 +268,7 @@ export function DeveloperDocs() {
             <Section title="3. request format" figLabel="§ 3.3" delay={0}>
                 <p style={{ marginBottom: "4px" }}>
                     <code style={{ color: "#4ade80" }}>POST</code>{" "}
-                    <code style={{ fontSize: "11px", color: "rgba(255,255,255,0.5)" }}>{API_ENDPOINT}</code>
+                    <code style={{ fontSize: "11px", color: "rgba(255,255,255,0.85)" }}>{API_ENDPOINT}</code>
                 </p>
                 <div style={{ marginBottom: "12px" }} />
                 <CodeBlock>{`{
@@ -651,7 +651,7 @@ const { data } = await fetch("${API_ENDPOINT}", {
                             }}>
                                 {err.code}
                             </code>
-                            <span style={{ color: "rgba(255,255,255,0.5)" }}>{err.desc}</span>
+                            <span style={{ color: "rgba(255,255,255,0.85)" }}>{err.desc}</span>
                         </div>
                     ))}
                 </div>

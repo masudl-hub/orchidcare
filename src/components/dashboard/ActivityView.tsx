@@ -47,7 +47,7 @@ export function ActivityView() {
                             border: '1px solid',
                             borderColor: filter === f.id ? 'rgba(255,255,255,0.3)' : 'rgba(255,255,255,0.06)',
                             backgroundColor: filter === f.id ? 'rgba(255,255,255,0.05)' : 'transparent',
-                            color: filter === f.id ? 'white' : 'rgba(255,255,255,0.3)',
+                            color: filter === f.id ? 'white' : 'rgba(255,255,255,0.65)',
                         }}
                     >
                         {f.label}
@@ -66,8 +66,8 @@ export function ActivityView() {
             {!isLoading && filtered.length === 0 && (
                 <div className="text-center py-16" style={revealStyle(visible, 200)}>
                     <Activity size={28} style={{ margin: '0 auto 12px', color: 'rgba(255,255,255,0.15)' }} />
-                    <p style={{ fontSize: '12px', color: 'rgba(255,255,255,0.3)' }}>No activity yet</p>
-                    <p style={{ fontSize: '11px', color: 'rgba(255,255,255,0.2)', marginTop: '4px' }}>Care events and messages will appear here</p>
+                    <p style={{ fontSize: '12px', color: 'rgba(255,255,255,0.65)' }}>No activity yet</p>
+                    <p style={{ fontSize: '11px', color: 'rgba(255,255,255,0.55)', marginTop: '4px' }}>Care events and messages will appear here</p>
                 </div>
             )}
 
@@ -117,25 +117,25 @@ export function ActivityView() {
                                                 {category === 'user' && <User size={12} style={{ color: 'rgba(255,255,255,0.35)' }} />}
                                                 {category === 'agent' && <Terminal size={12} style={{ color: 'rgba(255,255,255,0.5)' }} />}
                                                 {category === 'system' && <Activity size={12} style={{ color: 'rgba(255,255,255,0.25)' }} />}
-                                                <span style={{ fontSize: '9px', letterSpacing: '0.1em', textTransform: 'uppercase' as const, color: 'rgba(255,255,255,0.3)', fontWeight: 'bold' }}>
+                                                <span style={{ fontSize: '9px', letterSpacing: '0.1em', textTransform: 'uppercase' as const, color: 'rgba(255,255,255,0.65)', fontWeight: 'bold' }}>
                                                     {activity.type}
                                                 </span>
                                             </div>
-                                            <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.2)', textAlign: 'right' as const }}>
+                                            <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.55)', textAlign: 'right' as const }}>
                                                 <div>{new Date(activity.timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</div>
                                                 <div>{new Date(activity.timestamp).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}</div>
                                             </div>
                                         </div>
 
-                                        <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.7)', marginBottom: '2px' }}>
+                                        <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.95)', marginBottom: '2px' }}>
                                             {activity.title}
                                         </div>
-                                        <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.35)', lineHeight: '1.6' }}>
+                                        <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.7)', lineHeight: '1.6' }}>
                                             {activity.description}
                                         </div>
 
                                         {activity.plantName && (
-                                            <div className="flex items-center gap-1 mt-2" style={{ fontSize: '11px', color: 'rgba(255,255,255,0.25)' }}>
+                                            <div className="flex items-center gap-1 mt-2" style={{ fontSize: '11px', color: 'rgba(255,255,255,0.6)' }}>
                                                 <Leaf size={11} />
                                                 <span>{activity.plantName}</span>
                                             </div>

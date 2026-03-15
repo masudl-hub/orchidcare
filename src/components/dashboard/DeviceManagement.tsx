@@ -6,7 +6,7 @@ import { usePlants } from "@/hooks/usePlants";
 const mono = "ui-monospace, monospace";
 
 const cardStyle = { border: '1px solid rgba(255,255,255,0.06)', padding: '24px' };
-const labelStyle: React.CSSProperties = { fontFamily: mono, fontSize: '9px', color: 'rgba(255,255,255,0.35)', textTransform: 'uppercase', letterSpacing: '0.1em' };
+const labelStyle: React.CSSProperties = { fontFamily: mono, fontSize: '9px', color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase', letterSpacing: '0.1em' };
 
 function formatAge(date: string | null): string {
   if (!date) return "never";
@@ -82,7 +82,7 @@ function DeviceRow({ device, plants }: { device: Device; plants: { id: string; n
       {/* Header row: name + status */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: 1, minWidth: 0 }}>
-          <Cpu size={14} style={{ color: 'rgba(255,255,255,0.25)', flexShrink: 0 }} />
+          <Cpu size={14} style={{ color: 'rgba(255,255,255,0.6)', flexShrink: 0 }} />
           {editingName ? (
             <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flex: 1 }}>
               <input
@@ -100,7 +100,7 @@ function DeviceRow({ device, plants }: { device: Device; plants: { id: string; n
               <button onClick={handleSaveName} className="cursor-pointer" style={{ background: 'none', border: 'none', padding: '2px', color: '#4ade80' }}>
                 <Check size={12} />
               </button>
-              <button onClick={() => { setNameValue(device.name); setEditingName(false); }} className="cursor-pointer" style={{ background: 'none', border: 'none', padding: '2px', color: 'rgba(255,255,255,0.3)' }}>
+              <button onClick={() => { setNameValue(device.name); setEditingName(false); }} className="cursor-pointer" style={{ background: 'none', border: 'none', padding: '2px', color: 'rgba(255,255,255,0.65)' }}>
                 <X size={12} />
               </button>
             </div>
@@ -110,7 +110,7 @@ function DeviceRow({ device, plants }: { device: Device; plants: { id: string; n
                 {device.name}
               </span>
               {!isRevoked && (
-                <button onClick={() => setEditingName(true)} className="cursor-pointer" style={{ background: 'none', border: 'none', padding: '2px', color: 'rgba(255,255,255,0.15)' }}>
+                <button onClick={() => setEditingName(true)} className="cursor-pointer" style={{ background: 'none', border: 'none', padding: '2px', color: 'rgba(255,255,255,0.5)' }}>
                   <Edit2 size={10} />
                 </button>
               )}
@@ -129,15 +129,15 @@ function DeviceRow({ device, plants }: { device: Device; plants: { id: string; n
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px', marginBottom: '12px' }}>
         <div>
           <div style={labelStyle}>token</div>
-          <div style={{ fontFamily: mono, fontSize: '11px', color: 'rgba(255,255,255,0.4)' }}>{device.device_token_prefix}...</div>
+          <div style={{ fontFamily: mono, fontSize: '11px', color: 'rgba(255,255,255,0.8)' }}>{device.device_token_prefix}...</div>
         </div>
         <div>
           <div style={labelStyle}>last seen</div>
-          <div style={{ fontFamily: mono, fontSize: '11px', color: 'rgba(255,255,255,0.4)' }}>{formatAge(device.last_seen_at)}</div>
+          <div style={{ fontFamily: mono, fontSize: '11px', color: 'rgba(255,255,255,0.8)' }}>{formatAge(device.last_seen_at)}</div>
         </div>
         <div>
           <div style={labelStyle}>added</div>
-          <div style={{ fontFamily: mono, fontSize: '11px', color: 'rgba(255,255,255,0.4)' }}>
+          <div style={{ fontFamily: mono, fontSize: '11px', color: 'rgba(255,255,255,0.8)' }}>
             {new Date(device.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
           </div>
         </div>
@@ -157,7 +157,7 @@ function DeviceRow({ device, plants }: { device: Device; plants: { id: string; n
                 className="cursor-pointer"
                 style={{
                   display: 'block', width: '100%', textAlign: 'left',
-                  fontFamily: mono, fontSize: '11px', color: 'rgba(255,255,255,0.35)',
+                  fontFamily: mono, fontSize: '11px', color: 'rgba(255,255,255,0.7)',
                   padding: '6px 10px', border: 'none', background: 'transparent',
                 }}
               >
@@ -171,7 +171,7 @@ function DeviceRow({ device, plants }: { device: Device; plants: { id: string; n
                   style={{
                     display: 'block', width: '100%', textAlign: 'left',
                     fontFamily: mono, fontSize: '11px',
-                    color: p.id === device.plant_id ? '#4ade80' : 'rgba(255,255,255,0.5)',
+                    color: p.id === device.plant_id ? '#4ade80' : 'rgba(255,255,255,0.85)',
                     padding: '6px 10px', border: 'none',
                     background: p.id === device.plant_id ? 'rgba(74,222,128,0.06)' : 'transparent',
                     borderBottom: '1px solid rgba(255,255,255,0.04)',
@@ -185,7 +185,7 @@ function DeviceRow({ device, plants }: { device: Device; plants: { id: string; n
               onClick={() => setShowPlantPicker(false)}
               className="cursor-pointer"
               style={{
-                fontFamily: mono, fontSize: '9px', color: 'rgba(255,255,255,0.25)',
+                fontFamily: mono, fontSize: '9px', color: 'rgba(255,255,255,0.6)',
                 background: 'none', border: 'none', padding: '4px 0', marginTop: '4px',
               }}
             >
@@ -200,12 +200,12 @@ function DeviceRow({ device, plants }: { device: Device; plants: { id: string; n
             style={{
               display: 'flex', alignItems: 'center', gap: '4px',
               fontFamily: mono, fontSize: '11px',
-              color: assignedPlant ? 'rgba(255,255,255,0.5)' : 'rgba(255,255,255,0.2)',
+              color: assignedPlant ? 'rgba(255,255,255,0.85)' : 'rgba(255,255,255,0.55)',
               background: 'none', border: 'none', padding: '2px 0',
             }}
           >
             {assignedPlant ? (assignedPlant.nickname || assignedPlant.name) : 'unassigned'}
-            {!isRevoked && <ChevronDown size={10} style={{ color: 'rgba(255,255,255,0.15)' }} />}
+            {!isRevoked && <ChevronDown size={10} style={{ color: 'rgba(255,255,255,0.5)' }} />}
           </button>
         )}
       </div>
@@ -219,7 +219,7 @@ function DeviceRow({ device, plants }: { device: Device; plants: { id: string; n
             className="cursor-pointer"
             style={{
               fontFamily: mono, fontSize: '9px', letterSpacing: '0.05em',
-              padding: '4px 10px', color: identifyPending ? '#4ade80' : 'rgba(255,255,255,0.4)',
+              padding: '4px 10px', color: identifyPending ? '#4ade80' : 'rgba(255,255,255,0.8)',
               border: `1px solid ${identifyPending ? 'rgba(74,222,128,0.3)' : 'rgba(255,255,255,0.08)'}`,
               background: identifyPending ? 'rgba(74,222,128,0.06)' : 'transparent',
               display: 'flex', alignItems: 'center', gap: '4px',
@@ -232,7 +232,7 @@ function DeviceRow({ device, plants }: { device: Device; plants: { id: string; n
             className="cursor-pointer"
             style={{
               fontFamily: mono, fontSize: '9px', letterSpacing: '0.05em',
-              padding: '4px 10px', color: 'rgba(239,68,68,0.5)',
+              padding: '4px 10px', color: 'rgba(239,68,68,0.85)',
               border: '1px solid rgba(239,68,68,0.15)', background: 'transparent',
             }}
           >
@@ -249,7 +249,7 @@ function DeviceRow({ device, plants }: { device: Device; plants: { id: string; n
             className="cursor-pointer"
             style={{
               fontFamily: mono, fontSize: '9px', letterSpacing: '0.05em',
-              padding: '4px 10px', color: 'rgba(255,255,255,0.3)',
+              padding: '4px 10px', color: 'rgba(255,255,255,0.65)',
               border: '1px solid rgba(255,255,255,0.08)', background: 'transparent',
             }}
           >
@@ -274,26 +274,26 @@ export function DeviceManagement() {
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <Wifi size={14} style={{ color: 'rgba(255,255,255,0.25)' }} />
-          <span style={{ fontFamily: mono, fontSize: '12px', color: 'rgba(255,255,255,0.5)' }}>sensor devices</span>
+          <Wifi size={14} style={{ color: 'rgba(255,255,255,0.6)' }} />
+          <span style={{ fontFamily: mono, fontSize: '12px', color: 'rgba(255,255,255,0.85)' }}>sensor devices</span>
         </div>
-        <span style={{ fontFamily: mono, fontSize: '9px', color: 'rgba(255,255,255,0.2)' }}>
+        <span style={{ fontFamily: mono, fontSize: '9px', color: 'rgba(255,255,255,0.55)' }}>
           {activeDevices.length} active
         </span>
       </div>
 
       {isLoading ? (
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '16px 0' }}>
-          <Loader2 size={14} className="animate-spin" style={{ color: 'rgba(255,255,255,0.2)' }} />
-          <span style={{ fontFamily: mono, fontSize: '11px', color: 'rgba(255,255,255,0.2)' }}>loading devices...</span>
+          <Loader2 size={14} className="animate-spin" style={{ color: 'rgba(255,255,255,0.55)' }} />
+          <span style={{ fontFamily: mono, fontSize: '11px', color: 'rgba(255,255,255,0.55)' }}>loading devices...</span>
         </div>
       ) : !devices || devices.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '24px 0' }}>
           <WifiOff size={24} style={{ margin: '0 auto 12px', color: 'rgba(255,255,255,0.1)' }} />
-          <div style={{ fontFamily: mono, fontSize: '11px', color: 'rgba(255,255,255,0.3)', marginBottom: '6px' }}>
+          <div style={{ fontFamily: mono, fontSize: '11px', color: 'rgba(255,255,255,0.65)', marginBottom: '6px' }}>
             no sensors registered
           </div>
-          <div style={{ fontFamily: mono, fontSize: '9px', color: 'rgba(255,255,255,0.15)' }}>
+          <div style={{ fontFamily: mono, fontSize: '9px', color: 'rgba(255,255,255,0.5)' }}>
             ask orchid to set up a sensor device
           </div>
         </div>
@@ -302,7 +302,7 @@ export function DeviceManagement() {
           {activeDevices.map(d => <DeviceRow key={d.id} device={d} plants={plantList} />)}
           {revokedDevices.length > 0 && (
             <>
-              <div style={{ fontFamily: mono, fontSize: '9px', color: 'rgba(255,255,255,0.15)', letterSpacing: '0.1em', textTransform: 'uppercase', marginTop: '8px' }}>
+              <div style={{ fontFamily: mono, fontSize: '9px', color: 'rgba(255,255,255,0.5)', letterSpacing: '0.1em', textTransform: 'uppercase', marginTop: '8px' }}>
                 revoked
               </div>
               {revokedDevices.map(d => <DeviceRow key={d.id} device={d} plants={plantList} />)}

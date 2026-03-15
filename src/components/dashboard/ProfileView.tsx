@@ -107,10 +107,10 @@ function QuietHoursClock({
                     </g>
                 </svg>
             </div>
-            <div style={{ marginTop: '10px', fontFamily: mono, fontSize: '12px', color: 'rgba(255,255,255,0.4)' }}>
+            <div style={{ marginTop: '10px', fontFamily: mono, fontSize: '12px', color: 'rgba(255,255,255,0.8)' }}>
                 {formatHour(startHour)} — {formatHour(endHour)}
             </div>
-            {!disabled && <div style={{ fontFamily: mono, fontSize: '11px', color: 'rgba(255,255,255,0.2)', marginTop: '4px' }}>drag hands to adjust</div>}
+            {!disabled && <div style={{ fontFamily: mono, fontSize: '11px', color: 'rgba(255,255,255,0.55)', marginTop: '4px' }}>drag hands to adjust</div>}
         </div>
     );
 }
@@ -212,10 +212,10 @@ export function ProfileView() {
                 <div className="flex items-center gap-3">
                     <Power size={14} style={{ color: proactiveEnabled ? 'rgba(34,197,94,0.6)' : 'rgba(239,68,68,0.5)' }} />
                     <div>
-                        <div style={{ fontFamily: mono, fontSize: '12px', fontWeight: 'bold', color: proactiveEnabled ? 'rgba(255,255,255,0.6)' : 'rgba(239,68,68,0.6)' }}>
+                        <div style={{ fontFamily: mono, fontSize: '12px', fontWeight: 'bold', color: proactiveEnabled ? 'rgba(255,255,255,0.9)' : 'rgba(239,68,68,0.9)' }}>
                             {proactiveEnabled ? 'Proactive Messages Active' : 'Proactive Messages Paused'}
                         </div>
-                        <div style={{ fontFamily: mono, fontSize: '9px', color: 'rgba(255,255,255,0.2)', marginTop: '2px' }}>
+                        <div style={{ fontFamily: mono, fontSize: '9px', color: 'rgba(255,255,255,0.55)', marginTop: '2px' }}>
                             {proactiveEnabled ? 'Orchid can send you care reminders & tips' : 'All proactive outreach is disabled'}
                         </div>
                     </div>
@@ -322,7 +322,7 @@ export function ProfileView() {
 
     const labelStyle: React.CSSProperties = {
         fontFamily: mono, fontSize: '11px', textTransform: 'uppercase',
-        letterSpacing: '0.1em', color: 'rgba(255,255,255,0.25)', marginBottom: '6px',
+        letterSpacing: '0.1em', color: 'rgba(255,255,255,0.6)', marginBottom: '6px',
     };
 
     const inputStyle: React.CSSProperties = {
@@ -332,7 +332,7 @@ export function ProfileView() {
     };
 
     const valueStyle: React.CSSProperties = {
-        fontFamily: mono, fontSize: '13px', color: 'rgba(255,255,255,0.6)',
+        fontFamily: mono, fontSize: '13px', color: 'rgba(255,255,255,0.9)',
     };
 
     return (
@@ -341,7 +341,7 @@ export function ProfileView() {
             {/* ── Profile card ── */}
             <div style={{ ...cardStyle, ...revealStyle(visible, 0) }}>
                 {/* ID badge */}
-                <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.2)', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: '20px' }}>
+                <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.55)', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: '20px' }}>
                     {authProfile?.id ? `user_id: ${authProfile.id.slice(0, 8)}` : 'user_id: ---'}
                 </div>
 
@@ -508,11 +508,11 @@ export function ProfileView() {
             <div style={{ ...cardStyle, ...revealStyle(visible, 450) }}>
                 <div className="flex items-center gap-2 mb-4" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '10px' }}>
                     <div style={{ width: 16, height: 16, backgroundColor: 'rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 'bold' }}>AI</div>
-                    <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.5)' }}>behavioral insights</span>
+                    <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.85)' }}>behavioral insights</span>
                 </div>
                 <div className="flex flex-col gap-2">
                     {insightsLoading ? (
-                        <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.25)', padding: '8px 0' }} className="flex items-center gap-2">
+                        <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.6)', padding: '8px 0' }} className="flex items-center gap-2">
                             <Loader2 size={12} className="animate-spin" /> loading...
                         </div>
                     ) : userInsights.length > 0 ? (
@@ -526,7 +526,7 @@ export function ProfileView() {
                             };
                             const Icon = getIcon(insight.insight_key);
                             return (
-                                <div key={insight.id} className="flex items-start gap-2 group" style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)', padding: '6px 8px', backgroundColor: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.04)' }}>
+                                <div key={insight.id} className="flex items-start gap-2 group" style={{ fontSize: '12px', color: 'rgba(255,255,255,0.8)', padding: '6px 8px', backgroundColor: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.04)' }}>
                                     <Icon size={12} className="mt-0.5" style={{ color: 'rgba(255,255,255,0.2)' }} />
                                     <span className="flex-1">{insight.insight_value}</span>
                                     <button onClick={() => deleteInsight.mutate(insight.id)} disabled={deleteInsight.isPending} className="cursor-pointer transition-colors" style={{ color: 'rgba(255,255,255,0.15)', background: 'none', border: 'none' }}>
@@ -536,7 +536,7 @@ export function ProfileView() {
                             );
                         })
                     ) : (
-                        <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.2)', padding: '8px 0' }}>no insights generated yet</div>
+                        <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.55)', padding: '8px 0' }}>no insights generated yet</div>
                     )}
                 </div>
             </div>
@@ -547,7 +547,7 @@ export function ProfileView() {
                 <div className="flex flex-col gap-3">
                     <button onClick={handleSignOut} className="focus:outline-none cursor-pointer flex items-center justify-center gap-2 transition-all" style={{
                         width: '100%', padding: '10px', fontFamily: mono, fontSize: '12px', letterSpacing: '0.06em',
-                        border: '1px solid rgba(255,255,255,0.08)', backgroundColor: 'transparent', color: 'rgba(255,255,255,0.5)',
+                        border: '1px solid rgba(255,255,255,0.08)', backgroundColor: 'transparent', color: 'rgba(255,255,255,0.85)',
                     }}>
                         <LogOut size={12} /> sign out
                     </button>

@@ -18,7 +18,7 @@ function CustomTooltip({ active, payload, unit }: any) {
   const d = payload[0].payload;
   return (
     <div style={{
-      fontFamily: mono, fontSize: "10px", color: "rgba(255,255,255,0.7)",
+      fontFamily: mono, fontSize: "10px", color: "rgba(255,255,255,0.95)",
       padding: "6px 10px", background: "rgba(0,0,0,0.85)", border: "1px solid rgba(255,255,255,0.1)",
     }}>
       <div>{d.name}</div>
@@ -65,13 +65,13 @@ export default function SensorComparison({ onClose }: Props) {
     }}>
       {/* Header */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
-        <span style={{ fontFamily: mono, fontSize: "12px", color: "rgba(255,255,255,0.5)" }}>
+        <span style={{ fontFamily: mono, fontSize: "12px", color: "rgba(255,255,255,0.85)" }}>
           compare plants
         </span>
         <button
           onClick={onClose}
           className="cursor-pointer"
-          style={{ fontFamily: mono, fontSize: "9px", color: "rgba(255,255,255,0.3)", background: "none", border: "none", padding: "2px 6px" }}
+          style={{ fontFamily: mono, fontSize: "9px", color: "rgba(255,255,255,0.65)", background: "none", border: "none", padding: "2px 6px" }}
         >
           CLOSE
         </button>
@@ -87,7 +87,7 @@ export default function SensorComparison({ onClose }: Props) {
             style={{
               fontFamily: mono, fontSize: "9px", letterSpacing: "0.05em",
               padding: "3px 10px",
-              color: m === metric ? metricConfig[m].color : "rgba(255,255,255,0.3)",
+              color: m === metric ? metricConfig[m].color : "rgba(255,255,255,0.65)",
               border: `1px solid ${m === metric ? metricConfig[m].color + "40" : "rgba(255,255,255,0.06)"}`,
               background: m === metric ? metricConfig[m].color + "10" : "transparent",
             }}
@@ -98,11 +98,11 @@ export default function SensorComparison({ onClose }: Props) {
       </div>
 
       {isLoading ? (
-        <div style={{ fontFamily: mono, fontSize: "11px", color: "rgba(255,255,255,0.2)", padding: "24px 0", textAlign: "center" }}>
+        <div style={{ fontFamily: mono, fontSize: "11px", color: "rgba(255,255,255,0.55)", padding: "24px 0", textAlign: "center" }}>
           loading...
         </div>
       ) : chartData.length === 0 ? (
-        <div style={{ fontFamily: mono, fontSize: "11px", color: "rgba(255,255,255,0.2)", padding: "24px 0", textAlign: "center" }}>
+        <div style={{ fontFamily: mono, fontSize: "11px", color: "rgba(255,255,255,0.55)", padding: "24px 0", textAlign: "center" }}>
           no sensor data to compare
         </div>
       ) : (
@@ -134,7 +134,7 @@ export default function SensorComparison({ onClose }: Props) {
         </div>
       )}
 
-      <div style={{ fontFamily: mono, fontSize: "8px", color: "rgba(255,255,255,0.15)", marginTop: "8px", textAlign: "center" }}>
+      <div style={{ fontFamily: mono, fontSize: "8px", color: "rgba(255,255,255,0.5)", marginTop: "8px", textAlign: "center" }}>
         showing latest readings · moisture only in batch mode
       </div>
     </div>

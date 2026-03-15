@@ -2883,6 +2883,7 @@ ${proactiveContext.events.map((e: any) => `- ${e.message_hint}`).join("\n")}
                           source: "telegram_photo",
                         },
                         uploadedPhotoPath || mediaUrl0,
+                        inboundMessage?.id,
                       );
                       console.log(`[VisualMemory] Auto-captured snapshot for ${plant.nickname || plant.name}`);
 
@@ -2990,6 +2991,7 @@ ${proactiveContext.events.map((e: any) => `- ${e.message_hint}`).join("\n")}
                           health_notes: `${toolResult.data.diagnosis} (${toolResult.data.severity}). Treatment: ${toolResult.data.treatment || "none"}`,
                         },
                         uploadedPhotoPath || mediaUrl0,
+                        inboundMessage?.id,
                       );
                       console.log(`[VisualMemory] Auto-captured diagnosis snapshot for ${diagPlant.data.nickname || diagPlant.data.name}`);
 
@@ -3283,6 +3285,7 @@ ${proactiveContext.events.map((e: any) => `- ${e.message_hint}`).join("\n")}
                   location: args.location,
                 },
                 uploadedPhotoPath || mediaUrl0 || undefined,
+                inboundMessage?.id,
               );
               if (toolResult.success && toolResult.snapshot) {
                 await logAgentOperation(

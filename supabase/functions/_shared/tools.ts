@@ -696,6 +696,7 @@ export async function capturePlantSnapshot(
     location?: string;
   },
   existingImagePath?: string,
+  sourceMessageId?: string,
 ): Promise<{
   success: boolean;
   snapshot?: any;
@@ -760,6 +761,7 @@ export async function capturePlantSnapshot(
         context: args.context || "identification",
         source: args.source || "telegram_photo",
         health_notes: args.health_notes || null,
+        source_message_id: sourceMessageId || null,
       })
       .select()
       .single();

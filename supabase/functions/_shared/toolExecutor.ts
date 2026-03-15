@@ -207,7 +207,7 @@ export async function executeTool(
           health_notes: args.health_notes as string | undefined,
           image_base64: args.image_base64 as string | undefined,
           source: "voice_call_capture",
-        });
+        }, undefined, sourceMessageId);
       }
       break;
     }

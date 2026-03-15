@@ -26,6 +26,14 @@ ALTER TABLE public.conversation_summaries
 ALTER TABLE public.agent_operations
   ADD COLUMN IF NOT EXISTS source_message_id UUID REFERENCES public.conversations(id) ON DELETE SET NULL;
 
+-- plant_snapshots: created by capture_plant_snapshot tool
+ALTER TABLE public.plant_snapshots
+  ADD COLUMN IF NOT EXISTS source_message_id UUID REFERENCES public.conversations(id) ON DELETE SET NULL;
+
+-- plant_identifications: created during plant identification flows
+ALTER TABLE public.plant_identifications
+  ADD COLUMN IF NOT EXISTS source_message_id UUID REFERENCES public.conversations(id) ON DELETE SET NULL;
+
 -- ============================================================================
 -- Indexes for lineage queries ("find everything spawned by message X")
 -- ============================================================================
@@ -33,3 +41,5 @@ CREATE INDEX IF NOT EXISTS idx_care_events_source_msg ON public.care_events(sour
 CREATE INDEX IF NOT EXISTS idx_reminders_source_msg ON public.reminders(source_message_id) WHERE source_message_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_sensor_ranges_source_msg ON public.sensor_ranges(source_message_id) WHERE source_message_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_agent_ops_source_msg ON public.agent_operations(source_message_id) WHERE source_message_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_plant_snapshots_source_msg ON public.plant_snapshots(source_message_id) WHERE source_message_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_plant_identifications_source_msg ON public.plant_identifications(source_message_id) WHERE source_message_id IS NOT NULL;

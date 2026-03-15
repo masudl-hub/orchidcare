@@ -403,7 +403,7 @@ function SensorPicker({ plantId, onDone }: { plantId: string; onDone?: () => voi
                 border: '1px solid rgba(74,222,128,0.15)', background: 'rgba(74,222,128,0.04)',
               }}
             >
-              <Wifi size={10} />
+              <Wifi size={10} style={{ color: deviceWifiColor(d.last_seen_at) }} />
               <span style={{ flex: 1 }}>{d.name}</span>
               <button
                 onClick={() => updateDevice.mutate({ id: d.id, plant_id: null })}

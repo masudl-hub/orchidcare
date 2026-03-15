@@ -361,6 +361,96 @@ export type Database = {
           },
         ]
       }
+      device_assignments: {
+        Row: {
+          assigned_at: string | null
+          device_id: string
+          id: string
+          plant_id: string | null
+          profile_id: string
+          source: string
+          unassigned_at: string | null
+        }
+        Insert: {
+          assigned_at?: string | null
+          device_id: string
+          id?: string
+          plant_id?: string | null
+          profile_id: string
+          source?: string
+          unassigned_at?: string | null
+        }
+        Update: {
+          assigned_at?: string | null
+          device_id?: string
+          id?: string
+          plant_id?: string | null
+          profile_id?: string
+          source?: string
+          unassigned_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "device_assignments_device_id_fkey"
+            columns: ["device_id"]
+            isOneToOne: false
+            referencedRelation: "devices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "device_assignments_plant_id_fkey"
+            columns: ["plant_id"]
+            isOneToOne: false
+            referencedRelation: "plants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "device_assignments_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      device_commands: {
+        Row: {
+          command: string
+          created_at: string | null
+          device_id: string
+          expires_at: string | null
+          id: string
+          payload: Json | null
+          status: string
+        }
+        Insert: {
+          command: string
+          created_at?: string | null
+          device_id: string
+          expires_at?: string | null
+          id?: string
+          payload?: Json | null
+          status?: string
+        }
+        Update: {
+          command?: string
+          created_at?: string | null
+          device_id?: string
+          expires_at?: string | null
+          id?: string
+          payload?: Json | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "device_commands_device_id_fkey"
+            columns: ["device_id"]
+            isOneToOne: false
+            referencedRelation: "devices"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       devices: {
         Row: {
           created_at: string | null
@@ -963,6 +1053,185 @@ export type Database = {
           },
         ]
       }
+      sensor_alerts: {
+        Row: {
+          alert_type: string
+          created_at: string | null
+          current_value: number | null
+          device_id: string | null
+          dismissed_at: string | null
+          dismissed_reason: string | null
+          id: string
+          message: string
+          metric: string | null
+          plant_id: string
+          profile_id: string
+          reading_id: string | null
+          resolved_at: string | null
+          severity: string
+          status: string
+          threshold_value: number | null
+        }
+        Insert: {
+          alert_type: string
+          created_at?: string | null
+          current_value?: number | null
+          device_id?: string | null
+          dismissed_at?: string | null
+          dismissed_reason?: string | null
+          id?: string
+          message: string
+          metric?: string | null
+          plant_id: string
+          profile_id: string
+          reading_id?: string | null
+          resolved_at?: string | null
+          severity?: string
+          status?: string
+          threshold_value?: number | null
+        }
+        Update: {
+          alert_type?: string
+          created_at?: string | null
+          current_value?: number | null
+          device_id?: string | null
+          dismissed_at?: string | null
+          dismissed_reason?: string | null
+          id?: string
+          message?: string
+          metric?: string | null
+          plant_id?: string
+          profile_id?: string
+          reading_id?: string | null
+          resolved_at?: string | null
+          severity?: string
+          status?: string
+          threshold_value?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sensor_alerts_device_id_fkey"
+            columns: ["device_id"]
+            isOneToOne: false
+            referencedRelation: "devices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sensor_alerts_plant_id_fkey"
+            columns: ["plant_id"]
+            isOneToOne: false
+            referencedRelation: "plants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sensor_alerts_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sensor_alerts_reading_id_fkey"
+            columns: ["reading_id"]
+            isOneToOne: false
+            referencedRelation: "sensor_readings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sensor_ranges: {
+        Row: {
+          created_at: string | null
+          humidity_ideal_max: number | null
+          humidity_ideal_min: number | null
+          humidity_max: number | null
+          humidity_min: number | null
+          id: string
+          is_active: boolean
+          light_lux_ideal_max: number | null
+          light_lux_ideal_min: number | null
+          light_lux_max: number | null
+          light_lux_min: number | null
+          plant_id: string
+          profile_id: string
+          reasoning: string | null
+          soil_moisture_ideal_max: number | null
+          soil_moisture_ideal_min: number | null
+          soil_moisture_max: number | null
+          soil_moisture_min: number | null
+          temperature_ideal_max: number | null
+          temperature_ideal_min: number | null
+          temperature_max: number | null
+          temperature_min: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          humidity_ideal_max?: number | null
+          humidity_ideal_min?: number | null
+          humidity_max?: number | null
+          humidity_min?: number | null
+          id?: string
+          is_active?: boolean
+          light_lux_ideal_max?: number | null
+          light_lux_ideal_min?: number | null
+          light_lux_max?: number | null
+          light_lux_min?: number | null
+          plant_id: string
+          profile_id: string
+          reasoning?: string | null
+          soil_moisture_ideal_max?: number | null
+          soil_moisture_ideal_min?: number | null
+          soil_moisture_max?: number | null
+          soil_moisture_min?: number | null
+          temperature_ideal_max?: number | null
+          temperature_ideal_min?: number | null
+          temperature_max?: number | null
+          temperature_min?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          humidity_ideal_max?: number | null
+          humidity_ideal_min?: number | null
+          humidity_max?: number | null
+          humidity_min?: number | null
+          id?: string
+          is_active?: boolean
+          light_lux_ideal_max?: number | null
+          light_lux_ideal_min?: number | null
+          light_lux_max?: number | null
+          light_lux_min?: number | null
+          plant_id?: string
+          profile_id?: string
+          reasoning?: string | null
+          soil_moisture_ideal_max?: number | null
+          soil_moisture_ideal_min?: number | null
+          soil_moisture_max?: number | null
+          soil_moisture_min?: number | null
+          temperature_ideal_max?: number | null
+          temperature_ideal_min?: number | null
+          temperature_max?: number | null
+          temperature_min?: number | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sensor_ranges_plant_id_fkey"
+            columns: ["plant_id"]
+            isOneToOne: false
+            referencedRelation: "plants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sensor_ranges_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       sensor_readings: {
         Row: {
           battery_pct: number | null
@@ -1101,6 +1370,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      expire_device_commands: { Args: never; Returns: undefined }
       get_profile_by_phone: {
         Args: { _phone: string }
         Returns: {

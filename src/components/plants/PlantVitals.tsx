@@ -370,29 +370,29 @@ function SensorPicker({ plantId, onDone }: { plantId: string; onDone?: () => voi
           {unassigned.map(d => {
             const status = getDeviceStatus(d.last_seen_at);
             return (
-            <div key={d.id} style={{ marginBottom: '6px' }}>
-              <button
-                onClick={() => handleAssign(d.id)}
-                disabled={updateDevice.isPending}
-                className="cursor-pointer"
-                style={{
-                  display: 'flex', alignItems: 'center', gap: '8px', width: '100%',
-                  fontFamily: mono, fontSize: '11px', color: 'rgba(255,255,255,0.85)',
-                  padding: '8px 10px',
-                  border: '1px solid rgba(255,255,255,0.08)', background: 'transparent',
-                  textAlign: 'left',
-                }}
-              >
+            <button
+              key={d.id}
+              onClick={() => handleAssign(d.id)}
+              disabled={updateDevice.isPending}
+              className="cursor-pointer"
+              style={{
+                display: 'flex', flexDirection: 'column', gap: '0', width: '100%',
+                fontFamily: mono, padding: '8px 10px', marginBottom: '4px',
+                border: '1px solid rgba(255,255,255,0.08)', background: 'transparent',
+                textAlign: 'left',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%' }}>
                 <Wifi size={10} style={{ color: status.color }} />
-                <span style={{ flex: 1 }}>{d.name}</span>
-                <span style={{ fontSize: '8px', color: status.color, opacity: 0.8 }}>{status.label.split(' — ')[0]}</span>
-              </button>
+                <span style={{ flex: 1, fontSize: '11px', color: 'rgba(255,255,255,0.85)' }}>{d.name}</span>
+                <span style={{ fontSize: '8px', color: status.color, opacity: 0.8 }}>{status.label}</span>
+              </div>
               {status.hint && (
-                <div style={{ fontFamily: mono, fontSize: '8px', color: 'rgba(255,255,255,0.45)', padding: '2px 10px 0' }}>
+                <div style={{ fontSize: '8px', color: 'rgba(255,255,255,0.45)', marginTop: '4px', paddingLeft: '18px' }}>
                   {status.hint}
                 </div>
               )}
-            </div>
+            </button>
             );
           })}
         </div>
@@ -438,36 +438,36 @@ function SensorPicker({ plantId, onDone }: { plantId: string; onDone?: () => voi
           {assignedHere.map(d => {
             const status = getDeviceStatus(d.last_seen_at);
             return (
-            <div key={d.id} style={{ marginBottom: '6px' }}>
+            <div key={d.id} style={{ marginBottom: '4px' }}>
               <div
                 style={{
-                  display: 'flex', alignItems: 'center', gap: '8px',
-                  fontFamily: mono, fontSize: '11px',
-                  color: status.color,
+                  fontFamily: mono,
                   padding: '8px 10px',
                   border: `1px solid ${status.color}25`,
                   background: status.color + '0a',
                 }}
               >
-                <Wifi size={10} style={{ color: status.color }} />
-                <span style={{ flex: 1 }}>{d.name}</span>
-                <button
-                  onClick={() => updateDevice.mutate({ id: d.id, plant_id: null })}
-                  className="cursor-pointer"
-                  title="Remove sensor"
-                  style={{ background: 'none', border: 'none', padding: '2px', color: 'rgba(255,255,255,0.6)' }}
-                >
-                  <X size={12} />
-                </button>
-              </div>
-              <div style={{ fontFamily: mono, fontSize: '8px', color: status.color, opacity: 0.7, padding: '4px 10px 0' }}>
-                {status.label}
-              </div>
-              {status.hint && (
-                <div style={{ fontFamily: mono, fontSize: '8px', color: 'rgba(255,255,255,0.45)', padding: '2px 10px 0' }}>
-                  {status.hint}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '11px', color: status.color }}>
+                  <Wifi size={10} style={{ color: status.color }} />
+                  <span style={{ flex: 1 }}>{d.name}</span>
+                  <button
+                    onClick={() => updateDevice.mutate({ id: d.id, plant_id: null })}
+                    className="cursor-pointer"
+                    title="Remove sensor"
+                    style={{ background: 'none', border: 'none', padding: '2px', color: 'rgba(255,255,255,0.6)' }}
+                  >
+                    <X size={12} />
+                  </button>
                 </div>
-              )}
+                <div style={{ fontSize: '8px', color: status.color, opacity: 0.7, marginTop: '4px', paddingLeft: '18px' }}>
+                  {status.label}
+                </div>
+                {status.hint && (
+                  <div style={{ fontSize: '8px', color: 'rgba(255,255,255,0.45)', marginTop: '2px', paddingLeft: '18px' }}>
+                    {status.hint}
+                  </div>
+                )}
+              </div>
             </div>
             );
           })}

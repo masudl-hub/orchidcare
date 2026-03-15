@@ -496,6 +496,65 @@ export type Database = {
         }
         Relationships: []
       }
+      outbound_message_audit: {
+        Row: {
+          correlation_id: string | null
+          created_at: string
+          delivery_status: string
+          error_code: string | null
+          error_detail: string | null
+          id: string
+          message_hash: string | null
+          message_preview: string | null
+          profile_id: string
+          source_function: string
+          source_mode: string
+          telegram_chat_id: number | null
+          telegram_message_id: number | null
+          trigger_payload: Json | null
+        }
+        Insert: {
+          correlation_id?: string | null
+          created_at?: string
+          delivery_status?: string
+          error_code?: string | null
+          error_detail?: string | null
+          id?: string
+          message_hash?: string | null
+          message_preview?: string | null
+          profile_id: string
+          source_function: string
+          source_mode: string
+          telegram_chat_id?: number | null
+          telegram_message_id?: number | null
+          trigger_payload?: Json | null
+        }
+        Update: {
+          correlation_id?: string | null
+          created_at?: string
+          delivery_status?: string
+          error_code?: string | null
+          error_detail?: string | null
+          id?: string
+          message_hash?: string | null
+          message_preview?: string | null
+          profile_id?: string
+          source_function?: string
+          source_mode?: string
+          telegram_chat_id?: number | null
+          telegram_message_id?: number | null
+          trigger_payload?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "outbound_message_audit_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       plant_identifications: {
         Row: {
           care_tips: string | null
@@ -739,6 +798,51 @@ export type Database = {
           },
         ]
       }
+      proactive_run_audit: {
+        Row: {
+          created_at: string
+          duration_ms: number | null
+          error: string | null
+          events_found: number
+          id: string
+          messages_delivered: number
+          messages_skipped: number
+          profiles_scanned: number
+          run_ended_at: string | null
+          run_started_at: string
+          skip_reasons: Json | null
+          trigger_source: string | null
+        }
+        Insert: {
+          created_at?: string
+          duration_ms?: number | null
+          error?: string | null
+          events_found?: number
+          id?: string
+          messages_delivered?: number
+          messages_skipped?: number
+          profiles_scanned?: number
+          run_ended_at?: string | null
+          run_started_at: string
+          skip_reasons?: Json | null
+          trigger_source?: string | null
+        }
+        Update: {
+          created_at?: string
+          duration_ms?: number | null
+          error?: string | null
+          events_found?: number
+          id?: string
+          messages_delivered?: number
+          messages_skipped?: number
+          profiles_scanned?: number
+          run_ended_at?: string | null
+          run_started_at?: string
+          skip_reasons?: Json | null
+          trigger_source?: string | null
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string | null
@@ -753,6 +857,7 @@ export type Database = {
           pets: string[] | null
           phone_number: string | null
           primary_concerns: string[] | null
+          proactive_enabled: boolean
           telegram_chat_id: number | null
           telegram_username: string | null
           timezone: string | null
@@ -773,6 +878,7 @@ export type Database = {
           pets?: string[] | null
           phone_number?: string | null
           primary_concerns?: string[] | null
+          proactive_enabled?: boolean
           telegram_chat_id?: number | null
           telegram_username?: string | null
           timezone?: string | null
@@ -793,6 +899,7 @@ export type Database = {
           pets?: string[] | null
           phone_number?: string | null
           primary_concerns?: string[] | null
+          proactive_enabled?: boolean
           telegram_chat_id?: number | null
           telegram_username?: string | null
           timezone?: string | null

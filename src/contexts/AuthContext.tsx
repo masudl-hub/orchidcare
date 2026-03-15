@@ -17,6 +17,7 @@ interface Profile {
   experience_level: "beginner" | "intermediate" | "expert" | null;
   primary_concerns: string[] | null;
   pets: string[] | null;
+  proactive_enabled: boolean;
 }
 
 interface AuthContextType {

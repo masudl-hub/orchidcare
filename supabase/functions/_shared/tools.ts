@@ -251,6 +251,7 @@ export async function createReminder(
   supabase: any,
   profileId: string,
   args: { plant_identifier: string; reminder_type: string; frequency_days: number; notes?: string },
+  sourceMessageId?: string,
 ): Promise<{
   success: boolean;
   reminder?: any;
@@ -289,6 +290,7 @@ export async function createReminder(
           next_due: nextDue.toISOString(),
           notes: args.notes || null,
           is_active: true,
+          source_message_id: sourceMessageId || null,
         })
         .select()
         .single();
@@ -406,6 +408,7 @@ export async function logCareEvent(
   supabase: any,
   profileId: string,
   args: { plant_identifier: string; event_type: string; notes?: string },
+  sourceMessageId?: string,
 ): Promise<{
   success: boolean;
   event?: any;
@@ -437,6 +440,7 @@ export async function logCareEvent(
           plant_id: plant.id,
           event_type: args.event_type,
           notes: args.notes || null,
+          source_message_id: sourceMessageId || null,
         })
         .select()
         .single();
@@ -1109,6 +1113,7 @@ export async function setPlantRanges(
     };
     reasoning?: string;
   },
+  sourceMessageId?: string,
 ): Promise<Record<string, unknown>> {
   try {
     const resolution = await resolvePlants(supabase, profileId, args.plant_identifier);
@@ -1151,6 +1156,7 @@ export async function setPlantRanges(
         light_lux_max: r.light_lux?.max,
         reasoning: args.reasoning || null,
         is_active: true,
+        source_message_id: sourceMessageId || null,
       })
       .select("id")
       .single();

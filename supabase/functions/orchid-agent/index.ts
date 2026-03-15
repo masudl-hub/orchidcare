@@ -2088,6 +2088,7 @@ Return JSON: {"summary": "2-3 sentence summary", "key_topics": ["topic1", "topic
     console.log("[ContextEngineering] Generated summary:", summaryJson.summary?.substring(0, 100) ?? '(empty)');
 
     // Save the summary
+    const messageIds = toSummarize.map((m: any) => m.id);
     await supabase.from("conversation_summaries").insert({
       profile_id: profileId,
       summary: summaryJson.summary,
@@ -2095,6 +2096,7 @@ Return JSON: {"summary": "2-3 sentence summary", "key_topics": ["topic1", "topic
       message_count: 5,
       start_time: toSummarize[0].created_at,
       end_time: toSummarize[4].created_at,
+      source_message_ids: messageIds,
     });
 
     // Save extracted insights
@@ -2113,7 +2115,6 @@ Return JSON: {"summary": "2-3 sentence summary", "key_topics": ["topic1", "topic
       }
     }
 
-    const messageIds = toSummarize.map((m: any) => m.id);
     await supabase.from("conversations").update({ summarized: true }).in("id", messageIds);
 
     console.log(
@@ -3183,7 +3184,7 @@ ${proactiveContext.events.map((e: any) => `- ${e.message_hint}`).join("\n")}
                 }
               }
             } else if (functionName === "create_reminder") {
-              toolResult = await createReminder(supabase, profile?.id, args);
+              toolResult = await createReminder(supabase, profile?.id, args, inboundMessage?.id);
               if (toolResult.success) {
                 if (toolResult.reminders) {
                   // Log bulk operation - each reminder individually
@@ -3221,7 +3222,7 @@ ${proactiveContext.events.map((e: any) => `- ${e.message_hint}`).join("\n")}
                 await logAgentOperation(supabase, profile?.id, auditId, "delete", "reminders", null, "delete_reminder", { deletedCount: toolResult.deletedCount });
               }
             } else if (functionName === "log_care_event") {
-              toolResult = await logCareEvent(supabase, profile?.id, args);
+              toolResult = await logCareEvent(supabase, profile?.id, args, inboundMessage?.id);
               if (toolResult.success) {
                 if (toolResult.events) {
                   // Bulk operation

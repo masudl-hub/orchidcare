@@ -37,6 +37,7 @@ export async function executeTool(
   PERPLEXITY_API_KEY?: string,
   LOVABLE_API_KEY?: string,
   GEMINI_API_KEY?: string,
+  sourceMessageId?: string,
 ): Promise<Record<string, unknown>> {
   const startTime = Date.now();
   console.log(`[ToolExecutor] ${toolName}, args=${JSON.stringify(args).substring(0, 500)}`);
@@ -64,11 +65,11 @@ export async function executeTool(
       break;
 
     case "create_reminder":
-      result = await createReminder(supabase, profileId, args);
+      result = await createReminder(supabase, profileId, args, sourceMessageId);
       break;
 
     case "log_care_event":
-      result = await logCareEvent(supabase, profileId, args);
+      result = await logCareEvent(supabase, profileId, args, sourceMessageId);
       break;
 
     case "save_user_insight":
@@ -230,7 +231,7 @@ export async function executeTool(
       break;
 
     case "set_plant_ranges":
-      result = await setPlantRanges(supabase, profileId, args as any);
+      result = await setPlantRanges(supabase, profileId, args as any, sourceMessageId);
       break;
 
     case "get_sensor_history":

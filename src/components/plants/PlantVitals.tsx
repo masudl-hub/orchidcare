@@ -199,6 +199,14 @@ function MetricRow({ name, metric, history, ranges, expanded, onTap, plantId }: 
   );
 }
 
+function deviceWifiColor(lastSeenAt: string | null): string {
+  if (!lastSeenAt) return 'rgba(255,255,255,0.2)';
+  const ageMs = Date.now() - new Date(lastSeenAt).getTime();
+  if (ageMs > 24 * 60 * 60 * 1000) return '#ef4444';       // offline — red
+  if (ageMs > 30 * 60 * 1000) return '#facc15';             // stale — amber
+  return '#4ade80';                                           // online — green
+}
+
 // Inline sensor picker — used in both empty state and header
 function SensorPicker({ plantId, onDone }: { plantId: string; onDone?: () => void }) {
   const { data: devices } = useDevices();
@@ -343,7 +351,7 @@ function SensorPicker({ plantId, onDone }: { plantId: string; onDone?: () => voi
                 textAlign: 'left',
               }}
             >
-              <Wifi size={10} style={{ color: d.last_seen_at ? '#4ade80' : 'rgba(255,255,255,0.2)' }} />
+              <Wifi size={10} style={{ color: deviceWifiColor(d.last_seen_at) }} />
               <span style={{ flex: 1 }}>{d.name}</span>
               <span style={{ fontSize: '8px', color: 'rgba(255,255,255,0.2)' }}>{d.device_token_prefix}...</span>
             </button>

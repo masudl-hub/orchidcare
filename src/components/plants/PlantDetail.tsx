@@ -6,6 +6,7 @@ import {
 import { Plant, CareEvent, Reminder } from '@/hooks/usePlants';
 import { Tables } from '@/integrations/supabase/types';
 import { revealStyle } from '../dashboard/DashboardShell';
+import PlantVitals from './PlantVitals';
 
 const mono = "ui-monospace, monospace";
 const pressStart = '"Press Start 2P", cursive';
@@ -182,6 +183,9 @@ export function PlantDetail({
               </p>
             )}
           </div>
+
+          {/* Sensor Vitals */}
+          <PlantVitals plantId={plant.id} />
 
           {/* Reminders */}
           {reminders.length > 0 && (

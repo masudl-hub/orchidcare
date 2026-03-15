@@ -700,7 +700,7 @@ export default function PlantVitals({ plantId }: PlantVitalsProps) {
       {/* No ranges hint */}
       {!ranges && (
         <button
-          onClick={() => navigate(`/chat?msg=${encodeURIComponent('Set ideal sensor ranges for this plant based on its species')}&plant=${plantId}`)}
+          onClick={() => navigate('/chat', { state: { autoSendText: `Set ideal sensor ranges for my plant (ID: ${plantId}) based on its species` } })}
           className="cursor-pointer"
           style={{ fontFamily: mono, fontSize: '8px', color: 'rgba(255,255,255,0.5)', marginTop: '8px', textAlign: 'center', width: '100%', background: 'none', border: 'none', padding: '4px 0' }}
         >

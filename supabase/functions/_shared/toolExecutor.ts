@@ -16,6 +16,11 @@ import {
   comparePlantSnapshots,
   checkPlantSensors,
   associateReading,
+  setPlantRanges,
+  getSensorHistory,
+  comparePlantEnvironments,
+  manageDevice,
+  dismissSensorAlert,
 } from "./tools.ts";
 import {
   callResearchAgent,
@@ -222,6 +227,26 @@ export async function executeTool(
 
     case "associate_reading":
       result = await associateReading(supabase, profileId, args as { plant_identifier: string });
+      break;
+
+    case "set_plant_ranges":
+      result = await setPlantRanges(supabase, profileId, args as any);
+      break;
+
+    case "get_sensor_history":
+      result = await getSensorHistory(supabase, profileId, args as { plant_identifier: string; metric: string; period: string });
+      break;
+
+    case "compare_plant_environments":
+      result = await comparePlantEnvironments(supabase, profileId, args as { plant_identifiers: string; metric: string });
+      break;
+
+    case "manage_device":
+      result = await manageDevice(supabase, profileId, args as any);
+      break;
+
+    case "dismiss_sensor_alert":
+      result = await dismissSensorAlert(supabase, profileId, args as { plant_identifier: string; alert_type: string; reason?: string });
       break;
 
     default:

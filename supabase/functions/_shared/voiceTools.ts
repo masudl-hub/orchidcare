@@ -343,6 +343,109 @@ export const voiceToolDeclarations = [
           required: ["plant_identifier"],
         },
       },
+      {
+        name: "set_plant_ranges",
+        description: "Set ideal sensor ranges for a plant based on its species, environment, and needs. Call this when identifying a new plant, when asked to set ranges, or when conditions change (new location, season). Uses four-value ranges: min (danger) → ideal_min → ideal_max → max (danger).",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            plant_identifier: { type: "STRING", description: "Plant name or nickname" },
+            ranges: {
+              type: "OBJECT",
+              description: "Range values per metric. Each has min, ideal_min, ideal_max, max.",
+              properties: {
+                soil_moisture: {
+                  type: "OBJECT",
+                  properties: {
+                    min: { type: "NUMBER", description: "Danger low (below this = critical)" },
+                    ideal_min: { type: "NUMBER", description: "Ideal low bound" },
+                    ideal_max: { type: "NUMBER", description: "Ideal high bound" },
+                    max: { type: "NUMBER", description: "Danger high (above this = critical)" },
+                  },
+                },
+                temperature: {
+                  type: "OBJECT",
+                  properties: {
+                    min: { type: "NUMBER" }, ideal_min: { type: "NUMBER" },
+                    ideal_max: { type: "NUMBER" }, max: { type: "NUMBER" },
+                  },
+                },
+                humidity: {
+                  type: "OBJECT",
+                  properties: {
+                    min: { type: "NUMBER" }, ideal_min: { type: "NUMBER" },
+                    ideal_max: { type: "NUMBER" }, max: { type: "NUMBER" },
+                  },
+                },
+                light_lux: {
+                  type: "OBJECT",
+                  properties: {
+                    min: { type: "NUMBER" }, ideal_min: { type: "NUMBER" },
+                    ideal_max: { type: "NUMBER" }, max: { type: "NUMBER" },
+                  },
+                },
+              },
+            },
+            reasoning: { type: "STRING", description: "Why these ranges were chosen — species needs, user environment, season, etc." },
+          },
+          required: ["plant_identifier", "ranges"],
+        },
+      },
+      {
+        name: "get_sensor_history",
+        description: "Get historical sensor readings for a plant over a time period. Returns data points and summary stats (min, max, avg). Use when user asks about trends, history, or how a metric has changed.",
+        behavior: "NON_BLOCKING",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            plant_identifier: { type: "STRING", description: "Plant name or nickname" },
+            metric: { type: "STRING", description: "soil_moisture, temperature, humidity, light_lux, or all" },
+            period: { type: "STRING", description: "24h, 7d, or 30d" },
+          },
+          required: ["plant_identifier", "metric", "period"],
+        },
+      },
+      {
+        name: "compare_plant_environments",
+        description: "Compare a sensor metric across multiple plants. Use when user asks 'which plant is driest?' or 'compare humidity across my plants'. Returns plants sorted by the metric value.",
+        behavior: "NON_BLOCKING",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            plant_identifiers: { type: "STRING", description: "Comma-separated plant names, or 'all' for all plants" },
+            metric: { type: "STRING", description: "soil_moisture, temperature, humidity, or light_lux" },
+          },
+          required: ["plant_identifiers", "metric"],
+        },
+      },
+      {
+        name: "manage_device",
+        description: "Manage IoT sensor devices: assign to a plant, unassign, rename, identify (blinks the LED), or check status. Use when user wants to move a sensor, rename it, or find which physical device is which.",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            action: { type: "STRING", description: "assign, unassign, rename, identify, or status" },
+            device_name: { type: "STRING", description: "Name of the device (fuzzy match)" },
+            device_id: { type: "STRING", description: "Device UUID (if known)" },
+            plant_identifier: { type: "STRING", description: "Plant name — required for assign action" },
+            new_name: { type: "STRING", description: "New name — required for rename action" },
+          },
+          required: ["action"],
+        },
+      },
+      {
+        name: "dismiss_sensor_alert",
+        description: "Dismiss an active sensor alert for a plant. Use when the user acknowledges an alert ('I know, I'll water later') so you don't keep nagging about it.",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            plant_identifier: { type: "STRING", description: "Plant name or nickname" },
+            alert_type: { type: "STRING", description: "Type of alert to dismiss: dry, wet, cold, hot, low, high, offline" },
+            reason: { type: "STRING", description: "Why dismissed: 'User will water later', 'Plant is being moved', etc." },
+          },
+          required: ["plant_identifier", "alert_type"],
+        },
+      },
     ],
   },
 ];

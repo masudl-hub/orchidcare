@@ -879,34 +879,111 @@ export async function checkPlantSensors(
 
     const plantIds = resolution.plants.map((p: any) => p.id);
 
-    // Fetch latest sensor readings for matched plants
-    const { data: readings, error } = await supabase
-      .from("sensor_readings")
-      .select("plant_id, soil_moisture, temperature, humidity, light_lux, battery_pct, created_at")
-      .in("plant_id", plantIds)
-      .order("created_at", { ascending: false })
-      .limit(plantIds.length * 3); // Fetch a few extra to ensure we get latest per plant
+    // Fetch latest sensor readings and active ranges in parallel
+    const [readingsResult, rangesResult] = await Promise.all([
+      supabase
+        .from("sensor_readings")
+        .select("plant_id, soil_moisture, temperature, humidity, light_lux, battery_pct, created_at")
+        .in("plant_id", plantIds)
+        .order("created_at", { ascending: false })
+        .limit(plantIds.length * 3),
+      supabase
+        .from("sensor_ranges")
+        .select("*")
+        .in("plant_id", plantIds)
+        .eq("is_active", true),
+    ]);
 
-    if (error) {
-      console.error("[checkPlantSensors] Query error:", error);
-      return { success: false, error: error.message };
+    if (readingsResult.error) {
+      console.error("[checkPlantSensors] Query error:", readingsResult.error);
+      return { success: false, error: readingsResult.error.message };
     }
 
     // Dedupe to latest reading per plant
     const latestByPlant: Record<string, any> = {};
-    for (const r of readings || []) {
-      if (!latestByPlant[r.plant_id]) {
-        latestByPlant[r.plant_id] = r;
-      }
+    for (const r of readingsResult.data || []) {
+      if (!latestByPlant[r.plant_id]) latestByPlant[r.plant_id] = r;
     }
 
-    // Build results with status assessments
+    // Index ranges by plant
+    const rangesByPlant: Record<string, any> = {};
+    for (const r of rangesResult.data || []) {
+      rangesByPlant[r.plant_id] = r;
+    }
+
+    // Helper: assess a metric value against plant-specific or default ranges
+    function assessMetric(
+      value: number | null,
+      metric: string,
+      ranges: any,
+      unit: string,
+    ): any {
+      if (value == null) return null;
+
+      // Get plant-specific range or fall back to defaults
+      const prefix = metric; // e.g., "soil_moisture"
+      const min = ranges?.[`${prefix}_min`];
+      const idealMin = ranges?.[`${prefix}_ideal_min`];
+      const idealMax = ranges?.[`${prefix}_ideal_max`];
+      const max = ranges?.[`${prefix}_max`];
+      const hasRanges = min != null || idealMin != null;
+
+      let status: string;
+      let note: string;
+
+      if (hasRanges) {
+        if (min != null && value < min) {
+          status = "critical";
+          note = `Below danger threshold of ${min}${unit}`;
+        } else if (max != null && value > max) {
+          status = "critical";
+          note = `Above danger threshold of ${max}${unit}`;
+        } else if (idealMin != null && value < idealMin) {
+          status = "warning";
+          note = `Below ideal range (${idealMin}-${idealMax}${unit})`;
+        } else if (idealMax != null && value > idealMax) {
+          status = "warning";
+          note = `Above ideal range (${idealMin}-${idealMax}${unit})`;
+        } else {
+          status = "ok";
+          note = `In ideal range (${idealMin}-${idealMax}${unit})`;
+        }
+      } else {
+        // Default generic thresholds
+        const defaults: Record<string, any> = {
+          soil_moisture: { critLow: 20, warnLow: 35, warnHigh: 75 },
+          temperature: { critLow: 10, warnLow: 15, warnHigh: 30, critHigh: 35 },
+          humidity: { warnLow: 30, warnHigh: 70 },
+          light_lux: { low: 50, med: 500, bright: 10000 },
+        };
+        const d = defaults[metric];
+        if (metric === "light_lux") {
+          status = value < d.low ? "low" : value < d.med ? "medium" : value <= d.bright ? "bright" : "direct";
+          note = status === "low" ? "Very low light" : status === "medium" ? "Low to medium light" : status === "bright" ? "Bright indirect" : "Direct sunlight";
+        } else {
+          status = (d.critLow != null && value < d.critLow) || (d.critHigh != null && value > d.critHigh) ? "critical" :
+                   (d.warnLow != null && value < d.warnLow) || (d.warnHigh != null && value > d.warnHigh) ? "warning" : "ok";
+          note = status === "critical" ? "Outside safe range" : status === "warning" ? "Outside ideal range" : "Good";
+        }
+      }
+
+      return {
+        value,
+        unit,
+        status,
+        note,
+        range: hasRanges ? { min, ideal_min: idealMin, ideal_max: idealMax, max } : null,
+      };
+    }
+
+    // Build results
     const results = resolution.plants.map((plant: any) => {
       const reading = latestByPlant[plant.id];
+      const ranges = rangesByPlant[plant.id];
       const plantName = plant.nickname || plant.species || plant.name;
 
       if (!reading) {
-        return { plant: plantName, plant_id: plant.id, has_sensor: false };
+        return { plant: plantName, plant_id: plant.id, has_sensor: false, has_ranges: !!ranges };
       }
 
       const now = Date.now();
@@ -917,49 +994,16 @@ export async function checkPlantSensors(
         plant: plantName,
         plant_id: plant.id,
         has_sensor: true,
-        soil_moisture: reading.soil_moisture != null ? {
-          value: reading.soil_moisture,
-          unit: "%",
-          status: reading.soil_moisture < 20 ? "critical" :
-                  reading.soil_moisture < 35 ? "warning" :
-                  reading.soil_moisture <= 75 ? "ok" : "warning",
-          note: reading.soil_moisture < 20 ? "Very dry — needs water urgently" :
-                reading.soil_moisture < 35 ? "Getting dry — water soon" :
-                reading.soil_moisture <= 75 ? "Good moisture level" : "Very wet — risk of overwatering",
-        } : null,
-        temperature: reading.temperature != null ? {
-          value: reading.temperature,
-          unit: "°C",
-          status: reading.temperature < 10 ? "critical" :
-                  reading.temperature < 15 ? "warning" :
-                  reading.temperature <= 30 ? "ok" : "critical",
-          note: reading.temperature < 10 ? "Too cold for most houseplants" :
-                reading.temperature < 15 ? "A bit cool" :
-                reading.temperature <= 30 ? "Good temperature" : "Too hot — move to cooler spot",
-        } : null,
-        humidity: reading.humidity != null ? {
-          value: reading.humidity,
-          unit: "%",
-          status: reading.humidity < 30 ? "warning" :
-                  reading.humidity <= 70 ? "ok" : "warning",
-          note: reading.humidity < 30 ? "Very dry air — consider misting or a humidifier" :
-                reading.humidity <= 70 ? "Good humidity" : "Very humid — watch for fungal issues",
-        } : null,
-        light_lux: reading.light_lux != null ? {
-          value: reading.light_lux,
-          unit: "lux",
-          status: reading.light_lux < 50 ? "low" :
-                  reading.light_lux < 500 ? "medium" :
-                  reading.light_lux <= 10000 ? "bright" : "direct",
-          note: reading.light_lux < 50 ? "Very low light — only low-light plants thrive here" :
-                reading.light_lux < 500 ? "Low to medium indirect light" :
-                reading.light_lux <= 10000 ? "Bright indirect light — great for most plants" : "Direct sunlight — watch for leaf burn",
-        } : null,
+        has_ranges: !!ranges,
+        soil_moisture: assessMetric(reading.soil_moisture, "soil_moisture", ranges, "%"),
+        temperature: assessMetric(reading.temperature, "temperature", ranges, "°C"),
+        humidity: assessMetric(reading.humidity, "humidity", ranges, "%"),
+        light_lux: assessMetric(reading.light_lux, "light_lux", ranges, " lux"),
         battery_pct: reading.battery_pct,
         last_reading: minutesAgo < 60 ? `${minutesAgo}m ago` :
                       minutesAgo < 1440 ? `${Math.round(minutesAgo / 60)}h ago` :
                       `${Math.round(minutesAgo / 1440)}d ago`,
-        stale: readingAge > 30 * 60 * 1000, // >30 min = stale
+        stale: readingAge > 30 * 60 * 1000,
       };
     });
 
@@ -1045,6 +1089,568 @@ export async function associateReading(
   } catch (error) {
     console.error("[associateReading] Exception:", error);
     return { success: false, error: String(error) };
+  }
+}
+
+// ============================================================================
+// SENSOR TOOLS — RANGES, HISTORY, DEVICE MANAGEMENT, ALERTS
+// ============================================================================
+
+export async function setPlantRanges(
+  supabase: any,
+  profileId: string,
+  args: {
+    plant_identifier: string;
+    ranges: {
+      soil_moisture?: { min: number; ideal_min: number; ideal_max: number; max: number };
+      temperature?: { min: number; ideal_min: number; ideal_max: number; max: number };
+      humidity?: { min: number; ideal_min: number; ideal_max: number; max: number };
+      light_lux?: { min: number; ideal_min: number; ideal_max: number; max: number };
+    };
+    reasoning?: string;
+  },
+): Promise<Record<string, unknown>> {
+  try {
+    const resolution = await resolvePlants(supabase, profileId, args.plant_identifier);
+    if (resolution.plants.length === 0) {
+      return { success: false, error: `Couldn't find a plant matching "${args.plant_identifier}"` };
+    }
+
+    const plant = resolution.plants[0];
+    const plantName = plant.nickname || plant.species || plant.name;
+    const r = args.ranges;
+
+    // Deactivate any existing active ranges for this plant
+    await supabase
+      .from("sensor_ranges")
+      .update({ is_active: false, updated_at: new Date().toISOString() })
+      .eq("plant_id", plant.id)
+      .eq("is_active", true);
+
+    // Insert new active range
+    const { data: range, error } = await supabase
+      .from("sensor_ranges")
+      .insert({
+        plant_id: plant.id,
+        profile_id: profileId,
+        soil_moisture_min: r.soil_moisture?.min,
+        soil_moisture_ideal_min: r.soil_moisture?.ideal_min,
+        soil_moisture_ideal_max: r.soil_moisture?.ideal_max,
+        soil_moisture_max: r.soil_moisture?.max,
+        temperature_min: r.temperature?.min,
+        temperature_ideal_min: r.temperature?.ideal_min,
+        temperature_ideal_max: r.temperature?.ideal_max,
+        temperature_max: r.temperature?.max,
+        humidity_min: r.humidity?.min,
+        humidity_ideal_min: r.humidity?.ideal_min,
+        humidity_ideal_max: r.humidity?.ideal_max,
+        humidity_max: r.humidity?.max,
+        light_lux_min: r.light_lux?.min,
+        light_lux_ideal_min: r.light_lux?.ideal_min,
+        light_lux_ideal_max: r.light_lux?.ideal_max,
+        light_lux_max: r.light_lux?.max,
+        reasoning: args.reasoning || null,
+        is_active: true,
+      })
+      .select("id")
+      .single();
+
+    if (error) {
+      console.error("[setPlantRanges] Insert error:", error);
+      return { success: false, error: error.message };
+    }
+
+    console.log(`[setPlantRanges] Set ranges for ${plantName}: ${range.id}`);
+    return { success: true, plant: plantName, range_id: range.id, reasoning: args.reasoning };
+  } catch (error) {
+    console.error("[setPlantRanges] Exception:", error);
+    return { success: false, error: String(error) };
+  }
+}
+
+export async function getSensorHistory(
+  supabase: any,
+  profileId: string,
+  args: { plant_identifier: string; metric: string; period: string },
+): Promise<Record<string, unknown>> {
+  try {
+    const resolution = await resolvePlants(supabase, profileId, args.plant_identifier);
+    if (resolution.plants.length === 0) {
+      return { success: false, error: `Couldn't find a plant matching "${args.plant_identifier}"` };
+    }
+
+    const plant = resolution.plants[0];
+    const plantName = plant.nickname || plant.species || plant.name;
+
+    // Determine time window
+    const periodMs: Record<string, number> = {
+      "24h": 24 * 60 * 60 * 1000,
+      "7d": 7 * 24 * 60 * 60 * 1000,
+      "30d": 30 * 24 * 60 * 60 * 1000,
+    };
+    const windowMs = periodMs[args.period] || periodMs["24h"];
+    const since = new Date(Date.now() - windowMs).toISOString();
+
+    // Determine which columns to select
+    const metrics = args.metric === "all"
+      ? ["soil_moisture", "temperature", "humidity", "light_lux"]
+      : [args.metric];
+
+    const selectCols = ["created_at", ...metrics].join(", ");
+
+    const { data: readings, error } = await supabase
+      .from("sensor_readings")
+      .select(selectCols)
+      .eq("plant_id", plant.id)
+      .gte("created_at", since)
+      .order("created_at", { ascending: true });
+
+    if (error) {
+      console.error("[getSensorHistory] Query error:", error);
+      return { success: false, error: error.message };
+    }
+
+    if (!readings || readings.length === 0) {
+      return { success: true, plant: plantName, period: args.period, readings: [], summary: "No readings in this period" };
+    }
+
+    // Compute summary stats per metric
+    const summary: Record<string, any> = {};
+    for (const metric of metrics) {
+      const values = readings.map((r: any) => r[metric]).filter((v: any) => v != null);
+      if (values.length > 0) {
+        summary[metric] = {
+          min: Math.min(...values),
+          max: Math.max(...values),
+          avg: Math.round((values.reduce((a: number, b: number) => a + b, 0) / values.length) * 10) / 10,
+          latest: values[values.length - 1],
+          count: values.length,
+        };
+      }
+    }
+
+    console.log(`[getSensorHistory] ${plantName}: ${readings.length} readings over ${args.period}`);
+    return {
+      success: true,
+      plant: plantName,
+      period: args.period,
+      reading_count: readings.length,
+      summary,
+      readings: readings.length > 50
+        ? readings.filter((_: any, i: number) => i % Math.ceil(readings.length / 50) === 0)
+        : readings,
+    };
+  } catch (error) {
+    console.error("[getSensorHistory] Exception:", error);
+    return { success: false, error: String(error) };
+  }
+}
+
+export async function comparePlantEnvironments(
+  supabase: any,
+  profileId: string,
+  args: { plant_identifiers: string; metric: string },
+): Promise<Record<string, unknown>> {
+  try {
+    // Resolve plants — support "all" or comma-separated names
+    const identifiers = args.plant_identifiers === "all"
+      ? ["all"]
+      : args.plant_identifiers.split(",").map((s: string) => s.trim());
+
+    const allPlants: any[] = [];
+    for (const id of identifiers) {
+      const resolution = await resolvePlants(supabase, profileId, id);
+      allPlants.push(...resolution.plants);
+    }
+
+    if (allPlants.length === 0) {
+      return { success: false, error: "No plants found matching those identifiers" };
+    }
+
+    // Dedupe by plant id
+    const uniquePlants = Object.values(
+      Object.fromEntries(allPlants.map((p: any) => [p.id, p]))
+    ) as any[];
+
+    const plantIds = uniquePlants.map((p: any) => p.id);
+
+    // Fetch latest reading per plant
+    const { data: readings, error } = await supabase
+      .from("sensor_readings")
+      .select("plant_id, soil_moisture, temperature, humidity, light_lux, created_at")
+      .in("plant_id", plantIds)
+      .order("created_at", { ascending: false })
+      .limit(plantIds.length * 3);
+
+    if (error) {
+      console.error("[comparePlantEnvironments] Query error:", error);
+      return { success: false, error: error.message };
+    }
+
+    // Latest per plant
+    const latestByPlant: Record<string, any> = {};
+    for (const r of readings || []) {
+      if (!latestByPlant[r.plant_id]) latestByPlant[r.plant_id] = r;
+    }
+
+    // Build comparison sorted by the requested metric
+    const comparison = uniquePlants
+      .map((plant: any) => {
+        const reading = latestByPlant[plant.id];
+        const plantName = plant.nickname || plant.species || plant.name;
+        if (!reading) return { plant: plantName, value: null, no_data: true };
+        return {
+          plant: plantName,
+          value: reading[args.metric],
+          all_readings: {
+            soil_moisture: reading.soil_moisture,
+            temperature: reading.temperature,
+            humidity: reading.humidity,
+            light_lux: reading.light_lux,
+          },
+          last_reading: reading.created_at,
+        };
+      })
+      .sort((a: any, b: any) => {
+        if (a.value == null) return 1;
+        if (b.value == null) return -1;
+        return b.value - a.value;
+      });
+
+    console.log(`[comparePlantEnvironments] Compared ${comparison.length} plants on ${args.metric}`);
+    return {
+      success: true,
+      metric: args.metric,
+      plants_compared: comparison.length,
+      comparison,
+    };
+  } catch (error) {
+    console.error("[comparePlantEnvironments] Exception:", error);
+    return { success: false, error: String(error) };
+  }
+}
+
+export async function manageDevice(
+  supabase: any,
+  profileId: string,
+  args: {
+    action: string;
+    device_name?: string;
+    device_id?: string;
+    plant_identifier?: string;
+    new_name?: string;
+  },
+): Promise<Record<string, unknown>> {
+  try {
+    // Resolve device by name or id
+    let device: any = null;
+    if (args.device_id) {
+      const { data } = await supabase
+        .from("devices")
+        .select("id, name, plant_id, status, last_seen_at, plants(name, nickname, species)")
+        .eq("id", args.device_id)
+        .eq("profile_id", profileId)
+        .single();
+      device = data;
+    } else if (args.device_name) {
+      const { data } = await supabase
+        .from("devices")
+        .select("id, name, plant_id, status, last_seen_at, plants(name, nickname, species)")
+        .eq("profile_id", profileId)
+        .ilike("name", `%${args.device_name}%`)
+        .limit(1)
+        .single();
+      device = data;
+    }
+
+    if (args.action === "status") {
+      // List all devices if none specified
+      if (!device) {
+        const { data: devices } = await supabase
+          .from("devices")
+          .select("id, name, plant_id, status, last_seen_at, plants(name, nickname, species)")
+          .eq("profile_id", profileId)
+          .eq("status", "active");
+        return {
+          success: true,
+          devices: (devices || []).map((d: any) => ({
+            name: d.name,
+            status: d.status,
+            plant: d.plants ? (d.plants.nickname || d.plants.species || d.plants.name) : "unassigned",
+            last_seen: d.last_seen_at,
+          })),
+        };
+      }
+      return {
+        success: true,
+        device: {
+          name: device.name,
+          status: device.status,
+          plant: device.plants ? (device.plants.nickname || device.plants.species || device.plants.name) : "unassigned",
+          last_seen: device.last_seen_at,
+        },
+      };
+    }
+
+    if (!device) {
+      return { success: false, error: "Device not found. Specify device_name or device_id." };
+    }
+
+    switch (args.action) {
+      case "assign": {
+        if (!args.plant_identifier) {
+          return { success: false, error: "plant_identifier required for assign action" };
+        }
+        const resolution = await resolvePlants(supabase, profileId, args.plant_identifier);
+        if (resolution.plants.length === 0) {
+          return { success: false, error: `Couldn't find a plant matching "${args.plant_identifier}"` };
+        }
+        const plant = resolution.plants[0];
+        const { error } = await supabase
+          .from("devices")
+          .update({ plant_id: plant.id })
+          .eq("id", device.id);
+        if (error) return { success: false, error: error.message };
+        const plantName = plant.nickname || plant.species || plant.name;
+        console.log(`[manageDevice] Assigned ${device.name} to ${plantName}`);
+        return { success: true, action: "assigned", device: device.name, plant: plantName };
+      }
+
+      case "unassign": {
+        const { error } = await supabase
+          .from("devices")
+          .update({ plant_id: null })
+          .eq("id", device.id);
+        if (error) return { success: false, error: error.message };
+        console.log(`[manageDevice] Unassigned ${device.name}`);
+        return { success: true, action: "unassigned", device: device.name };
+      }
+
+      case "rename": {
+        if (!args.new_name) return { success: false, error: "new_name required for rename action" };
+        const { error } = await supabase
+          .from("devices")
+          .update({ name: args.new_name })
+          .eq("id", device.id);
+        if (error) return { success: false, error: error.message };
+        console.log(`[manageDevice] Renamed ${device.name} → ${args.new_name}`);
+        return { success: true, action: "renamed", old_name: device.name, new_name: args.new_name };
+      }
+
+      case "identify": {
+        const { error } = await supabase
+          .from("device_commands")
+          .insert({
+            device_id: device.id,
+            command: "identify",
+            status: "pending",
+          });
+        if (error) return { success: false, error: error.message };
+        console.log(`[manageDevice] Sent identify command to ${device.name}`);
+        return { success: true, action: "identify_sent", device: device.name, note: "The device LED will blink within 30 seconds" };
+      }
+
+      default:
+        return { success: false, error: `Unknown action: ${args.action}` };
+    }
+  } catch (error) {
+    console.error("[manageDevice] Exception:", error);
+    return { success: false, error: String(error) };
+  }
+}
+
+export async function dismissSensorAlert(
+  supabase: any,
+  profileId: string,
+  args: { plant_identifier: string; alert_type: string; reason?: string },
+): Promise<Record<string, unknown>> {
+  try {
+    const resolution = await resolvePlants(supabase, profileId, args.plant_identifier);
+    if (resolution.plants.length === 0) {
+      return { success: false, error: `Couldn't find a plant matching "${args.plant_identifier}"` };
+    }
+
+    const plant = resolution.plants[0];
+    const plantName = plant.nickname || plant.species || plant.name;
+
+    const { data, error } = await supabase
+      .from("sensor_alerts")
+      .update({
+        status: "dismissed",
+        dismissed_at: new Date().toISOString(),
+        dismissed_reason: args.reason || "User acknowledged",
+      })
+      .eq("plant_id", plant.id)
+      .eq("profile_id", profileId)
+      .eq("status", "active")
+      .ilike("alert_type", `%${args.alert_type}%`)
+      .select("id");
+
+    if (error) {
+      console.error("[dismissSensorAlert] Error:", error);
+      return { success: false, error: error.message };
+    }
+
+    const count = data?.length || 0;
+    console.log(`[dismissSensorAlert] Dismissed ${count} alert(s) for ${plantName}`);
+    return {
+      success: true,
+      plant: plantName,
+      dismissed_count: count,
+      reason: args.reason || "User acknowledged",
+    };
+  } catch (error) {
+    console.error("[dismissSensorAlert] Exception:", error);
+    return { success: false, error: String(error) };
+  }
+}
+
+// Helper: evaluate sensor reading against ranges and create/resolve alerts
+export async function evaluateSensorAlerts(
+  supabase: any,
+  profileId: string,
+  plantId: string,
+  deviceId: string,
+  readingId: string,
+  reading: { soil_moisture?: number; temperature?: number; humidity?: number; light_lux?: number },
+): Promise<void> {
+  try {
+    // Fetch active ranges for this plant
+    const { data: ranges } = await supabase
+      .from("sensor_ranges")
+      .select("*")
+      .eq("plant_id", plantId)
+      .eq("is_active", true)
+      .limit(1)
+      .single();
+
+    if (!ranges) return; // No ranges set, skip alert evaluation
+
+    // Fetch plant name for alert messages
+    const { data: plant } = await supabase
+      .from("plants")
+      .select("name, nickname, species")
+      .eq("id", plantId)
+      .single();
+    const plantName = plant?.nickname || plant?.species || plant?.name || "Plant";
+
+    // Check each metric against its range
+    const checks: {
+      metric: string;
+      value: number | undefined | null;
+      min: number | null;
+      idealMin: number | null;
+      idealMax: number | null;
+      max: number | null;
+    }[] = [
+      {
+        metric: "soil_moisture",
+        value: reading.soil_moisture,
+        min: ranges.soil_moisture_min,
+        idealMin: ranges.soil_moisture_ideal_min,
+        idealMax: ranges.soil_moisture_ideal_max,
+        max: ranges.soil_moisture_max,
+      },
+      {
+        metric: "temperature",
+        value: reading.temperature,
+        min: ranges.temperature_min,
+        idealMin: ranges.temperature_ideal_min,
+        idealMax: ranges.temperature_ideal_max,
+        max: ranges.temperature_max,
+      },
+      {
+        metric: "humidity",
+        value: reading.humidity,
+        min: ranges.humidity_min,
+        idealMin: ranges.humidity_ideal_min,
+        idealMax: ranges.humidity_ideal_max,
+        max: ranges.humidity_max,
+      },
+      {
+        metric: "light_lux",
+        value: reading.light_lux,
+        min: ranges.light_lux_min,
+        idealMin: ranges.light_lux_ideal_min,
+        idealMax: ranges.light_lux_ideal_max,
+        max: ranges.light_lux_max,
+      },
+    ];
+
+    for (const check of checks) {
+      if (check.value == null) continue;
+
+      let alertType: string | null = null;
+      let severity: string = "warning";
+      let message = "";
+
+      if (check.min != null && check.value < check.min) {
+        alertType = `danger_${check.metric === "soil_moisture" ? "dry" : check.metric === "temperature" ? "cold" : "low"}`;
+        severity = "critical";
+        message = `${plantName} ${check.metric.replace("_", " ")} at ${check.value}, below danger threshold of ${check.min}`;
+      } else if (check.max != null && check.value > check.max) {
+        alertType = `danger_${check.metric === "soil_moisture" ? "wet" : check.metric === "temperature" ? "hot" : "high"}`;
+        severity = "critical";
+        message = `${plantName} ${check.metric.replace("_", " ")} at ${check.value}, above danger threshold of ${check.max}`;
+      } else if (check.idealMin != null && check.value < check.idealMin) {
+        alertType = `warning_${check.metric === "soil_moisture" ? "dry" : check.metric === "temperature" ? "cold" : "low"}`;
+        severity = "warning";
+        message = `${plantName} ${check.metric.replace("_", " ")} at ${check.value}, below ideal range of ${check.idealMin}-${check.idealMax}`;
+      } else if (check.idealMax != null && check.value > check.idealMax) {
+        alertType = `warning_${check.metric === "soil_moisture" ? "wet" : check.metric === "temperature" ? "hot" : "high"}`;
+        severity = "warning";
+        message = `${plantName} ${check.metric.replace("_", " ")} at ${check.value}, above ideal range of ${check.idealMin}-${check.idealMax}`;
+      }
+
+      if (alertType) {
+        // Check if there's already an active alert of this type
+        const { data: existing } = await supabase
+          .from("sensor_alerts")
+          .select("id")
+          .eq("plant_id", plantId)
+          .eq("alert_type", alertType)
+          .eq("status", "active")
+          .limit(1);
+
+        if (!existing || existing.length === 0) {
+          // Create new alert
+          await supabase.from("sensor_alerts").insert({
+            plant_id: plantId,
+            profile_id: profileId,
+            device_id: deviceId,
+            reading_id: readingId,
+            alert_type: alertType,
+            severity,
+            metric: check.metric,
+            current_value: check.value,
+            threshold_value: severity === "critical"
+              ? (check.value < (check.min ?? 0) ? check.min : check.max)
+              : (check.value < (check.idealMin ?? 0) ? check.idealMin : check.idealMax),
+            message,
+            status: "active",
+          });
+          console.log(`[evaluateSensorAlerts] Created alert: ${alertType} for ${plantName}`);
+        }
+      } else {
+        // Value is in ideal range — resolve any active alerts for this metric
+        const { data: activeAlerts } = await supabase
+          .from("sensor_alerts")
+          .select("id")
+          .eq("plant_id", plantId)
+          .eq("metric", check.metric)
+          .eq("status", "active");
+
+        for (const alert of activeAlerts || []) {
+          await supabase
+            .from("sensor_alerts")
+            .update({ status: "resolved", resolved_at: new Date().toISOString() })
+            .eq("id", alert.id);
+          console.log(`[evaluateSensorAlerts] Resolved alert ${alert.id} for ${plantName} (${check.metric} back in range)`);
+        }
+      }
+    }
+  } catch (error) {
+    console.error("[evaluateSensorAlerts] Exception:", error);
   }
 }
 

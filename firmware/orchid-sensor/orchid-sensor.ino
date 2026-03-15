@@ -30,7 +30,7 @@ const char* WIFI_PASS      = "YOUR_WIFI_PASSWORD";
 const char* ENDPOINT       = "https://ewkfjmekrootyiijrgfh.supabase.co/functions/v1/sensor-reading";
 const char* DEVICE_TOKEN   = "odev_YOUR_TOKEN_HERE";
 
-const int READ_INTERVAL_SEC = 30;  // How often to send readings
+const int READ_INTERVAL_SEC = 5;   // Short interval for debugging — change to 30 for production
 
 // Soil moisture calibration (run calibration mode to find your values)
 const int SOIL_DRY_VALUE   = 3800; // Raw ADC value in dry air
@@ -61,6 +61,10 @@ void setup() {
   if (!lightMeter.begin(BH1750::CONTINUOUS_HIGH_RES_MODE)) {
     Serial.println("[WARN] BH1750 not found — light readings will be skipped");
   }
+
+  // DHT11 needs 2 seconds to warm up before first read
+  Serial.println("Warming up sensors...");
+  delay(2000);
 
   // Check for calibration mode (BOOT button held on startup)
   pinMode(CALIBRATION_PIN, INPUT_PULLUP);

@@ -10,7 +10,7 @@ import { validateInitData } from "../_shared/auth.ts";
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type",
+    "authorization, x-client-info, apikey, content-type, x-device-token",
 };
 
 function json(data: unknown, status = 200) {

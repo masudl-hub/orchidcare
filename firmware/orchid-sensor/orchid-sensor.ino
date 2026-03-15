@@ -31,7 +31,7 @@ const char* ENDPOINT       = "https://ewkfjmekrootyiijrgfh.supabase.co/functions
 const char* DEVICE_TOKEN   = "odev_hp4wGjI0wPwDx18KSAHXSSvOXxWVnTRkH7Wu4E9fuFg";
 const char* ANON_KEY       = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV3a2ZqbWVrcm9vdHlpaWpyZ2ZoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE0OTUyNDQsImV4cCI6MjA4NzA3MTI0NH0.rSRq4mlDNetIvQV1uP9b6HM3XbclcVCcEcMyQa37kKQ";
 
-const int READ_INTERVAL_SEC = 5;   // Short interval for debugging — change to 30 for production
+const int READ_INTERVAL_SEC = 20;  // 3 per minute (under rate limit of 4/min)
 
 // Soil moisture calibration (run calibration mode to find your values)
 const int SOIL_DRY_VALUE   = 3800; // Raw ADC value in dry air

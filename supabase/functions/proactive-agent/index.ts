@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { logOutboundMessage, logProactiveRun, generateCorrelationId, computeEventFingerprint } from "../_shared/audit.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -8,8 +9,6 @@ const corsHeaders = {
 
 // ============================================================================
 // PROACTIVE AGENT - Unified Trigger Mechanism
-// This function identifies WHEN to reach out and triggers the main orchid-agent
-// with proactive context, so the user gets the same agent experience.
 // ============================================================================
 
 interface ProactiveEvent {
@@ -29,24 +28,29 @@ interface ProfileContext {
   display_name: string | null;
   experience_level: string | null;
   primary_concerns: string[] | null;
+  proactive_enabled: boolean;
 }
 
-// Check if current time is within quiet hours for a profile
+// Allowed notification_frequency values
+const VALID_FREQUENCIES = ['off', 'daily', 'weekly', 'realtime'];
+
+function normalizeFrequency(freq: string | null | undefined): string {
+  if (!freq) return 'daily';
+  const lower = freq.toLowerCase().trim();
+  if (VALID_FREQUENCIES.includes(lower)) return lower;
+  console.warn(`[ProactiveAgent] Unknown frequency "${freq}", defaulting to skip`);
+  return 'off'; // Unknown values => safe skip
+}
+
 function isQuietHours(quietStart: string, quietEnd: string, timezone: string): boolean {
   try {
     const now = new Date();
     const userTime = now.toLocaleTimeString('en-US', { 
-      timeZone: timezone, 
-      hour12: false, 
-      hour: '2-digit', 
-      minute: '2-digit' 
+      timeZone: timezone, hour12: false, hour: '2-digit', minute: '2-digit' 
     });
-    
     const currentMinutes = parseInt(userTime.split(':')[0]) * 60 + parseInt(userTime.split(':')[1]);
     const startMinutes = parseInt(quietStart.split(':')[0]) * 60 + parseInt(quietStart.split(':')[1]);
     const endMinutes = parseInt(quietEnd.split(':')[0]) * 60 + parseInt(quietEnd.split(':')[1]);
-    
-    // Handle overnight quiet hours (e.g., 22:00 to 08:00)
     if (startMinutes > endMinutes) {
       return currentMinutes >= startMinutes || currentMinutes < endMinutes;
     }
@@ -56,48 +60,50 @@ function isQuietHours(quietStart: string, quietEnd: string, timezone: string): b
   }
 }
 
-// Check if we've already sent a proactive message today
 async function hasSentToday(supabase: any, profileId: string): Promise<boolean> {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  
   const { count } = await supabase
     .from('proactive_messages')
     .select('*', { count: 'exact', head: true })
     .eq('profile_id', profileId)
     .gte('sent_at', today.toISOString());
-  
   return (count || 0) > 0;
 }
 
-// Check if we've sent in the last 7 days (for weekly frequency)
 async function hasSentThisWeek(supabase: any, profileId: string): Promise<boolean> {
   const weekAgo = new Date();
   weekAgo.setDate(weekAgo.getDate() - 7);
-  
   const { count } = await supabase
     .from('proactive_messages')
     .select('*', { count: 'exact', head: true })
     .eq('profile_id', profileId)
     .gte('sent_at', weekAgo.toISOString());
-  
   return (count || 0) > 0;
 }
 
-// Query for due reminders
+// Realtime dedup: check if we already sent for this event fingerprint today
+async function hasRecentFingerprint(supabase: any, profileId: string, fingerprint: string): Promise<boolean> {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const { count } = await supabase
+    .from('outbound_message_audit')
+    .select('*', { count: 'exact', head: true })
+    .eq('profile_id', profileId)
+    .eq('message_hash', fingerprint)
+    .eq('delivery_status', 'delivered')
+    .gte('created_at', today.toISOString());
+  return (count || 0) > 0;
+}
+
 async function getDueReminders(supabase: any, profileId: string): Promise<ProactiveEvent[]> {
   const { data: reminders } = await supabase
     .from('reminders')
-    .select(`
-      id, reminder_type, notes, next_due, frequency_days,
-      plants!inner(id, name, nickname, species)
-    `)
+    .select(`id, reminder_type, notes, next_due, frequency_days, plants!inner(id, name, nickname, species)`)
     .eq('profile_id', profileId)
     .eq('is_active', true)
     .lte('next_due', new Date().toISOString());
-  
   if (!reminders || reminders.length === 0) return [];
-  
   return reminders.map((r: any) => ({
     type: 'reminder_due' as const,
     priority: 1,
@@ -113,70 +119,48 @@ async function getDueReminders(supabase: any, profileId: string): Promise<Proact
   }));
 }
 
-// Query for inactive plants
 async function getInactivePlants(supabase: any, profileId: string): Promise<ProactiveEvent[]> {
   const twoWeeksAgo = new Date();
   twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14);
-  
   const { data: plants } = await supabase
     .from('plants')
     .select('id, name, nickname, species, created_at')
     .eq('profile_id', profileId);
-  
   if (!plants || plants.length === 0) return [];
-  
   const events: ProactiveEvent[] = [];
-  
   for (const plant of plants) {
-    // Skip plants created less than a week ago
-    if (new Date(plant.created_at) > new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)) {
-      continue;
-    }
-    
+    if (new Date(plant.created_at) > new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)) continue;
     const { count } = await supabase
       .from('care_events')
       .select('*', { count: 'exact', head: true })
       .eq('plant_id', plant.id)
       .gte('created_at', twoWeeksAgo.toISOString());
-    
     if (count === 0) {
       events.push({
         type: 'inactivity',
         priority: 3,
-        data: {
-          plant_id: plant.id,
-          plant_name: plant.nickname || plant.name || plant.species,
-          days_inactive: 14,
-        },
+        data: { plant_id: plant.id, plant_name: plant.nickname || plant.name || plant.species, days_inactive: 14 },
         message_hint: `Haven't heard about ${plant.nickname || plant.species} in a while`,
       });
     }
   }
-  
   return events;
 }
 
-// Query for diagnosis follow-ups
 async function getDiagnosisFollowups(supabase: any, profileId: string): Promise<ProactiveEvent[]> {
   const threeDaysAgo = new Date();
   threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
   const sevenDaysAgo = new Date();
   sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-  
   const { data: diagnoses } = await supabase
     .from('plant_identifications')
-    .select(`
-      id, diagnosis, severity, treatment, created_at,
-      plants!inner(id, name, nickname, species, profile_id)
-    `)
+    .select(`id, diagnosis, severity, treatment, created_at, plants!inner(id, name, nickname, species, profile_id)`)
     .eq('plants.profile_id', profileId)
     .not('diagnosis', 'is', null)
     .in('severity', ['moderate', 'severe'])
     .gte('created_at', sevenDaysAgo.toISOString())
     .lte('created_at', threeDaysAgo.toISOString());
-  
   if (!diagnoses || diagnoses.length === 0) return [];
-  
   return diagnoses.map((d: any) => ({
     type: 'diagnosis_followup' as const,
     priority: 2,
@@ -192,45 +176,24 @@ async function getDiagnosisFollowups(supabase: any, profileId: string): Promise<
   }));
 }
 
-// Get seasonal tips based on location and date
 function getSeasonalContext(location: string | null): { season: string; tips: string[] } | null {
   const now = new Date();
-  const month = now.getMonth(); // 0-11
-  
-  // Northern hemisphere seasons (simple approximation)
+  const month = now.getMonth();
   let season: string;
   let tips: string[] = [];
-  
   if (month >= 2 && month <= 4) {
     season = 'spring';
-    tips = [
-      'Time to start fertilizing after winter dormancy',
-      'Increase watering as growth picks up',
-      'Check for new growth and consider repotting',
-    ];
+    tips = ['Time to start fertilizing after winter dormancy', 'Increase watering as growth picks up', 'Check for new growth and consider repotting'];
   } else if (month >= 5 && month <= 7) {
     season = 'summer';
-    tips = [
-      'Watch for signs of heat stress',
-      'Consider moving plants away from direct afternoon sun',
-      'Misting can help with humidity during hot days',
-    ];
+    tips = ['Watch for signs of heat stress', 'Consider moving plants away from direct afternoon sun', 'Misting can help with humidity during hot days'];
   } else if (month >= 8 && month <= 10) {
     season = 'fall';
-    tips = [
-      'Reduce fertilizing as plants slow down',
-      'Move tropical plants away from cold drafts',
-      'Great time to take cuttings before winter',
-    ];
+    tips = ['Reduce fertilizing as plants slow down', 'Move tropical plants away from cold drafts', 'Great time to take cuttings before winter'];
   } else {
     season = 'winter';
-    tips = [
-      'Reduce watering - most plants are dormant',
-      'Keep plants away from cold windows and heating vents',
-      'Avoid fertilizing during dormancy',
-    ];
+    tips = ['Reduce watering - most plants are dormant', 'Keep plants away from cold windows and heating vents', 'Avoid fertilizing during dormancy'];
   }
-  
   return { season, tips };
 }
 
@@ -239,9 +202,22 @@ serve(async (req: Request) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  const runStartedAt = new Date();
   const startTime = Date.now();
   const triggerSource = req.headers.get('X-Trigger-Source') || 'unknown';
-  console.log(`[ProactiveAgent] Function invoked | trigger=${triggerSource} | timestamp=${new Date().toISOString()}`);
+  console.log(`[ProactiveAgent] Function invoked | trigger=${triggerSource} | timestamp=${runStartedAt.toISOString()}`);
+
+  // Run-level tracking
+  const skipReasons: Record<string, number> = {};
+  let profilesScanned = 0;
+  let totalEventsFound = 0;
+  let messagesDelivered = 0;
+  let messagesSkipped = 0;
+
+  function trackSkip(reason: string) {
+    skipReasons[reason] = (skipReasons[reason] || 0) + 1;
+    messagesSkipped++;
+  }
 
   try {
     const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
@@ -251,22 +227,24 @@ serve(async (req: Request) => {
     if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
       console.error('[ProactiveAgent] Missing required environment variables');
       return new Response(JSON.stringify({ error: 'Configuration error' }), {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
     }
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-    console.log('[ProactiveAgent] Starting proactive check...');
-
-    // Get all profiles with extended onboarding data
+    // Get all profiles
     const { data: profiles } = await supabase
       .from('profiles')
-      .select('id, telegram_chat_id, personality, timezone, location, notification_frequency, display_name, experience_level, primary_concerns');
+      .select('id, telegram_chat_id, personality, timezone, location, notification_frequency, display_name, experience_level, primary_concerns, proactive_enabled');
 
     if (!profiles || profiles.length === 0) {
-      console.log('[ProactiveAgent] No profiles found in database');
+      console.log('[ProactiveAgent] No profiles found');
+      await logProactiveRun(supabase, {
+        runStartedAt, runEndedAt: new Date(), triggerSource,
+        profilesScanned: 0, eventsFound: 0, messagesDelivered: 0, messagesSkipped: 0,
+        skipReasons,
+      });
       return new Response(JSON.stringify({ processed: 0, triggered: 0 }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
@@ -280,9 +258,34 @@ serve(async (req: Request) => {
     for (const profile of profiles as ProfileContext[]) {
       const profileStartTime = Date.now();
       processed++;
-      console.log(`[ProactiveAgent] Processing profile ${profile.id} | telegram_chat_id=${profile.telegram_chat_id || 'none'} | timezone=${profile.timezone} | frequency=${profile.notification_frequency || 'default'}`);
+      profilesScanned++;
+      console.log(`[ProactiveAgent] Processing profile ${profile.id} | telegram_chat_id=${profile.telegram_chat_id || 'none'} | timezone=${profile.timezone} | frequency=${profile.notification_frequency || 'default'} | proactive_enabled=${profile.proactive_enabled}`);
 
-      // Check agent permissions for sending (default: enabled if no row exists)
+      // ===== KILL SWITCH CHECK =====
+      if (profile.proactive_enabled === false) {
+        console.log(`[ProactiveAgent] SKIP profile ${profile.id} | reason=proactive_disabled (kill switch)`);
+        trackSkip('proactive_disabled');
+        continue;
+      }
+
+      // ===== FREQUENCY NORMALIZATION & ENFORCEMENT =====
+      const frequency = normalizeFrequency(profile.notification_frequency);
+      if (frequency === 'off') {
+        console.log(`[ProactiveAgent] SKIP profile ${profile.id} | reason=frequency_off (value="${profile.notification_frequency}")`);
+        trackSkip('frequency_off');
+        // Log to audit as skipped
+        await logOutboundMessage(supabase, {
+          sourceFunction: 'proactive-agent',
+          sourceMode: 'proactive',
+          profileId: profile.id,
+          telegramChatId: profile.telegram_chat_id,
+          deliveryStatus: 'skipped',
+          errorDetail: `Frequency is off (raw value: "${profile.notification_frequency}")`,
+        });
+        continue;
+      }
+
+      // Check agent permissions
       const { data: sendPermission } = await supabase
         .from('agent_permissions')
         .select('enabled')
@@ -292,10 +295,11 @@ serve(async (req: Request) => {
 
       if (sendPermission && !sendPermission.enabled) {
         console.log(`[ProactiveAgent] SKIP profile ${profile.id} | reason=send_reminders_disabled`);
+        trackSkip('send_reminders_disabled');
         continue;
       }
 
-      // Get user's proactive preferences
+      // Get proactive preferences
       const { data: preferences } = await supabase
         .from('proactive_preferences')
         .select('topic, enabled, quiet_hours_start, quiet_hours_end')
@@ -303,6 +307,7 @@ serve(async (req: Request) => {
 
       if (!preferences || preferences.length === 0) {
         console.log(`[ProactiveAgent] SKIP profile ${profile.id} | reason=no_preferences`);
+        trackSkip('no_preferences');
         continue;
       }
 
@@ -315,28 +320,32 @@ serve(async (req: Request) => {
 
       if (isQuietHours(quietStart, quietEnd, profile.timezone || 'America/New_York')) {
         console.log(`[ProactiveAgent] SKIP profile ${profile.id} | reason=quiet_hours | window=${quietStart}-${quietEnd}`);
+        trackSkip('quiet_hours');
         continue;
       }
 
-      // Check notification frequency
-      if (profile.notification_frequency === 'daily' || !profile.notification_frequency) {
+      // ===== RATE LIMITING BY NORMALIZED FREQUENCY =====
+      if (frequency === 'daily') {
         if (await hasSentToday(supabase, profile.id)) {
           console.log(`[ProactiveAgent] SKIP profile ${profile.id} | reason=daily_limit_reached`);
+          trackSkip('daily_limit_reached');
           continue;
         }
-      } else if (profile.notification_frequency === 'weekly') {
+      } else if (frequency === 'weekly') {
         if (await hasSentThisWeek(supabase, profile.id)) {
           console.log(`[ProactiveAgent] SKIP profile ${profile.id} | reason=weekly_limit_reached`);
+          trackSkip('weekly_limit_reached');
           continue;
         }
+      } else if (frequency === 'realtime') {
+        // Realtime: still enforce per-event dedup (no duplicate sends for same event same day)
+        // Checked per-event below via fingerprint
       }
 
-      // Collect events based on enabled preferences
+      // Collect events
       const allEvents: ProactiveEvent[] = [];
-
       for (const pref of preferences) {
         if (!pref.enabled) continue;
-
         if (pref.topic === 'care_reminders') {
           const reminders = await getDueReminders(supabase, profile.id);
           console.log(`[ProactiveAgent] Profile ${profile.id} | care_reminders found=${reminders.length}`);
@@ -352,11 +361,9 @@ serve(async (req: Request) => {
         } else if (pref.topic === 'seasonal_tips') {
           const seasonal = getSeasonalContext(profile.location);
           const includeSeasonalTip = seasonal && Math.random() < 0.3;
-          console.log(`[ProactiveAgent] Profile ${profile.id} | seasonal_tips eligible=${!!seasonal} include=${includeSeasonalTip}`);
-          if (includeSeasonalTip) { // 30% chance to include seasonal tip
+          if (includeSeasonalTip) {
             allEvents.push({
-              type: 'seasonal',
-              priority: 4,
+              type: 'seasonal', priority: 4,
               data: { season: seasonal.season, tips: seasonal.tips },
               message_hint: `Seasonal ${seasonal.season} care tip`,
             });
@@ -364,47 +371,56 @@ serve(async (req: Request) => {
         }
       }
 
+      totalEventsFound += allEvents.length;
+
       if (allEvents.length === 0) {
         console.log(`[ProactiveAgent] SKIP profile ${profile.id} | reason=no_pending_events`);
+        trackSkip('no_pending_events');
         continue;
       }
 
-      // ======================================================================
-      // PRIORITY BOOSTING based on user's primary_concerns
-      // ======================================================================
-      const userConcerns = profile.primary_concerns || [];
-      
+      // ===== EVENT FINGERPRINT DEDUP (especially for realtime) =====
+      const dedupedEvents: ProactiveEvent[] = [];
       for (const event of allEvents) {
-        // Boost priority for events matching user's stated concerns
-        // Lower priority number = higher priority
-        if (userConcerns.includes('watering') && event.type === 'reminder_due' && 
-            event.data?.reminder_type === 'water') {
-          event.priority -= 0.5; // Boost watering reminders
+        const identifiers: Record<string, string> = { type: event.type };
+        if (event.data.reminder_id) identifiers.reminder_id = event.data.reminder_id;
+        if (event.data.plant_id) identifiers.plant_id = event.data.plant_id;
+        if (event.data.diagnosis_id) identifiers.diagnosis_id = event.data.diagnosis_id;
+        
+        const fingerprint = computeEventFingerprint(profile.id, event.type, identifiers);
+        
+        if (frequency === 'realtime') {
+          // For realtime, check per-event dedup
+          if (await hasRecentFingerprint(supabase, profile.id, fingerprint)) {
+            console.log(`[ProactiveAgent] DEDUP: skipping event ${event.type} for profile ${profile.id} (fingerprint=${fingerprint})`);
+            continue;
+          }
         }
-        if (userConcerns.includes('pests') && event.type === 'diagnosis_followup') {
-          event.priority -= 0.5; // Boost health followups for pest-concerned users
-        }
-        if (userConcerns.includes('identification') && event.type === 'inactivity') {
-          event.priority -= 0.3; // Boost inactivity checks for ID-focused users
-        }
-        if (userConcerns.includes('general') && event.type === 'seasonal') {
-          event.priority -= 0.3; // Boost seasonal tips for general-care users
-        }
+        dedupedEvents.push(event);
       }
 
-      // Sort by priority and take top 3
-      allEvents.sort((a, b) => a.priority - b.priority);
-      const topEvents = allEvents.slice(0, 3);
+      if (dedupedEvents.length === 0) {
+        console.log(`[ProactiveAgent] SKIP profile ${profile.id} | reason=all_events_deduped`);
+        trackSkip('all_events_deduped');
+        continue;
+      }
 
+      // Priority boosting
+      const userConcerns = profile.primary_concerns || [];
+      for (const event of dedupedEvents) {
+        if (userConcerns.includes('watering') && event.type === 'reminder_due' && event.data?.reminder_type === 'water') event.priority -= 0.5;
+        if (userConcerns.includes('pests') && event.type === 'diagnosis_followup') event.priority -= 0.5;
+        if (userConcerns.includes('identification') && event.type === 'inactivity') event.priority -= 0.3;
+        if (userConcerns.includes('general') && event.type === 'seasonal') event.priority -= 0.3;
+      }
+
+      dedupedEvents.sort((a, b) => a.priority - b.priority);
+      const topEvents = dedupedEvents.slice(0, 3);
+
+      const correlationId = generateCorrelationId('proactive');
       const eventSummary = topEvents.map(e => `${e.type}(p=${e.priority})`).join(',');
-      console.log(`[ProactiveAgent] DECISION: SEND profile ${profile.id} | total_events=${allEvents.length} selected_events=${topEvents.length} | events=[${eventSummary}]`);
+      console.log(`[ProactiveAgent] DECISION: SEND profile ${profile.id} | correlation=${correlationId} | total_events=${allEvents.length} deduped=${dedupedEvents.length} selected=${topEvents.length} | events=[${eventSummary}]`);
 
-      // ========================================================================
-      // UNIFIED AGENT APPROACH: Trigger orchid-agent with proactive context
-      // This ensures the user gets the same Orchid, same memory, same personality
-      // ========================================================================
-      
-      // Track whether THIS profile's message was actually delivered
       let delivered = false;
 
       try {
@@ -412,10 +428,16 @@ serve(async (req: Request) => {
         const TELEGRAM_BOT_TOKEN = Deno.env.get('TELEGRAM_BOT_TOKEN');
 
         if (profile.telegram_chat_id) {
-          // ================================================================
-          // TELEGRAM PATH: Use internal agent call + direct Telegram Bot API
-          // ================================================================
-          console.log(`[ProactiveAgent] Calling orchid-agent for profile ${profile.id} | chat_id=${profile.telegram_chat_id}`);
+          // Log attempt
+          await logOutboundMessage(supabase, {
+            sourceFunction: 'proactive-agent',
+            sourceMode: 'proactive',
+            profileId: profile.id,
+            telegramChatId: profile.telegram_chat_id,
+            correlationId,
+            deliveryStatus: 'attempted',
+            triggerPayload: { events: topEvents.map(e => ({ type: e.type, hint: e.message_hint, data: e.data })) },
+          });
 
           const proactivePayload = {
             proactiveMode: true,
@@ -423,6 +445,7 @@ serve(async (req: Request) => {
             channel: 'telegram',
             events: topEvents,
             eventSummary: topEvents.map(e => e.message_hint).join('; '),
+            correlationId,
           };
 
           const agentCallStart = Date.now();
@@ -433,6 +456,7 @@ serve(async (req: Request) => {
               'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
               'X-Internal-Agent-Call': 'true',
               'X-Proactive-Trigger': 'true',
+              'X-Correlation-Id': correlationId,
             },
             body: JSON.stringify(proactivePayload),
           });
@@ -440,62 +464,94 @@ serve(async (req: Request) => {
 
           if (webhookResponse.ok) {
             const agentResponse = await webhookResponse.json();
-            console.log(`[ProactiveAgent] Agent response received for profile ${profile.id} | duration_ms=${agentCallDuration} | has_reply=${!!agentResponse.reply} | has_media=${agentResponse.mediaToSend?.length || 0}`);
+            console.log(`[ProactiveAgent] Agent response for profile ${profile.id} | correlation=${correlationId} | duration_ms=${agentCallDuration} | has_reply=${!!agentResponse.reply}`);
 
-            // Send via Telegram Bot API directly — check response for delivery confirmation
             if (agentResponse.reply && TELEGRAM_BOT_TOKEN) {
-              console.log(`[ProactiveAgent] Sending to Telegram chat_id=${profile.telegram_chat_id} | message_length=${agentResponse.reply.length}`);
               const telegramUrl = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`;
-              const tgSendStart = Date.now();
               const tgResponse = await fetch(telegramUrl, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  chat_id: profile.telegram_chat_id,
-                  text: agentResponse.reply,
-                }),
+                body: JSON.stringify({ chat_id: profile.telegram_chat_id, text: agentResponse.reply }),
               });
-              const tgSendDuration = Date.now() - tgSendStart;
 
               const tgResult = await tgResponse.json();
               if (tgResult.ok) {
                 delivered = true;
-                console.log(`[ProactiveAgent] Message delivered successfully | profile=${profile.id} chat_id=${profile.telegram_chat_id} duration_ms=${tgSendDuration} message_id=${tgResult.result?.message_id}`);
+                const tgMsgId = tgResult.result?.message_id;
+                console.log(`[ProactiveAgent] DELIVERED | profile=${profile.id} | correlation=${correlationId} | chat_id=${profile.telegram_chat_id} | message_id=${tgMsgId}`);
 
-                // Send any media (best-effort, don't block delivery status)
+                // Log delivered
+                await logOutboundMessage(supabase, {
+                  sourceFunction: 'proactive-agent',
+                  sourceMode: 'proactive',
+                  profileId: profile.id,
+                  telegramChatId: profile.telegram_chat_id,
+                  correlationId,
+                  messagePreview: agentResponse.reply,
+                  telegramMessageId: tgMsgId,
+                  deliveryStatus: 'delivered',
+                  triggerPayload: { events: topEvents.map(e => ({ type: e.type, hint: e.message_hint })) },
+                });
+
+                // Send media (best-effort)
                 if (agentResponse.mediaToSend?.length > 0) {
-                  console.log(`[ProactiveAgent] Sending ${agentResponse.mediaToSend.length} media attachments to chat_id=${profile.telegram_chat_id}`);
                   for (const media of agentResponse.mediaToSend) {
                     const photoUrl = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendPhoto`;
                     await fetch(photoUrl, {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({
-                        chat_id: profile.telegram_chat_id,
-                        photo: media.url,
-                        caption: media.caption || '',
-                      }),
+                      body: JSON.stringify({ chat_id: profile.telegram_chat_id, photo: media.url, caption: media.caption || '' }),
                     });
                   }
                 }
               } else {
-                console.error(`[ProactiveAgent] Telegram API error | profile=${profile.id} chat_id=${profile.telegram_chat_id} error_code=${tgResult.error_code} description=${tgResult.description}`);
+                console.error(`[ProactiveAgent] Telegram API error | profile=${profile.id} | correlation=${correlationId} | error_code=${tgResult.error_code} | description=${tgResult.description}`);
+                await logOutboundMessage(supabase, {
+                  sourceFunction: 'proactive-agent',
+                  sourceMode: 'proactive',
+                  profileId: profile.id,
+                  telegramChatId: profile.telegram_chat_id,
+                  correlationId,
+                  messagePreview: agentResponse.reply,
+                  deliveryStatus: 'failed',
+                  errorCode: String(tgResult.error_code),
+                  errorDetail: tgResult.description,
+                });
               }
             } else {
-              console.log(`[ProactiveAgent] No message to send | profile=${profile.id} has_reply=${!!agentResponse.reply} has_token=${!!TELEGRAM_BOT_TOKEN}`);
+              console.log(`[ProactiveAgent] No message to send | profile=${profile.id} | correlation=${correlationId}`);
+              await logOutboundMessage(supabase, {
+                sourceFunction: 'proactive-agent',
+                sourceMode: 'proactive',
+                profileId: profile.id,
+                telegramChatId: profile.telegram_chat_id,
+                correlationId,
+                deliveryStatus: 'skipped',
+                errorDetail: 'Agent returned no reply or no bot token',
+              });
             }
           } else {
             const errorText = await webhookResponse.text();
-            console.error(`[ProactiveAgent] Agent call failed | profile=${profile.id} status=${webhookResponse.status} duration_ms=${agentCallDuration} error=${errorText}`);
+            console.error(`[ProactiveAgent] Agent call failed | profile=${profile.id} | correlation=${correlationId} | status=${webhookResponse.status} | error=${errorText}`);
+            await logOutboundMessage(supabase, {
+              sourceFunction: 'proactive-agent',
+              sourceMode: 'proactive',
+              profileId: profile.id,
+              telegramChatId: profile.telegram_chat_id,
+              correlationId,
+              deliveryStatus: 'failed',
+              errorCode: String(webhookResponse.status),
+              errorDetail: errorText.substring(0, 500),
+            });
           }
         } else {
-          // No Telegram — skip (Twilio disabled)
-          console.log(`[ProactiveAgent] SKIP profile ${profile.id} | reason=no_telegram_chat_id (Telegram-only mode)`);
+          console.log(`[ProactiveAgent] SKIP profile ${profile.id} | reason=no_telegram_chat_id`);
+          trackSkip('no_telegram_chat_id');
         }
 
-        // Only log and update reminders if message was actually delivered
         if (delivered) {
           triggered++;
+          messagesDelivered++;
 
           await supabase.from('proactive_messages').insert({
             profile_id: profile.id,
@@ -505,53 +561,69 @@ serve(async (req: Request) => {
             channel: 'telegram',
             sent_at: new Date().toISOString(),
           });
-          console.log(`[ProactiveAgent] Logged proactive_message record | profile=${profile.id} trigger_type=${topEvents[0].type}`);
 
-          // Update next_due for any reminders we notified about
+          // Update next_due for reminders
           for (const event of topEvents) {
             if (event.type === 'reminder_due' && event.data.reminder_id) {
               const nextDue = new Date();
               nextDue.setDate(nextDue.getDate() + event.data.frequency_days);
-
               await supabase
                 .from('reminders')
                 .update({ next_due: nextDue.toISOString(), updated_at: new Date().toISOString() })
                 .eq('id', event.data.reminder_id);
-
-              console.log(`[ProactiveAgent] Updated reminder next_due | reminder_id=${event.data.reminder_id} next_due=${nextDue.toISOString()}`);
             }
           }
 
-          const profileDuration = Date.now() - profileStartTime;
-          console.log(`[ProactiveAgent] Profile complete | profile=${profile.id} status=delivered duration_ms=${profileDuration}`);
+          console.log(`[ProactiveAgent] Profile complete | profile=${profile.id} | correlation=${correlationId} | status=delivered | duration_ms=${Date.now() - profileStartTime}`);
         } else {
-          const profileDuration = Date.now() - profileStartTime;
-          console.log(`[ProactiveAgent] Profile complete | profile=${profile.id} status=not_delivered duration_ms=${profileDuration}`);
+          console.log(`[ProactiveAgent] Profile complete | profile=${profile.id} | correlation=${correlationId} | status=not_delivered | duration_ms=${Date.now() - profileStartTime}`);
         }
       } catch (triggerError) {
-        const profileDuration = Date.now() - profileStartTime;
-        console.error(`[ProactiveAgent] Profile error | profile=${profile.id} duration_ms=${profileDuration} error=${triggerError instanceof Error ? triggerError.message : String(triggerError)}`);
+        console.error(`[ProactiveAgent] Profile error | profile=${profile.id} | error=${triggerError instanceof Error ? triggerError.message : String(triggerError)}`);
       }
     }
 
     const totalDuration = Date.now() - startTime;
-    console.log(`[ProactiveAgent] Run complete | total_duration_ms=${totalDuration} profiles_processed=${processed} messages_delivered=${triggered} success_rate=${processed > 0 ? ((triggered / processed) * 100).toFixed(1) : 0}%`);
+    console.log(`[ProactiveAgent] Run complete | duration_ms=${totalDuration} | profiles=${processed} | delivered=${triggered} | skipped=${messagesSkipped} | skip_reasons=${JSON.stringify(skipReasons)}`);
 
-    return new Response(JSON.stringify({ processed, triggered }), {
+    // Log run audit
+    await logProactiveRun(supabase, {
+      runStartedAt,
+      runEndedAt: new Date(),
+      triggerSource,
+      profilesScanned,
+      eventsFound: totalEventsFound,
+      messagesDelivered,
+      messagesSkipped,
+      skipReasons,
+    });
+
+    return new Response(JSON.stringify({ processed, triggered, skipped: messagesSkipped, skipReasons }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });
 
   } catch (error) {
-    const totalDuration = Date.now() - startTime;
     const errorMessage = error instanceof Error ? error.message : String(error);
-    const errorStack = error instanceof Error ? error.stack : undefined;
-    console.error(`[ProactiveAgent] Fatal error | duration_ms=${totalDuration} error=${errorMessage}`);
-    if (errorStack) {
-      console.error(`[ProactiveAgent] Stack trace: ${errorStack}`);
-    }
+    console.error(`[ProactiveAgent] Fatal error | duration_ms=${Date.now() - startTime} | error=${errorMessage}`);
+
+    // Try to log the failed run
+    try {
+      const supabase = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
+      await logProactiveRun(supabase, {
+        runStartedAt,
+        runEndedAt: new Date(),
+        triggerSource,
+        profilesScanned,
+        eventsFound: totalEventsFound,
+        messagesDelivered,
+        messagesSkipped,
+        skipReasons,
+        error: errorMessage,
+      });
+    } catch { /* best-effort */ }
+
     return new Response(JSON.stringify({ error: errorMessage }), {
-      status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });
   }
 });

@@ -85,14 +85,18 @@ function validatePayload(body: any): { valid: true; data: SensorPayload } | { va
 // ============================================================================
 
 async function handleDeviceReading(req: Request) {
-  const authHeader = req.headers.get("Authorization");
-  if (!authHeader?.startsWith("Bearer ")) {
-    return json({ error: "Missing or invalid Authorization header" }, 401);
+  // Accept device token from x-device-token header (preferred, avoids gateway JWT check)
+  // or from Authorization header (legacy/direct calls)
+  let token = req.headers.get("x-device-token") ?? "";
+  if (!token) {
+    const authHeader = req.headers.get("Authorization");
+    if (authHeader?.startsWith("Bearer ")) {
+      token = authHeader.replace("Bearer ", "");
+    }
   }
 
-  const token = authHeader.replace("Bearer ", "");
-  if (!token.startsWith("odev_")) {
-    return json({ error: "Invalid device token format (expected odev_ prefix)" }, 401);
+  if (!token || !token.startsWith("odev_")) {
+    return json({ error: "Missing or invalid device token. Use x-device-token header with odev_ prefixed token." }, 401);
   }
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";

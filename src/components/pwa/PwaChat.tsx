@@ -133,6 +133,7 @@ export function PwaChat() {
               id: data[i].id, // Use DB id instead of counter
               element: <ChatResponse text={data[i].content} images={images} />,
               userMessage: userMsg,
+              userMessageId: i > 0 && data[i - 1].direction === 'inbound' ? data[i - 1].id : undefined,
               artifactType: 'chat',
               artifactData: { text: data[i].content },
               responseMessage: data[i].content,
@@ -229,6 +230,24 @@ export function PwaChat() {
       ));
     }
   }, [profile?.id]);
+
+  const handleDeleteMessage = useCallback(async (messageId: string) => {
+    try {
+      const { error } = await supabase.functions.invoke('delete-message', {
+        body: { message_id: messageId },
+      });
+      if (error) {
+        console.error('[PwaChat] failed to delete message:', error);
+        return;
+      }
+      // Remove message from local state
+      setMessages(prev => prev.filter(msg => msg.id !== messageId));
+      // Remove any artifacts associated with this message (as assistant response or user message)
+      setArtifacts(prev => prev.filter(art => art.id !== messageId && art.userMessageId !== messageId));
+    } catch (err) {
+      console.error('[PwaChat] delete message error:', err);
+    }
+  }, []);
 
   // Send message to pwa-agent
   const sendMessage = useCallback(
@@ -379,6 +398,7 @@ export function PwaChat() {
           id: `artifact-${++artifactIdCounter.current}`,
           element,
           userMessage: text !== '(photo)' ? text : undefined,
+          userMessageId: userMsg.id,
           artifactType: 'chat',
           artifactData: { text: reply },
           responseMessage: reply,
@@ -535,6 +555,7 @@ export function PwaChat() {
             onCopy={handleCopy}
             onResend={handleResend}
             onRate={handleRate}
+            onDelete={handleDeleteMessage}
           />
         )}
       </div>

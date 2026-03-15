@@ -2,7 +2,7 @@ import React, { useRef, useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { PixelCanvas } from '@/lib/pixel-canvas/PixelCanvas';
 import type { Formation } from '@/lib/pixel-canvas/types';
-import { Copy, RefreshCcw, ThumbsUp, ThumbsDown } from 'lucide-react';
+import { Copy, RefreshCcw, ThumbsUp, ThumbsDown, Trash2 } from 'lucide-react';
 
 const mono = 'ui-monospace, monospace';
 
@@ -18,6 +18,7 @@ export interface ArtifactEntry extends ArtifactData {
   id: string;
   element: React.ReactNode;
   userMessage?: string;
+  userMessageId?: string;
   createdAt?: string;
   rating?: number | null;
 }
@@ -31,6 +32,7 @@ interface ChatMessageStackProps {
   onCopy?: (text: string) => void;
   onResend?: (text: string) => void;
   onRate?: (id: string, rating: number) => void;
+  onDelete?: (id: string) => void;
 }
 
 function formatTime(isoStr?: string) {
@@ -41,14 +43,18 @@ function formatTime(isoStr?: string) {
 
 function UserBubble({
   text,
+  id,
   timestamp,
   onCopy,
-  onResend
+  onResend,
+  onDelete,
 }: {
   text: string;
+  id?: string;
   timestamp?: string;
   onCopy?: (text: string) => void;
   onResend?: (text: string) => void;
+  onDelete?: (id: string) => void;
 }) {
   const [copied, setCopied] = useState(false);
 
@@ -108,6 +114,11 @@ function UserBubble({
             <RefreshCcw size={13} />
           </button>
         )}
+        {onDelete && id && (
+          <button onClick={() => onDelete(id)} title="Delete message" style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'rgba(239,68,68,0.5)', display: 'flex', alignItems: 'center' }}>
+            <Trash2 size={13} />
+          </button>
+        )}
       </div>
 
       <style>{`
@@ -125,6 +136,7 @@ function AgentActionRow({
   rating,
   onCopy,
   onRate,
+  onDelete,
 }: {
   entryId: string;
   timestamp?: string;
@@ -132,6 +144,7 @@ function AgentActionRow({
   rating?: number | null;
   onCopy?: (text: string) => void;
   onRate?: (id: string, rating: number) => void;
+  onDelete?: (id: string) => void;
 }) {
   const [copied, setCopied] = useState(false);
 
@@ -176,6 +189,11 @@ function AgentActionRow({
           </button>
         </>
       )}
+      {onDelete && (
+        <button onClick={() => onDelete(entryId)} title="Delete message" style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'rgba(239,68,68,0.5)', display: 'flex', alignItems: 'center' }}>
+          <Trash2 size={13} />
+        </button>
+      )}
     </div>
   );
 }
@@ -205,6 +223,7 @@ export function ChatMessageStack({
   onCopy,
   onResend,
   onRate,
+  onDelete,
 }: ChatMessageStackProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -265,9 +284,11 @@ export function ChatMessageStack({
                 {entry.userMessage && (
                   <UserBubble
                     text={entry.userMessage}
+                    id={entry.userMessageId}
                     timestamp={entry.createdAt}
                     onCopy={onCopy}
                     onResend={onResend}
+                    onDelete={onDelete}
                   />
                 )}
 
@@ -289,6 +310,7 @@ export function ChatMessageStack({
                   rating={entry.rating}
                   onCopy={onCopy}
                   onRate={onRate}
+                  onDelete={onDelete}
                 />
               </motion.div>
             );

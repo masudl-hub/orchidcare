@@ -1,9 +1,10 @@
 import { useState, useMemo } from 'react';
-import { Plus, Loader2, Filter } from 'lucide-react';
+import { Plus, Loader2, Filter, BarChart3 } from 'lucide-react';
 import { usePlants } from '@/hooks/usePlants';
 import { useSensorStatusBatch } from '@/hooks/useSensorData';
 import { useInView, revealStyle, useDecryptText } from './DashboardShell';
 import { useNavigate } from 'react-router-dom';
+import SensorComparison from '@/components/plants/SensorComparison';
 
 const mono = "ui-monospace, monospace";
 const pressStart = '"Press Start 2P", cursive';
@@ -25,6 +26,7 @@ export function CollectionView({ onSelectPlant }: CollectionViewProps) {
     const { data: plants, isLoading } = usePlants();
     const { ref, visible } = useInView(0.1);
     const [searchQuery, setSearchQuery] = useState('');
+    const [showCompare, setShowCompare] = useState(false);
     const navigate = useNavigate();
 
     // Batch fetch sensor status for all plants
@@ -71,7 +73,32 @@ export function CollectionView({ onSelectPlant }: CollectionViewProps) {
                         outline: 'none',
                     }}
                 />
+                <button
+                    onClick={() => setShowCompare(!showCompare)}
+                    className="cursor-pointer"
+                    style={{
+                        fontFamily: mono,
+                        fontSize: '10px',
+                        padding: '10px 14px',
+                        backgroundColor: showCompare ? 'rgba(255,255,255,0.05)' : 'transparent',
+                        border: `1px solid ${showCompare ? 'rgba(255,255,255,0.15)' : 'rgba(255,255,255,0.08)'}`,
+                        color: showCompare ? 'white' : 'rgba(255,255,255,0.4)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        whiteSpace: 'nowrap',
+                    }}
+                >
+                    <BarChart3 size={12} /> compare
+                </button>
             </div>
+
+            {/* Comparison panel */}
+            {showCompare && (
+                <div style={revealStyle(visible, 120)}>
+                    <SensorComparison onClose={() => setShowCompare(false)} />
+                </div>
+            )}
 
             {/* Count */}
             <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.25)', letterSpacing: '0.12em', textTransform: 'uppercase' as const, marginBottom: '24px' }}>

@@ -248,3 +248,56 @@ export function useSensorStatusBatch(plantIds: string[]) {
     staleTime: 60_000,
   });
 }
+
+// Hook for historical chart — fetches readings + watering events for a given period
+export type Period = "24h" | "7d" | "30d";
+
+export interface SensorHistoryData {
+  readings: SensorReading[];
+  wateringEvents: { id: string; created_at: string }[];
+  ranges: SensorRange | null;
+}
+
+export function useSensorHistory(plantId: string | null, period: Period) {
+  return useQuery<SensorHistoryData>({
+    queryKey: ["sensorHistory", plantId, period],
+    queryFn: async (): Promise<SensorHistoryData> => {
+      if (!plantId) return { readings: [], wateringEvents: [], ranges: null };
+
+      const periodMs = { "24h": 24 * 60 * 60 * 1000, "7d": 7 * 24 * 60 * 60 * 1000, "30d": 30 * 24 * 60 * 60 * 1000 };
+      const since = new Date(Date.now() - periodMs[period]).toISOString();
+
+      const [readingsResult, eventsResult, rangesResult] = await Promise.all([
+        supabase
+          .from("sensor_readings")
+          .select("plant_id, soil_moisture, temperature, humidity, light_lux, battery_pct, created_at")
+          .eq("plant_id", plantId)
+          .gte("created_at", since)
+          .order("created_at", { ascending: true }),
+
+        supabase
+          .from("care_events")
+          .select("id, created_at")
+          .eq("plant_id", plantId)
+          .eq("event_type", "water")
+          .gte("created_at", since)
+          .order("created_at", { ascending: true }),
+
+        supabase
+          .from("sensor_ranges")
+          .select("*")
+          .eq("plant_id", plantId)
+          .eq("is_active", true)
+          .limit(1),
+      ]);
+
+      return {
+        readings: readingsResult.data || [],
+        wateringEvents: eventsResult.data || [],
+        ranges: rangesResult.data?.[0] || null,
+      };
+    },
+    enabled: !!plantId,
+    staleTime: 60_000,
+  });
+}

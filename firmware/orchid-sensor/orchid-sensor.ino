@@ -36,6 +36,7 @@ const int SOIL_WET_VALUE   = 1500;
 #define SOIL_PIN     32
 #define DHT_PIN      4
 #define DHT_TYPE     DHT11
+#define LED_PIN      2   // Onboard LED (most ESP32 dev boards)
 
 // Sensor instances
 DHT dht(DHT_PIN, DHT_TYPE);
@@ -47,12 +48,43 @@ int lastSentSoil = -1;
 float lastSentTemp = -999;
 float lastSentHumid = -999;
 unsigned long lastSendTime = 0;
+bool forceReadNow = false;  // Set by "read_now" command
+
+// Blink the onboard LED rapidly (for "identify" command)
+void blinkIdentify() {
+  Serial.println("[CMD] Identify — blinking LED");
+  for (int i = 0; i < 20; i++) {
+    digitalWrite(LED_PIN, HIGH);
+    delay(100);
+    digitalWrite(LED_PIN, LOW);
+    delay(100);
+  }
+}
+
+// Parse server response for commands (simple string matching)
+void handleCommands(const String& response) {
+  if (response.indexOf("\"commands\"") == -1) return;
+
+  if (response.indexOf("\"identify\"") != -1) {
+    blinkIdentify();
+  }
+  if (response.indexOf("\"read_now\"") != -1) {
+    Serial.println("[CMD] Read now — will send on next cycle");
+    forceReadNow = true;
+  }
+  if (response.indexOf("\"set_interval\"") != -1) {
+    // Future: parse payload for new interval
+    Serial.println("[CMD] Set interval — not yet implemented");
+  }
+}
 
 void setup() {
   Serial.begin(115200);
   delay(1000);
   Serial.println("\n=== Orchid Sensor (Hybrid Mode) ===");
 
+  pinMode(LED_PIN, OUTPUT);
+  digitalWrite(LED_PIN, LOW);
   analogSetAttenuation(ADC_11db);
   dht.begin();
   Wire.begin(18, 19);
@@ -133,7 +165,9 @@ void loop() {
 
   Serial.println();
 
-  if (timeToSend || firstReading || significantChange) {
+  if (timeToSend || firstReading || significantChange || forceReadNow) {
+    if (forceReadNow) Serial.println("[SEND] Forced by read_now command");
+    forceReadNow = false;
     // Build JSON
     String json = "{";
     json += "\"soil_moisture\":" + String(soilPct);
@@ -172,6 +206,7 @@ void loop() {
       if (!isnan(temperature)) lastSentTemp = temperature;
       if (!isnan(humidity)) lastSentHumid = humidity;
       lastSendTime = now;
+      handleCommands(response);
     } else {
       Serial.printf("[ERROR] HTTP %d: %s\n", httpCode, response.c_str());
     }

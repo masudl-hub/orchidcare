@@ -1,5 +1,7 @@
+import { useState } from "react";
 import { useSensorData, type MetricStatus, type SensorReading } from "@/hooks/useSensorData";
-import { Droplets, Thermometer, Wind, AlertTriangle } from "lucide-react";
+import { Droplets, Thermometer, Wind, AlertTriangle, ChevronRight } from "lucide-react";
+import SensorHistoryChart from "./SensorHistoryChart";
 
 const mono = "ui-monospace, monospace";
 const pressStart = '"Press Start 2P", cursive';
@@ -133,7 +135,10 @@ function RangeBar({ metric }: { metric: MetricStatus }) {
   );
 }
 
-function MetricRow({ name, metric, history, ranges }: { name: string; metric: MetricStatus | null; history: SensorReading[]; ranges: any }) {
+function MetricRow({ name, metric, history, ranges, expanded, onTap, plantId }: {
+  name: string; metric: MetricStatus | null; history: SensorReading[]; ranges: any;
+  expanded: boolean; onTap: () => void; plantId: string;
+}) {
   if (!metric) return null;
 
   const colors = metricColors[name] || metricColors.soil_moisture;
@@ -142,34 +147,52 @@ function MetricRow({ name, metric, history, ranges }: { name: string; metric: Me
   const statusColor = metric.status === 'critical' ? colors.critical : metric.status === 'warning' ? colors.warning : colors.ok;
 
   return (
-    <div style={{ padding: '12px 0', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          {Icon && <Icon size={12} style={{ color: statusColor, opacity: 0.8 }} />}
-          <span style={{ ...labelStyle, color: 'rgba(255,255,255,0.4)' }}>{label}</span>
+    <div style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+      <div
+        onClick={onTap}
+        className="cursor-pointer"
+        style={{ padding: '12px 0' }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            {Icon && <Icon size={12} style={{ color: statusColor, opacity: 0.8 }} />}
+            <span style={{ ...labelStyle, color: 'rgba(255,255,255,0.4)' }}>{label}</span>
+            <ChevronRight size={10} style={{
+              color: 'rgba(255,255,255,0.15)',
+              transform: expanded ? 'rotate(90deg)' : 'none',
+              transition: 'transform 0.2s',
+            }} />
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span style={{ fontFamily: mono, fontSize: '16px', color: statusColor, fontWeight: 600 }}>
+              {metric.value}{metric.unit}
+            </span>
+            <span style={{
+              fontFamily: mono,
+              fontSize: '8px',
+              padding: '1px 5px',
+              background: statusColor === colors.ok ? 'rgba(74,222,128,0.1)' : statusColor === colors.warning ? 'rgba(250,204,21,0.1)' : 'rgba(239,68,68,0.1)',
+              color: statusColor,
+              letterSpacing: '0.05em',
+            }}>
+              {metric.status === 'ok' ? 'OK' : metric.status === 'warning' ? 'WATCH' : metric.status === 'critical' ? 'DANGER' : metric.status.toUpperCase()}
+            </span>
+          </div>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span style={{ fontFamily: mono, fontSize: '16px', color: statusColor, fontWeight: 600 }}>
-            {metric.value}{metric.unit}
-          </span>
-          <span style={{
-            fontFamily: mono,
-            fontSize: '8px',
-            padding: '1px 5px',
-            background: statusColor === colors.ok ? 'rgba(74,222,128,0.1)' : statusColor === colors.warning ? 'rgba(250,204,21,0.1)' : 'rgba(239,68,68,0.1)',
-            color: statusColor,
-            letterSpacing: '0.05em',
-          }}>
-            {metric.status === 'ok' ? 'OK' : metric.status === 'warning' ? 'WATCH' : metric.status === 'critical' ? 'DANGER' : metric.status.toUpperCase()}
-          </span>
-        </div>
+        {!expanded && (
+          <>
+            <Sparkline data={history} metric={name} ranges={ranges} />
+            <RangeBar metric={metric} />
+            {metric.idealMin != null && metric.idealMax != null && (
+              <div style={{ fontFamily: mono, fontSize: '8px', color: 'rgba(255,255,255,0.2)', marginTop: '4px' }}>
+                ideal: {metric.idealMin}–{metric.idealMax}{metric.unit}
+              </div>
+            )}
+          </>
+        )}
       </div>
-      <Sparkline data={history} metric={name} ranges={ranges} />
-      <RangeBar metric={metric} />
-      {metric.idealMin != null && metric.idealMax != null && (
-        <div style={{ fontFamily: mono, fontSize: '8px', color: 'rgba(255,255,255,0.2)', marginTop: '4px' }}>
-          ideal: {metric.idealMin}–{metric.idealMax}{metric.unit}
-        </div>
+      {expanded && (
+        <SensorHistoryChart plantId={plantId} metric={name} onClose={onTap} />
       )}
     </div>
   );
@@ -181,6 +204,9 @@ interface PlantVitalsProps {
 
 export default function PlantVitals({ plantId }: PlantVitalsProps) {
   const { data, isLoading } = useSensorData(plantId);
+  const [expandedMetric, setExpandedMetric] = useState<string | null>(null);
+
+  const toggleMetric = (name: string) => setExpandedMetric(prev => prev === name ? null : name);
 
   if (isLoading) {
     return (
@@ -263,11 +289,11 @@ export default function PlantVitals({ plantId }: PlantVitalsProps) {
       )}
 
       {/* Metric rows */}
-      <MetricRow name="soil_moisture" metric={metrics.soil_moisture} history={history} ranges={ranges} />
-      <MetricRow name="temperature" metric={metrics.temperature} history={history} ranges={ranges} />
-      <MetricRow name="humidity" metric={metrics.humidity} history={history} ranges={ranges} />
+      <MetricRow name="soil_moisture" metric={metrics.soil_moisture} history={history} ranges={ranges} expanded={expandedMetric === "soil_moisture"} onTap={() => toggleMetric("soil_moisture")} plantId={plantId} />
+      <MetricRow name="temperature" metric={metrics.temperature} history={history} ranges={ranges} expanded={expandedMetric === "temperature"} onTap={() => toggleMetric("temperature")} plantId={plantId} />
+      <MetricRow name="humidity" metric={metrics.humidity} history={history} ranges={ranges} expanded={expandedMetric === "humidity"} onTap={() => toggleMetric("humidity")} plantId={plantId} />
       {metrics.light_lux && (
-        <MetricRow name="light_lux" metric={metrics.light_lux} history={history} ranges={ranges} />
+        <MetricRow name="light_lux" metric={metrics.light_lux} history={history} ranges={ranges} expanded={expandedMetric === "light_lux"} onTap={() => toggleMetric("light_lux")} plantId={plantId} />
       )}
 
       {/* No ranges hint */}

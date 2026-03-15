@@ -8,6 +8,7 @@ import {
 import { useAuth } from '@/contexts/AuthContext';
 import { SystemProtocols } from './SystemProtocols';
 import { NotificationActivity } from './NotificationActivity';
+import { DeviceManagement } from './DeviceManagement';
 import { useSystemSettings, useUpdateQuietHours, useTogglePreference, useToggleAgentPermission, useInitializeSettings } from '@/hooks/useSettings';
 import { useToggleProactiveEnabled } from '@/hooks/useAudit';
 import { useUserInsights, useDeleteInsight } from '@/hooks/useInsights';
@@ -478,8 +479,13 @@ export function ProfileView() {
                 <ProactiveKillSwitch />
             </div>
 
-            {/* ── System protocols ── */}
+            {/* ── Sensor Devices ── */}
             <div style={revealStyle(visible, 200)}>
+                <DeviceManagement />
+            </div>
+
+            {/* ── System protocols ── */}
+            <div style={revealStyle(visible, 250)}>
                 <SystemProtocols
                     protocols={protocols}
                     tempProtocols={tempProtocols}
@@ -494,12 +500,12 @@ export function ProfileView() {
             </div>
 
             {/* ── Notification Activity ── */}
-            <div style={revealStyle(visible, 300)}>
+            <div style={revealStyle(visible, 350)}>
                 <NotificationActivity />
             </div>
 
             {/* ── AI Insights ── */}
-            <div style={{ ...cardStyle, ...revealStyle(visible, 400) }}>
+            <div style={{ ...cardStyle, ...revealStyle(visible, 450) }}>
                 <div className="flex items-center gap-2 mb-4" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '10px' }}>
                     <div style={{ width: 16, height: 16, backgroundColor: 'rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 'bold' }}>AI</div>
                     <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.5)' }}>behavioral insights</span>
@@ -537,7 +543,7 @@ export function ProfileView() {
 
             {/* ── Security (Hidden for now) ── */}
             {/* ── Account actions (Hidden for now) ── */}
-            <div style={{ ...revealStyle(visible, 800), border: '1px solid rgba(255,255,255,0.08)', padding: '24px' }}>
+            <div style={{ ...revealStyle(visible, 550), border: '1px solid rgba(255,255,255,0.08)', padding: '24px' }}>
                 <div className="flex flex-col gap-3">
                     <button onClick={handleSignOut} className="focus:outline-none cursor-pointer flex items-center justify-center gap-2 transition-all" style={{
                         width: '100%', padding: '10px', fontFamily: mono, fontSize: '12px', letterSpacing: '0.06em',

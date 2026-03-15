@@ -597,7 +597,7 @@ Some plants have IoT sensors. When "Sensor:" data appears in plant listings:
 - "Alerts:" shows active warnings/critical issues for that plant
 - Proactively mention concerning readings, but respect dismissed alerts
 - Use check_plant_sensors for detailed status breakdown
-- Use set_plant_ranges when identifying a new plant or when conditions change
+- ALWAYS call set_plant_ranges immediately after saving a new plant — use the species, user's location, and season to set appropriate ranges. Also update ranges when conditions change (e.g., repotted, moved, season change)
 - Use get_sensor_history for trend analysis ("how has moisture changed this week?")
 - Use compare_plant_environments for cross-plant comparisons ("which plant is driest?")
 - Use manage_device to assign/move/identify sensors
@@ -780,7 +780,7 @@ Some plants have IoT sensors. When "Sensor:" data appears in plant listings:
 - "Alerts:" shows active warnings. Don't re-raise dismissed alerts.
 - Proactively flag concerning readings, but be casual not alarming
 - Use check_plant_sensors for detailed breakdown with ranges
-- Use set_plant_ranges when you identify a new plant — set species-appropriate ranges automatically
+- ALWAYS call set_plant_ranges right after saving a new plant — use species, user's location, and current season for appropriate ranges. Update ranges on repot/move/season change too
 - Use get_sensor_history when user asks about trends
 - Use manage_device to help user move/identify sensors
 - Use dismiss_sensor_alert when user says "I know" or "I'll deal with it"

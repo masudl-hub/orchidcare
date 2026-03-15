@@ -361,6 +361,60 @@ export type Database = {
           },
         ]
       }
+      devices: {
+        Row: {
+          created_at: string | null
+          device_token_hash: string
+          device_token_prefix: string
+          id: string
+          last_seen_at: string | null
+          name: string
+          plant_id: string | null
+          profile_id: string
+          status: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          device_token_hash: string
+          device_token_prefix: string
+          id?: string
+          last_seen_at?: string | null
+          name?: string
+          plant_id?: string | null
+          profile_id: string
+          status?: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          device_token_hash?: string
+          device_token_prefix?: string
+          id?: string
+          last_seen_at?: string | null
+          name?: string
+          plant_id?: string | null
+          profile_id?: string
+          status?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "devices_plant_id_fkey"
+            columns: ["plant_id"]
+            isOneToOne: false
+            referencedRelation: "plants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "devices_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       generated_content: {
         Row: {
           content: Json
@@ -795,6 +849,70 @@ export type Database = {
           },
           {
             foreignKeyName: "reminders_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sensor_readings: {
+        Row: {
+          battery_pct: number | null
+          created_at: string | null
+          device_id: string
+          humidity: number | null
+          id: string
+          light_lux: number | null
+          plant_id: string | null
+          profile_id: string
+          reading_metadata: Json | null
+          soil_moisture: number | null
+          temperature: number | null
+        }
+        Insert: {
+          battery_pct?: number | null
+          created_at?: string | null
+          device_id: string
+          humidity?: number | null
+          id?: string
+          light_lux?: number | null
+          plant_id?: string | null
+          profile_id: string
+          reading_metadata?: Json | null
+          soil_moisture?: number | null
+          temperature?: number | null
+        }
+        Update: {
+          battery_pct?: number | null
+          created_at?: string | null
+          device_id?: string
+          humidity?: number | null
+          id?: string
+          light_lux?: number | null
+          plant_id?: string | null
+          profile_id?: string
+          reading_metadata?: Json | null
+          soil_moisture?: number | null
+          temperature?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sensor_readings_device_id_fkey"
+            columns: ["device_id"]
+            isOneToOne: false
+            referencedRelation: "devices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sensor_readings_plant_id_fkey"
+            columns: ["plant_id"]
+            isOneToOne: false
+            referencedRelation: "plants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sensor_readings_profile_id_fkey"
             columns: ["profile_id"]
             isOneToOne: false
             referencedRelation: "profiles"

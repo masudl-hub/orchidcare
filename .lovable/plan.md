@@ -1,37 +1,24 @@
 
 
-# Fix: pwa-agent 401 Unauthorized
+# Deploy IoT Sensor Infrastructure
 
-## Problem
-The `pwa-agent` edge function is returning 401 at the gateway level. The function code never executes (68ms response, zero function logs). This means the Lovable Cloud gateway is rejecting the request before it reaches your code.
+Two things need to happen — no code changes required, just deployment operations.
 
-Your `supabase/config.toml` already has `verify_jwt = false`, which should prevent this -- but the config may not have synced with the last deployment.
+## 1. Run the IoT migration
+Apply `supabase/migrations/20260313_iot_sensor_devices.sql` which creates:
+- `devices` table (token-based auth for ESP32 hardware)
+- `sensor_readings` table (time-series sensor data)
+- RLS policies, indexes, and triggers
 
-## Root Causes (two possible)
+## 2. Deploy the `sensor-reading` edge function
+Already configured in `config.toml` with `verify_jwt = false` (devices authenticate via bearer token, not JWT). Two routes:
+- `POST /sensor-reading` — real device readings (token auth)
+- `POST /sensor-reading/simulate` — demo/test readings (Supabase or Telegram auth)
 
-### 1. Config not synced after deployment
-The `verify_jwt = false` setting may not have been picked up. Solution: redeploy `pwa-agent`.
+## 3. Smoke test
+Call the simulate endpoint to verify the full stack works end-to-end.
 
-### 2. Race condition: function called before auth session is restored
-If `PwaChat` mounts and immediately calls `pwa-agent` before the Supabase client restores the session from localStorage, the request goes out without a Bearer token, causing a 401. This is the more likely cause since the function was already deployed with `verify_jwt = false`.
+---
 
-## Fix
+No file edits needed — this is purely deploy + verify.
 
-### 1. Redeploy `pwa-agent`
-Force a fresh deployment to ensure the `verify_jwt = false` config is synced.
-
-### 2. Guard `pwa-agent` calls against missing auth session
-In `src/components/pwa/PwaChat.tsx`, before calling `supabase.functions.invoke('pwa-agent', ...)`, verify that a session exists:
-
-```typescript
-const { data: { session } } = await supabase.auth.getSession();
-if (!session) {
-  throw new Error('Not authenticated');
-}
-```
-
-This prevents the race condition where the function is called before the JWT is available.
-
-## Scope
-- **File**: `src/components/pwa/PwaChat.tsx` (add session guard in `sendMessage`)
-- **Deployment**: Redeploy `pwa-agent`

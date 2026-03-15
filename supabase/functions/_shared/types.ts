@@ -7,6 +7,8 @@ export interface HierarchicalContext {
   recentIdentifications: any[];
   activeReminders: any[];
   latestSensorReadings: any[];
+  sensorRanges: Record<string, any>;
+  activeSensorAlerts: Record<string, any[]>;
 }
 
 export interface PlantResolutionResult {

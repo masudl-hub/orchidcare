@@ -6,6 +6,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { validateInitData } from "../_shared/auth.ts";
+import { evaluateSensorAlerts } from "../_shared/tools.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -190,7 +191,80 @@ async function handleDeviceReading(req: Request) {
           if (error) console.error("[SensorReading] Failed to log care event:", error);
           else console.log(`[SensorReading] Auto-logged watering event for plant ${reading.plant_id}`);
         });
+
+      // Advance water reminders for this plant (fire-and-forget)
+      supabase
+        .from("reminders")
+        .select("id, frequency_days")
+        .eq("plant_id", reading.plant_id)
+        .eq("reminder_type", "water")
+        .eq("is_active", true)
+        .then(({ data: reminders }) => {
+          for (const r of reminders || []) {
+            const nextDue = new Date();
+            nextDue.setDate(nextDue.getDate() + r.frequency_days);
+            supabase
+              .from("reminders")
+              .update({ next_due: nextDue.toISOString(), updated_at: new Date().toISOString() })
+              .eq("id", r.id)
+              .then();
+          }
+          if (reminders?.length) {
+            console.log(`[SensorReading] Advanced ${reminders.length} water reminder(s) for plant ${reading.plant_id}`);
+          }
+        });
     }
+  }
+
+  // Evaluate sensor alerts against plant-specific ranges (fire-and-forget)
+  if (reading.plant_id) {
+    evaluateSensorAlerts(
+      supabase,
+      device.profile_id,
+      reading.plant_id,
+      device.id,
+      reading.id,
+      {
+        soil_moisture: payload.soil_moisture,
+        temperature: payload.temperature,
+        humidity: payload.humidity,
+        light_lux: payload.light_lux,
+      },
+    ).catch((err) => console.error("[SensorReading] Alert evaluation failed:", err));
+  }
+
+  // Check for pending device commands to return in response
+  let commands: { type: string; payload?: unknown }[] = [];
+  try {
+    // Expire old commands first
+    await supabase
+      .from("device_commands")
+      .update({ status: "expired" })
+      .eq("device_id", device.id)
+      .eq("status", "pending")
+      .lt("expires_at", new Date().toISOString());
+
+    // Fetch pending commands
+    const { data: pendingCmds } = await supabase
+      .from("device_commands")
+      .select("id, command, payload")
+      .eq("device_id", device.id)
+      .eq("status", "pending")
+      .order("created_at", { ascending: true });
+
+    if (pendingCmds?.length) {
+      commands = pendingCmds.map((c: any) => ({ type: c.command, payload: c.payload }));
+      // Mark as acknowledged (fire-and-forget)
+      const cmdIds = pendingCmds.map((c: any) => c.id);
+      supabase
+        .from("device_commands")
+        .update({ status: "acknowledged" })
+        .in("id", cmdIds)
+        .then();
+      console.log(`[SensorReading] Returning ${commands.length} command(s) to device ${device.id}`);
+    }
+  } catch (cmdErr) {
+    console.error("[SensorReading] Command fetch error:", cmdErr);
   }
 
   console.log(`[SensorReading] Device ${device.id} → reading ${reading.id} (plant: ${reading.plant_id || "unassociated"})${careEvent ? ` [auto: ${careEvent}]` : ""}`);
@@ -200,6 +274,7 @@ async function handleDeviceReading(req: Request) {
     reading_id: reading.id,
     plant_id: reading.plant_id,
     care_event: careEvent,
+    commands: commands.length > 0 ? commands : undefined,
   });
 }
 

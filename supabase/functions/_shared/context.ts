@@ -77,7 +77,7 @@ export function formatInsightKey(key: string): string {
 export async function loadHierarchicalContext(supabase: any, profileId: string): Promise<HierarchicalContext> {
   console.log("[ContextEngineering] Loading hierarchical context for profile:", profileId);
 
-  const [recentResult, summariesResult, insightsResult, identificationsResult, remindersResult, sensorResult] = await Promise.all([
+  const [recentResult, summariesResult, insightsResult, identificationsResult, remindersResult, sensorResult, rangesResult, alertsResult] = await Promise.all([
     supabase
       .from("conversations")
       .select("content, direction, created_at, media_urls")
@@ -119,12 +119,39 @@ export async function loadHierarchicalContext(supabase: any, profileId: string):
       .not("plant_id", "is", null)
       .order("created_at", { ascending: false })
       .limit(20),
+
+    // Fetch active sensor ranges
+    supabase
+      .from("sensor_ranges")
+      .select("plant_id, soil_moisture_ideal_min, soil_moisture_ideal_max, temperature_ideal_min, temperature_ideal_max, humidity_ideal_min, humidity_ideal_max, light_lux_ideal_min, light_lux_ideal_max")
+      .eq("profile_id", profileId)
+      .eq("is_active", true),
+
+    // Fetch active sensor alerts
+    supabase
+      .from("sensor_alerts")
+      .select("plant_id, alert_type, severity, metric, message, status")
+      .eq("profile_id", profileId)
+      .eq("status", "active"),
   ]);
 
   // Dedupe sensor readings to latest per plant
   const sensorByPlant: Record<string, any> = {};
   for (const r of sensorResult.data || []) {
     if (!sensorByPlant[r.plant_id]) sensorByPlant[r.plant_id] = r;
+  }
+
+  // Index ranges by plant
+  const rangesByPlant: Record<string, any> = {};
+  for (const r of rangesResult.data || []) {
+    rangesByPlant[r.plant_id] = r;
+  }
+
+  // Index active alerts by plant
+  const alertsByPlant: Record<string, any[]> = {};
+  for (const a of alertsResult.data || []) {
+    if (!alertsByPlant[a.plant_id]) alertsByPlant[a.plant_id] = [];
+    alertsByPlant[a.plant_id].push(a);
   }
 
   const context: HierarchicalContext = {
@@ -134,6 +161,8 @@ export async function loadHierarchicalContext(supabase: any, profileId: string):
     recentIdentifications: identificationsResult.data || [],
     activeReminders: remindersResult.data || [],
     latestSensorReadings: Object.values(sensorByPlant),
+    sensorRanges: rangesByPlant,
+    activeSensorAlerts: alertsByPlant,
   };
 
   console.log(
@@ -207,7 +236,13 @@ ${context.summaries
   .join("\n")}`;
 }
 
-function buildPlantsContext(userPlants: any[], plantSnapshots?: any[], sensorReadings?: any[]): string {
+function buildPlantsContext(
+  userPlants: any[],
+  plantSnapshots?: any[],
+  sensorReadings?: any[],
+  sensorRanges?: Record<string, any>,
+  activeSensorAlerts?: Record<string, any[]>,
+): string {
   if (!userPlants?.length) return "## SAVED PLANTS\nNo plants saved yet.";
 
   // Index snapshots by plant_id for quick lookup
@@ -227,14 +262,25 @@ function buildPlantsContext(userPlants: any[], plantSnapshots?: any[], sensorRea
     }
   }
 
+  // Helper: format a sensor value with range status
+  function fmtMetric(value: number | null, metric: string, ranges: any): string {
+    if (value == null) return "";
+    const idealMin = ranges?.[`${metric}_ideal_min`];
+    const idealMax = ranges?.[`${metric}_ideal_max`];
+    if (idealMin != null && idealMax != null) {
+      const status = value < idealMin ? "LOW" : value > idealMax ? "HIGH" : "OK";
+      return `${value} [${status}: ${idealMin}-${idealMax}]`;
+    }
+    return `${value}`;
+  }
+
   return `## SAVED PLANTS
 ${userPlants.map((p) => {
     let line = `- ${p.nickname || p.name}${p.species ? ` (${p.species})` : ""}${p.location_in_home ? ` - ${p.location_in_home}` : ""}`;
 
     const snaps = snapshotsByPlant[p.id];
     if (snaps?.length) {
-      // Show most recent description
-      const latest = snaps[0]; // Already sorted by created_at DESC
+      const latest = snaps[0];
       const timeAgo = formatTimeAgo(new Date(latest.created_at));
       line += `\n  Visual: ${latest.description}`;
       if (latest.health_notes) line += `\n  Health: ${latest.health_notes}`;
@@ -242,14 +288,33 @@ ${userPlants.map((p) => {
     }
 
     const sensor = sensorByPlant[p.id];
+    const ranges = sensorRanges?.[p.id];
     if (sensor) {
       const timeAgo = formatTimeAgo(new Date(sensor.created_at));
+      const ageMs = Date.now() - new Date(sensor.created_at).getTime();
+      const isStale = ageMs > 30 * 60 * 1000;
+      const isOffline = ageMs > 24 * 60 * 60 * 1000;
+
       const parts: string[] = [];
-      if (sensor.soil_moisture != null) parts.push(`moisture ${sensor.soil_moisture}%`);
-      if (sensor.temperature != null) parts.push(`temp ${sensor.temperature}°C`);
-      if (sensor.humidity != null) parts.push(`humidity ${sensor.humidity}%`);
-      if (sensor.light_lux != null) parts.push(`light ${sensor.light_lux} lux`);
-      line += `\n  Sensor: ${parts.join(", ")} (${timeAgo})`;
+      if (sensor.soil_moisture != null) parts.push(`moisture ${fmtMetric(sensor.soil_moisture, "soil_moisture", ranges)}%`);
+      if (sensor.temperature != null) parts.push(`temp ${fmtMetric(sensor.temperature, "temperature", ranges)}°C`);
+      if (sensor.humidity != null) parts.push(`humidity ${fmtMetric(sensor.humidity, "humidity", ranges)}%`);
+      if (sensor.light_lux != null) parts.push(`light ${fmtMetric(sensor.light_lux, "light_lux", ranges)} lux`);
+
+      if (isOffline) {
+        line += `\n  Sensor: OFFLINE (last reading ${timeAgo})`;
+      } else if (isStale) {
+        line += `\n  Sensor: ${parts.join(", ")} (${timeAgo}, STALE)`;
+      } else {
+        line += `\n  Sensor: ${parts.join(", ")} (${timeAgo})`;
+      }
+    }
+
+    // Show active alerts for this plant
+    const alerts = activeSensorAlerts?.[p.id];
+    if (alerts?.length) {
+      const alertMsgs = alerts.map((a: any) => `${a.severity.toUpperCase()}: ${a.message}`);
+      line += `\n  Alerts: ${alertMsgs.join("; ")}`;
     }
 
     return line;
@@ -365,7 +430,7 @@ export function buildEnrichedSystemPrompt(
   const commPrefsSection = buildCommPrefsSection(context);
   const insightsSection = buildInsightsSection(context);
   const summariesSection = buildSummariesSection(context);
-  const plantsContext = buildPlantsContext(userPlants, plantSnapshots, context.latestSensorReadings);
+  const plantsContext = buildPlantsContext(userPlants, plantSnapshots, context.latestSensorReadings, context.sensorRanges, context.activeSensorAlerts);
   const remindersSection = buildRemindersSection(context);
   const { locationContext, locationSection } = buildLocationContext(profile);
 
@@ -526,10 +591,25 @@ DO NOT rely on conversation history to remember these - SAVE THEM NOW so you nev
 - associate_reading: Associate an unassociated sensor reading with a plant. Used during pulse-check mode when user walks around with a handheld sensor.
 
 ## SENSOR DATA
-Some plants have IoT sensors attached. When you see "Sensor:" data in the plant listing:
-- Proactively mention concerning readings (e.g., "Your monstera's soil looks dry at 18%")
-- Use check_plant_sensors for detailed status with health assessments
-- Use associate_reading when user says they just took a reading for a specific plant
+Some plants have IoT sensors. When "Sensor:" data appears in plant listings:
+- Values show [OK/LOW/HIGH: range] when ideal ranges are set for that plant
+- "STALE" means the sensor hasn't reported recently. "OFFLINE" means 24h+ silence.
+- "Alerts:" shows active warnings/critical issues for that plant
+- Proactively mention concerning readings, but respect dismissed alerts
+- Use check_plant_sensors for detailed status breakdown
+- Use set_plant_ranges when identifying a new plant or when conditions change
+- Use get_sensor_history for trend analysis ("how has moisture changed this week?")
+- Use compare_plant_environments for cross-plant comparisons ("which plant is driest?")
+- Use manage_device to assign/move/identify sensors
+- Use dismiss_sensor_alert when user acknowledges an issue ("I know, I'll water later")
+- Use associate_reading during pulse-check mode
+
+## SENSOR + USER SIGNAL RECONCILIATION
+When sensor data conflicts with what the user tells you:
+- User says "I just watered" but soil reads dry: sensor may be in a different spot, or water hasn't percolated. Suggest checking in an hour.
+- Soil reads wet but user says plant looks wilted: could indicate root rot (overwatering). Investigate.
+- Temperature seems wrong: ask if sensor is near a heating vent, window, or draft.
+- NEVER dismiss what the user sees. Sensor data is one signal; the user's eyes are another.
 
 ## BULK OPERATIONS (CRITICAL!)
 These tools support bulk operations via the plant_identifier parameter:
@@ -584,7 +664,7 @@ export function buildVoiceSystemPrompt(
   const commPrefsSection = buildCommPrefsSection(context);
   const insightsSection = buildInsightsSection(context);
   const summariesSection = buildSummariesSection(context);
-  const plantsContext = buildPlantsContext(userPlants, plantSnapshots, context.latestSensorReadings);
+  const plantsContext = buildPlantsContext(userPlants, plantSnapshots, context.latestSensorReadings, context.sensorRanges, context.activeSensorAlerts);
   const remindersSection = buildRemindersSection(context);
   const { locationContext, locationSection } = buildLocationContext(profile);
 
@@ -686,14 +766,30 @@ When it returns, synthesize the answer in your own voice — don't just read it 
 - generate_image: Generate an illustration or visual guide image
 - capture_plant_snapshot: Save a visual snapshot during a voice call. NEVER call without explicit user consent — always ask first and wait for confirmation. If the plant isn't saved yet, save it first with save_plant.
 - compare_plant_snapshots: Compare how a plant has changed over time using stored visual snapshots. Reference Visual: descriptions in context.
-- check_plant_sensors: Get latest IoT sensor readings (soil moisture, temp, humidity, light) with health status. Use when user asks about conditions or says "how are my plants doing?"
-- associate_reading: Link an unassociated sensor reading to a plant during pulse-check mode. Use when user says "this is for my monstera" after taking a reading with a handheld sensor.
+- check_plant_sensors: Get latest IoT sensor readings with health status against plant-specific ranges
+- associate_reading: Link an unassociated sensor reading to a plant during pulse-check mode
+- set_plant_ranges: Set ideal sensor ranges for a plant (call when identifying new plants or conditions change)
+- get_sensor_history: Query sensor trends over 24h/7d/30d
+- compare_plant_environments: Compare a metric across multiple plants
+- manage_device: Assign/unassign/rename/identify(blink LED) sensor devices
+- dismiss_sensor_alert: Acknowledge an alert so you stop mentioning it
 
 ## SENSOR DATA
 Some plants have IoT sensors. When "Sensor:" data appears in plant listings:
-- Proactively flag concerning readings ("Your pothos soil is at 15% — that's really dry")
-- Use check_plant_sensors for full status breakdown
-- During pulse checks: when user says they're checking a plant, use associate_reading to link the latest reading
+- Values show [OK/LOW/HIGH: range] when ideal ranges are set
+- "Alerts:" shows active warnings. Don't re-raise dismissed alerts.
+- Proactively flag concerning readings, but be casual not alarming
+- Use check_plant_sensors for detailed breakdown with ranges
+- Use set_plant_ranges when you identify a new plant — set species-appropriate ranges automatically
+- Use get_sensor_history when user asks about trends
+- Use manage_device to help user move/identify sensors
+- Use dismiss_sensor_alert when user says "I know" or "I'll deal with it"
+- During pulse checks: use associate_reading to link readings
+
+When sensor data conflicts with what the user says:
+- User says "I watered" but soil reads dry → water may not have reached the sensor. Suggest checking later.
+- Soil is wet but plant looks wilted → possible root rot. Investigate, don't just say "soil looks fine."
+- Never dismiss what the user sees. The sensor is one signal, their eyes are another.
 
 ## VISUAL MEMORY (Plant Snapshots)
 You can capture visual snapshots of plants to build a visual timeline.

@@ -38,7 +38,7 @@ const int SOIL_WET_VALUE   = 1500; // Raw ADC value submerged in water
 // ==========================================================================
 
 // Pin assignments
-#define SOIL_PIN     35   // ADC1 — must be ADC1 pin (WiFi disables ADC2)
+#define SOIL_PIN     32   // ADC1_CH4 — GPIO 35 had UART conflict
 #define DHT_PIN      4
 #define DHT_TYPE     DHT11
 

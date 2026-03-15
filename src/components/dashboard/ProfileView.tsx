@@ -436,6 +436,11 @@ export function ProfileView() {
                 </div>
             </div>
 
+            {/* ── Kill Switch ── */}
+            <div style={revealStyle(visible, 150)}>
+                <KillSwitch />
+            </div>
+
             {/* ── System protocols ── */}
             <div style={revealStyle(visible, 200)}>
                 <SystemProtocols
@@ -449,6 +454,11 @@ export function ProfileView() {
                     toggleTempProtocol={toggleTempProtocol}
                     QuietHoursClock={QuietHoursClock}
                 />
+            </div>
+
+            {/* ── Notification Activity ── */}
+            <div style={revealStyle(visible, 300)}>
+                <NotificationActivity />
             </div>
 
             {/* ── AI Insights ── */}

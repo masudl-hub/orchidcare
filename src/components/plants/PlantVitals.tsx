@@ -393,17 +393,22 @@ function SensorPicker({ plantId, onDone }: { plantId: string; onDone?: () => voi
           <div style={{ fontFamily: mono, fontSize: '8px', color: 'rgba(255,255,255,0.55)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: '6px' }}>
             currently assigned
           </div>
-          {assignedHere.map(d => (
+          {assignedHere.map(d => {
+            const wc = deviceWifiColor(d.last_seen_at);
+            const isOnline = wc === '#4ade80';
+            return (
             <div
               key={d.id}
               style={{
                 display: 'flex', alignItems: 'center', gap: '8px',
-                fontFamily: mono, fontSize: '11px', color: '#4ade80',
+                fontFamily: mono, fontSize: '11px',
+                color: isOnline ? '#4ade80' : wc,
                 padding: '8px 10px', marginBottom: '4px',
-                border: '1px solid rgba(74,222,128,0.15)', background: 'rgba(74,222,128,0.04)',
+                border: `1px solid ${isOnline ? 'rgba(74,222,128,0.15)' : wc + '25'}`,
+                background: isOnline ? 'rgba(74,222,128,0.04)' : wc + '0a',
               }}
             >
-              <Wifi size={10} style={{ color: deviceWifiColor(d.last_seen_at) }} />
+              <Wifi size={10} style={{ color: wc }} />
               <span style={{ flex: 1 }}>{d.name}</span>
               <button
                 onClick={() => updateDevice.mutate({ id: d.id, plant_id: null })}
@@ -414,7 +419,8 @@ function SensorPicker({ plantId, onDone }: { plantId: string; onDone?: () => voi
                 <X size={12} />
               </button>
             </div>
-          ))}
+            );
+          })}
         </div>
       )}
 

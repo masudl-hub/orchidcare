@@ -72,6 +72,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       experience_level: (data.experience_level as Profile['experience_level']) || null,
       primary_concerns: data.primary_concerns,
       pets: data.pets || [],
+      proactive_enabled: data.proactive_enabled ?? true,
     };
   };
 

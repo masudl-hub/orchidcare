@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Plus, Loader2, Filter } from 'lucide-react';
 import { usePlants } from '@/hooks/usePlants';
+import { useSensorStatusBatch } from '@/hooks/useSensorData';
 import { useInView, revealStyle, useDecryptText } from './DashboardShell';
 import { useNavigate } from 'react-router-dom';
 
@@ -25,6 +26,10 @@ export function CollectionView({ onSelectPlant }: CollectionViewProps) {
     const { ref, visible } = useInView(0.1);
     const [searchQuery, setSearchQuery] = useState('');
     const navigate = useNavigate();
+
+    // Batch fetch sensor status for all plants
+    const plantIds = useMemo(() => (plants || []).map((p: any) => p.id), [plants]);
+    const { data: sensorStatus } = useSensorStatusBatch(plantIds);
 
     const filteredPlants = plants?.filter((p: any) => {
         if (!searchQuery) return true;
@@ -107,6 +112,31 @@ export function CollectionView({ onSelectPlant }: CollectionViewProps) {
                             onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.15)'; }}
                             onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.06)'; }}
                         >
+                            {/* Sensor status dot */}
+                            {sensorStatus?.[plant.id] && (() => {
+                                const s = sensorStatus[plant.id];
+                                const dotColors: Record<string, { bg: string; shadow: string }> = {
+                                    ok: { bg: '#4ade80', shadow: '0 0 4px rgba(74,222,128,0.5)' },
+                                    warning: { bg: '#facc15', shadow: '0 0 4px rgba(250,204,21,0.5)' },
+                                    critical: { bg: '#ef4444', shadow: '0 0 4px rgba(239,68,68,0.5)' },
+                                    stale: { bg: '#666', shadow: 'none' },
+                                    offline: { bg: '#444', shadow: 'none' },
+                                };
+                                const dot = dotColors[s.status] || dotColors.ok;
+                                return (
+                                    <div style={{
+                                        position: 'absolute',
+                                        top: '10px',
+                                        right: '10px',
+                                        width: '6px',
+                                        height: '6px',
+                                        borderRadius: '50%',
+                                        backgroundColor: dot.bg,
+                                        boxShadow: dot.shadow,
+                                        zIndex: 20,
+                                    }} />
+                                );
+                            })()}
                             <div className="relative z-10 flex gap-4">
                                 {/* Thumbnail */}
                                 <div className="w-12 h-12 shrink-0 border border-[rgba(255,255,255,0.1)] flex items-center justify-center bg-[rgba(255,255,255,0.02)] overflow-hidden">

@@ -199,12 +199,42 @@ function MetricRow({ name, metric, history, ranges, expanded, onTap, plantId }: 
   );
 }
 
-function deviceWifiColor(lastSeenAt: string | null): string {
-  if (!lastSeenAt) return 'rgba(255,255,255,0.55)';
+interface DeviceStatus {
+  color: string;
+  label: string;
+  hint: string | null;
+}
+
+function getDeviceStatus(lastSeenAt: string | null): DeviceStatus {
+  if (!lastSeenAt) return {
+    color: 'rgba(255,255,255,0.4)',
+    label: 'waiting for first connection',
+    hint: 'power on your sensor and check wifi credentials',
+  };
   const ageMs = Date.now() - new Date(lastSeenAt).getTime();
-  if (ageMs > 24 * 60 * 60 * 1000) return '#ef4444';       // offline — red
-  if (ageMs > 30 * 60 * 1000) return '#facc15';             // stale — amber
-  return '#4ade80';                                           // online — green
+  if (ageMs > 24 * 60 * 60 * 1000) {
+    const days = Math.round(ageMs / (24 * 60 * 60 * 1000));
+    return {
+      color: '#ef4444',
+      label: `offline — last seen ${days}d ago`,
+      hint: 'check that the sensor is plugged in and within wifi range',
+    };
+  }
+  if (ageMs > 30 * 60 * 1000) {
+    const hrs = Math.round(ageMs / (60 * 60 * 1000));
+    const min = Math.round(ageMs / 60000);
+    return {
+      color: '#facc15',
+      label: `last seen ${hrs > 0 ? hrs + 'h' : min + 'm'} ago`,
+      hint: 'sensor may be between readings or temporarily disconnected',
+    };
+  }
+  const min = Math.round(ageMs / 60000);
+  return {
+    color: '#4ade80',
+    label: min < 1 ? 'online — just now' : `online — ${min}m ago`,
+    hint: null,
+  };
 }
 
 // Inline sensor picker — used in both empty state and header
@@ -337,25 +367,34 @@ function SensorPicker({ plantId, onDone }: { plantId: string; onDone?: () => voi
           <div style={{ fontFamily: mono, fontSize: '8px', color: 'rgba(255,255,255,0.55)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: '6px' }}>
             available sensors
           </div>
-          {unassigned.map(d => (
-            <button
-              key={d.id}
-              onClick={() => handleAssign(d.id)}
-              disabled={updateDevice.isPending}
-              className="cursor-pointer"
-              style={{
-                display: 'flex', alignItems: 'center', gap: '8px', width: '100%',
-                fontFamily: mono, fontSize: '11px', color: 'rgba(255,255,255,0.85)',
-                padding: '8px 10px', marginBottom: '4px',
-                border: '1px solid rgba(255,255,255,0.08)', background: 'transparent',
-                textAlign: 'left',
-              }}
-            >
-              <Wifi size={10} style={{ color: deviceWifiColor(d.last_seen_at) }} />
-              <span style={{ flex: 1 }}>{d.name}</span>
-              <span style={{ fontSize: '8px', color: 'rgba(255,255,255,0.55)' }}>{d.device_token_prefix}...</span>
-            </button>
-          ))}
+          {unassigned.map(d => {
+            const status = getDeviceStatus(d.last_seen_at);
+            return (
+            <div key={d.id} style={{ marginBottom: '6px' }}>
+              <button
+                onClick={() => handleAssign(d.id)}
+                disabled={updateDevice.isPending}
+                className="cursor-pointer"
+                style={{
+                  display: 'flex', alignItems: 'center', gap: '8px', width: '100%',
+                  fontFamily: mono, fontSize: '11px', color: 'rgba(255,255,255,0.85)',
+                  padding: '8px 10px',
+                  border: '1px solid rgba(255,255,255,0.08)', background: 'transparent',
+                  textAlign: 'left',
+                }}
+              >
+                <Wifi size={10} style={{ color: status.color }} />
+                <span style={{ flex: 1 }}>{d.name}</span>
+                <span style={{ fontSize: '8px', color: status.color, opacity: 0.8 }}>{status.label.split(' — ')[0]}</span>
+              </button>
+              {status.hint && (
+                <div style={{ fontFamily: mono, fontSize: '8px', color: 'rgba(255,255,255,0.45)', padding: '2px 10px 0' }}>
+                  {status.hint}
+                </div>
+              )}
+            </div>
+            );
+          })}
         </div>
       )}
 
@@ -365,7 +404,9 @@ function SensorPicker({ plantId, onDone }: { plantId: string; onDone?: () => voi
           <div style={{ fontFamily: mono, fontSize: '8px', color: 'rgba(255,255,255,0.55)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: '6px' }}>
             move from another plant
           </div>
-          {assignedElsewhere.map(d => (
+          {assignedElsewhere.map(d => {
+            const status = getDeviceStatus(d.last_seen_at);
+            return (
             <button
               key={d.id}
               onClick={() => handleAssign(d.id)}
@@ -379,11 +420,12 @@ function SensorPicker({ plantId, onDone }: { plantId: string; onDone?: () => voi
                 textAlign: 'left',
               }}
             >
-              <Wifi size={10} style={{ color: 'rgba(255,255,255,0.55)' }} />
+              <Wifi size={10} style={{ color: status.color }} />
               <span style={{ flex: 1 }}>{d.name}</span>
               <span style={{ fontSize: '8px', color: 'rgba(250,204,21,0.8)' }}>in use</span>
             </button>
-          ))}
+            );
+          })}
         </div>
       )}
 
@@ -394,30 +436,38 @@ function SensorPicker({ plantId, onDone }: { plantId: string; onDone?: () => voi
             currently assigned
           </div>
           {assignedHere.map(d => {
-            const wc = deviceWifiColor(d.last_seen_at);
-            const isOnline = wc === '#4ade80';
+            const status = getDeviceStatus(d.last_seen_at);
             return (
-            <div
-              key={d.id}
-              style={{
-                display: 'flex', alignItems: 'center', gap: '8px',
-                fontFamily: mono, fontSize: '11px',
-                color: isOnline ? '#4ade80' : wc,
-                padding: '8px 10px', marginBottom: '4px',
-                border: `1px solid ${isOnline ? 'rgba(74,222,128,0.15)' : wc + '25'}`,
-                background: isOnline ? 'rgba(74,222,128,0.04)' : wc + '0a',
-              }}
-            >
-              <Wifi size={10} style={{ color: wc }} />
-              <span style={{ flex: 1 }}>{d.name}</span>
-              <button
-                onClick={() => updateDevice.mutate({ id: d.id, plant_id: null })}
-                className="cursor-pointer"
-                title="Remove sensor"
-                style={{ background: 'none', border: 'none', padding: '2px', color: 'rgba(255,255,255,0.6)' }}
+            <div key={d.id} style={{ marginBottom: '6px' }}>
+              <div
+                style={{
+                  display: 'flex', alignItems: 'center', gap: '8px',
+                  fontFamily: mono, fontSize: '11px',
+                  color: status.color,
+                  padding: '8px 10px',
+                  border: `1px solid ${status.color}25`,
+                  background: status.color + '0a',
+                }}
               >
-                <X size={12} />
-              </button>
+                <Wifi size={10} style={{ color: status.color }} />
+                <span style={{ flex: 1 }}>{d.name}</span>
+                <button
+                  onClick={() => updateDevice.mutate({ id: d.id, plant_id: null })}
+                  className="cursor-pointer"
+                  title="Remove sensor"
+                  style={{ background: 'none', border: 'none', padding: '2px', color: 'rgba(255,255,255,0.6)' }}
+                >
+                  <X size={12} />
+                </button>
+              </div>
+              <div style={{ fontFamily: mono, fontSize: '8px', color: status.color, opacity: 0.7, padding: '4px 10px 0' }}>
+                {status.label}
+              </div>
+              {status.hint && (
+                <div style={{ fontFamily: mono, fontSize: '8px', color: 'rgba(255,255,255,0.45)', padding: '2px 10px 0' }}>
+                  {status.hint}
+                </div>
+              )}
             </div>
             );
           })}

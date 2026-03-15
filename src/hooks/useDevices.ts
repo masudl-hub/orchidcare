@@ -68,13 +68,12 @@ export function useCreateDevice() {
     mutationFn: async ({ name, plantId }: { name?: string; plantId?: string }) => {
       if (!profile?.id) throw new Error("No profile");
 
-      // Generate a device token client-side
-      const bytes = new Uint8Array(32);
+      // Generate a short device token client-side
+      const alphabet = "abcdefghjkmnpqrstuvwxyz23456789"; // no ambiguous 0/O/l/1
+      const bytes = new Uint8Array(8);
       crypto.getRandomValues(bytes);
-      const token = "odev_" + btoa(String.fromCharCode(...bytes)).replace(/[+/=]/g, (c) =>
-        c === '+' ? '-' : c === '/' ? '_' : ''
-      );
-      const prefix = token.slice(0, 12);
+      const token = "odev_" + Array.from(bytes, (b) => alphabet[b % alphabet.length]).join("");
+      const prefix = token;
 
       // Hash the token (SHA-256)
       const encoder = new TextEncoder();

@@ -511,8 +511,11 @@ interface PlantVitalsProps {
 
 export default function PlantVitals({ plantId }: PlantVitalsProps) {
   const { data, isLoading } = useSensorData(plantId);
+  const { data: devices } = useDevices();
   const [expandedMetric, setExpandedMetric] = useState<string | null>(null);
   const [showSensorPicker, setShowSensorPicker] = useState(false);
+
+  const assignedDevice = (devices || []).find(d => d.plant_id === plantId && d.status === 'active');
 
   const toggleMetric = (name: string) => setExpandedMetric(prev => prev === name ? null : name);
 
@@ -529,6 +532,52 @@ export default function PlantVitals({ plantId }: PlantVitalsProps) {
     );
   }
 
+  // State A: sensor assigned but no readings yet
+  if (!data?.latest && assignedDevice) {
+    const devStatus = getDeviceStatus(assignedDevice.last_seen_at);
+    return (
+      <div style={cardStyle}>
+        <div style={{ fontFamily: pressStart, fontSize: '9px', color: 'rgba(255,255,255,0.6)', letterSpacing: '0.05em', marginBottom: '16px' }}>
+          PLANT VITALS
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+          <div style={{
+            width: '6px',
+            height: '6px',
+            borderRadius: '50%',
+            background: 'rgba(255,255,255,0.5)',
+            animation: 'pulse 2s ease-in-out infinite',
+          }} />
+          <span style={{ fontFamily: mono, fontSize: '11px', color: 'rgba(255,255,255,0.7)' }}>
+            sensor assigned — waiting for first reading
+          </span>
+        </div>
+        <div style={{
+          padding: '10px 12px',
+          border: `1px solid ${devStatus.color}25`,
+          background: devStatus.color + '0a',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <Wifi size={10} style={{ color: devStatus.color }} />
+            <span style={{ fontFamily: mono, fontSize: '11px', color: 'rgba(255,255,255,0.85)', flex: 1 }}>
+              {assignedDevice.name}
+            </span>
+            <span style={{ fontFamily: mono, fontSize: '8px', color: devStatus.color, opacity: 0.8 }}>
+              {devStatus.label}
+            </span>
+          </div>
+          {devStatus.hint && (
+            <div style={{ fontFamily: mono, fontSize: '8px', color: 'rgba(255,255,255,0.45)', marginTop: '4px', paddingLeft: '18px' }}>
+              {devStatus.hint}
+            </div>
+          )}
+        </div>
+        <style>{`@keyframes pulse { 0%, 100% { opacity: 0.3; } 50% { opacity: 1; } }`}</style>
+      </div>
+    );
+  }
+
+  // State: no readings, no sensor assigned — show picker
   if (!data?.latest) {
     return (
       <div style={cardStyle}>
@@ -541,13 +590,46 @@ export default function PlantVitals({ plantId }: PlantVitalsProps) {
   }
 
   const { metrics, ranges, alerts, history, isStale, isOffline, lastReadingAge } = data;
+  const sensorRemoved = !assignedDevice;
 
   return (
     <div style={{
       ...cardStyle,
-      opacity: isOffline ? 0.4 : isStale ? 0.7 : 1,
+      opacity: sensorRemoved ? 0.55 : isOffline ? 0.4 : isStale ? 0.7 : 1,
       transition: 'opacity 0.3s ease',
     }}>
+      {/* Sensor removed banner */}
+      {sensorRemoved && (
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: '8px',
+          padding: '8px 12px',
+          marginBottom: '12px',
+          background: 'rgba(250,204,21,0.06)',
+          border: '1px solid rgba(250,204,21,0.15)',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <Wifi size={10} style={{ color: '#facc15', opacity: 0.7 }} />
+            <span style={{ fontFamily: mono, fontSize: '10px', color: 'rgba(255,255,255,0.75)' }}>
+              sensor removed — showing last known data
+            </span>
+          </div>
+          <button
+            onClick={() => setShowSensorPicker(true)}
+            className="cursor-pointer"
+            style={{
+              fontFamily: mono, fontSize: '8px', padding: '3px 8px',
+              color: '#facc15', border: '1px solid rgba(250,204,21,0.25)',
+              background: 'rgba(250,204,21,0.08)', whiteSpace: 'nowrap',
+            }}
+          >
+            reassign
+          </button>
+        </div>
+      )}
+
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>

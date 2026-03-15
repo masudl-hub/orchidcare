@@ -1392,6 +1392,55 @@ export async function manageDevice(
       };
     }
 
+    if (args.action === "provision") {
+      // Generate an 8-char token with unambiguous alphanumeric chars
+      const chars = "abcdefghjkmnpqrstuvwxyz23456789";
+      const randomBytes = new Uint8Array(8);
+      crypto.getRandomValues(randomBytes);
+      const suffix = Array.from(randomBytes).map((b) => chars[b % chars.length]).join("");
+      const plainToken = `odev_${suffix}`;
+
+      // SHA-256 hash for storage
+      const hashData = new TextEncoder().encode(plainToken);
+      const hashBuf = await crypto.subtle.digest("SHA-256", hashData);
+      const tokenHash = Array.from(new Uint8Array(hashBuf))
+        .map((b) => b.toString(16).padStart(2, "0"))
+        .join("");
+
+      // Resolve plant if provided
+      let plantId: string | null = null;
+      let plantName: string | null = null;
+      if (args.plant_identifier) {
+        const resolution = await resolvePlants(supabase, profileId, args.plant_identifier);
+        if (resolution.plants.length > 0) {
+          const plant = resolution.plants[0];
+          plantId = plant.id;
+          plantName = plant.nickname || plant.species || plant.name;
+        }
+      }
+
+      const deviceName = args.new_name || "New Sensor";
+      const { error } = await supabase.from("devices").insert({
+        profile_id: profileId,
+        plant_id: plantId,
+        device_token_hash: tokenHash,
+        device_token_prefix: plainToken.substring(0, 12),
+        name: deviceName,
+        status: "active",
+      });
+      if (error) return { success: false, error: error.message };
+
+      console.log(`[manageDevice] Provisioned new device "${deviceName}" for profile ${profileId}`);
+      return {
+        success: true,
+        action: "provisioned",
+        token: plainToken,
+        device_name: deviceName,
+        plant_name: plantName,
+        note: "Save this token — it won't be shown again. Paste it into your sensor firmware as DEVICE_TOKEN.",
+      };
+    }
+
     if (!device) {
       return { success: false, error: "Device not found. Specify device_name or device_id." };
     }

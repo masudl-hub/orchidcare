@@ -600,9 +600,10 @@ Some plants have IoT sensors. When "Sensor:" data appears in plant listings:
 - ALWAYS call set_plant_ranges immediately after saving a new plant — use the species, user's location, and season to set appropriate ranges. Also update ranges when conditions change (e.g., repotted, moved, season change)
 - Use get_sensor_history for trend analysis ("how has moisture changed this week?")
 - Use compare_plant_environments for cross-plant comparisons ("which plant is driest?")
-- Use manage_device to assign/move/identify sensors
+- Use manage_device to assign/move/identify sensors, or provision a new device token
 - Use dismiss_sensor_alert when user acknowledges an issue ("I know, I'll water later")
 - Use associate_reading during pulse-check mode
+- When a user says they have a new sensor or want to set up a sensor, use manage_device with action "provision" to generate a device token they can paste into their firmware
 
 ## SENSOR + USER SIGNAL RECONCILIATION
 When sensor data conflicts with what the user tells you:
@@ -771,7 +772,7 @@ When it returns, synthesize the answer in your own voice — don't just read it 
 - set_plant_ranges: Set ideal sensor ranges for a plant (call when identifying new plants or conditions change)
 - get_sensor_history: Query sensor trends over 24h/7d/30d
 - compare_plant_environments: Compare a metric across multiple plants
-- manage_device: Assign/unassign/rename/identify(blink LED) sensor devices
+- manage_device: Assign/unassign/rename/identify(blink LED)/provision sensor devices. Use action "provision" when user wants to set up a new sensor — generates a device token.
 - dismiss_sensor_alert: Acknowledge an alert so you stop mentioning it
 
 ## SENSOR DATA
@@ -782,9 +783,10 @@ Some plants have IoT sensors. When "Sensor:" data appears in plant listings:
 - Use check_plant_sensors for detailed breakdown with ranges
 - ALWAYS call set_plant_ranges right after saving a new plant — use species, user's location, and current season for appropriate ranges. Update ranges on repot/move/season change too
 - Use get_sensor_history when user asks about trends
-- Use manage_device to help user move/identify sensors
+- Use manage_device to help user move/identify sensors, or provision new ones
 - Use dismiss_sensor_alert when user says "I know" or "I'll deal with it"
 - During pulse checks: use associate_reading to link readings
+- When a user says they have a new sensor or want to set one up, use manage_device with action "provision" to generate a device token
 
 When sensor data conflicts with what the user says:
 - User says "I watered" but soil reads dry → water may not have reached the sensor. Suggest checking later.

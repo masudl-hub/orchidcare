@@ -420,15 +420,15 @@ export const voiceToolDeclarations = [
       },
       {
         name: "manage_device",
-        description: "Manage IoT sensor devices: assign to a plant, unassign, rename, identify (blinks the LED), or check status. Use when user wants to move a sensor, rename it, or find which physical device is which.",
+        description: "Manage IoT sensor devices: assign to a plant, unassign, rename, identify (blinks the LED), check status, or provision a new device token. Use when user wants to move a sensor, rename it, find which physical device is which, or set up a new sensor.",
         parameters: {
           type: "OBJECT",
           properties: {
-            action: { type: "STRING", description: "assign, unassign, rename, identify, or status" },
+            action: { type: "STRING", description: "assign, unassign, rename, identify, status, or provision" },
             device_name: { type: "STRING", description: "Name of the device (fuzzy match)" },
             device_id: { type: "STRING", description: "Device UUID (if known)" },
-            plant_identifier: { type: "STRING", description: "Plant name — required for assign action" },
-            new_name: { type: "STRING", description: "New name — required for rename action" },
+            plant_identifier: { type: "STRING", description: "Plant name — required for assign and optional for provision" },
+            new_name: { type: "STRING", description: "New name — required for rename, optional for provision (defaults to 'New Sensor')" },
           },
           required: ["action"],
         },

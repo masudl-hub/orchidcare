@@ -34,7 +34,7 @@ const char* ANON_KEY       = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzd
 const int READ_INTERVAL_SEC = 20;  // 3 per minute (under rate limit of 4/min)
 
 // Soil moisture calibration (run calibration mode to find your values)
-const int SOIL_DRY_VALUE   = 3800; // Raw ADC value in dry air
+const int SOIL_DRY_VALUE   = 3200; // Raw ADC value in dry air
 const int SOIL_WET_VALUE   = 1500; // Raw ADC value submerged in water
 // ==========================================================================
 

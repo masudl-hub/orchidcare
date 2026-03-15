@@ -225,6 +225,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         experience_level: (newProfile.experience_level as Profile['experience_level']) || null,
         primary_concerns: newProfile.primary_concerns,
         pets: newProfile.pets || [],
+        proactive_enabled: newProfile.proactive_enabled ?? true,
       });
     }
 

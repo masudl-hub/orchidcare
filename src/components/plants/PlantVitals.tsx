@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useSensorData, type MetricStatus, type SensorReading } from "@/hooks/useSensorData";
 import { useDevices, useUpdateDevice, useCreateDevice } from "@/hooks/useDevices";
 import { Droplets, Thermometer, Wind, AlertTriangle, ChevronRight, Wifi, Plus, Copy, Check, ChevronDown, X } from "lucide-react";
@@ -514,6 +515,7 @@ export default function PlantVitals({ plantId }: PlantVitalsProps) {
   const { data: devices } = useDevices();
   const [expandedMetric, setExpandedMetric] = useState<string | null>(null);
   const [showSensorPicker, setShowSensorPicker] = useState(false);
+  const navigate = useNavigate();
 
   const assignedDevice = (devices || []).find(d => d.plant_id === plantId && d.status === 'active');
 
@@ -697,9 +699,13 @@ export default function PlantVitals({ plantId }: PlantVitalsProps) {
 
       {/* No ranges hint */}
       {!ranges && (
-        <div style={{ fontFamily: mono, fontSize: '8px', color: 'rgba(255,255,255,0.5)', marginTop: '8px', textAlign: 'center' }}>
-          ask orchid to set ideal ranges for this plant
-        </div>
+        <button
+          onClick={() => navigate(`/chat?msg=${encodeURIComponent('Set ideal sensor ranges for this plant based on its species')}&plant=${plantId}`)}
+          className="cursor-pointer"
+          style={{ fontFamily: mono, fontSize: '8px', color: 'rgba(255,255,255,0.5)', marginTop: '8px', textAlign: 'center', width: '100%', background: 'none', border: 'none', padding: '4px 0' }}
+        >
+          tap to set ideal ranges for this plant →
+        </button>
       )}
     </div>
   );

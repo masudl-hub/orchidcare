@@ -6,6 +6,7 @@ export interface HierarchicalContext {
   userInsights: any[];
   recentIdentifications: any[];
   activeReminders: any[];
+  latestSensorReadings: any[];
 }
 
 export interface PlantResolutionResult {

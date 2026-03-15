@@ -77,7 +77,7 @@ export function formatInsightKey(key: string): string {
 export async function loadHierarchicalContext(supabase: any, profileId: string): Promise<HierarchicalContext> {
   console.log("[ContextEngineering] Loading hierarchical context for profile:", profileId);
 
-  const [recentResult, summariesResult, insightsResult, identificationsResult, remindersResult] = await Promise.all([
+  const [recentResult, summariesResult, insightsResult, identificationsResult, remindersResult, sensorResult] = await Promise.all([
     supabase
       .from("conversations")
       .select("content, direction, created_at, media_urls")
@@ -110,7 +110,22 @@ export async function loadHierarchicalContext(supabase: any, profileId: string):
       .eq("is_active", true)
       .order("next_due", { ascending: true })
       .limit(10),
+
+    // Fetch latest sensor readings (dedupe to latest per plant in JS)
+    supabase
+      .from("sensor_readings")
+      .select("plant_id, soil_moisture, temperature, humidity, light_lux, battery_pct, created_at")
+      .eq("profile_id", profileId)
+      .not("plant_id", "is", null)
+      .order("created_at", { ascending: false })
+      .limit(20),
   ]);
+
+  // Dedupe sensor readings to latest per plant
+  const sensorByPlant: Record<string, any> = {};
+  for (const r of sensorResult.data || []) {
+    if (!sensorByPlant[r.plant_id]) sensorByPlant[r.plant_id] = r;
+  }
 
   const context: HierarchicalContext = {
     recentMessages: recentResult.data || [],
@@ -118,6 +133,7 @@ export async function loadHierarchicalContext(supabase: any, profileId: string):
     userInsights: insightsResult.data || [],
     recentIdentifications: identificationsResult.data || [],
     activeReminders: remindersResult.data || [],
+    latestSensorReadings: Object.values(sensorByPlant),
   };
 
   console.log(
@@ -191,7 +207,7 @@ ${context.summaries
   .join("\n")}`;
 }
 
-function buildPlantsContext(userPlants: any[], plantSnapshots?: any[]): string {
+function buildPlantsContext(userPlants: any[], plantSnapshots?: any[], sensorReadings?: any[]): string {
   if (!userPlants?.length) return "## SAVED PLANTS\nNo plants saved yet.";
 
   // Index snapshots by plant_id for quick lookup
@@ -203,10 +219,18 @@ function buildPlantsContext(userPlants: any[], plantSnapshots?: any[]): string {
     }
   }
 
+  // Index sensor readings by plant_id
+  const sensorByPlant: Record<string, any> = {};
+  if (sensorReadings?.length) {
+    for (const r of sensorReadings) {
+      if (!sensorByPlant[r.plant_id]) sensorByPlant[r.plant_id] = r;
+    }
+  }
+
   return `## SAVED PLANTS
 ${userPlants.map((p) => {
     let line = `- ${p.nickname || p.name}${p.species ? ` (${p.species})` : ""}${p.location_in_home ? ` - ${p.location_in_home}` : ""}`;
-    
+
     const snaps = snapshotsByPlant[p.id];
     if (snaps?.length) {
       // Show most recent description
@@ -216,7 +240,18 @@ ${userPlants.map((p) => {
       if (latest.health_notes) line += `\n  Health: ${latest.health_notes}`;
       line += `\n  Last seen: ${timeAgo} | ${snaps.length} snapshot${snaps.length !== 1 ? "s" : ""} total`;
     }
-    
+
+    const sensor = sensorByPlant[p.id];
+    if (sensor) {
+      const timeAgo = formatTimeAgo(new Date(sensor.created_at));
+      const parts: string[] = [];
+      if (sensor.soil_moisture != null) parts.push(`moisture ${sensor.soil_moisture}%`);
+      if (sensor.temperature != null) parts.push(`temp ${sensor.temperature}°C`);
+      if (sensor.humidity != null) parts.push(`humidity ${sensor.humidity}%`);
+      if (sensor.light_lux != null) parts.push(`light ${sensor.light_lux} lux`);
+      line += `\n  Sensor: ${parts.join(", ")} (${timeAgo})`;
+    }
+
     return line;
   }).join("\n")}`;
 }
@@ -330,7 +365,7 @@ export function buildEnrichedSystemPrompt(
   const commPrefsSection = buildCommPrefsSection(context);
   const insightsSection = buildInsightsSection(context);
   const summariesSection = buildSummariesSection(context);
-  const plantsContext = buildPlantsContext(userPlants, plantSnapshots);
+  const plantsContext = buildPlantsContext(userPlants, plantSnapshots, context.latestSensorReadings);
   const remindersSection = buildRemindersSection(context);
   const { locationContext, locationSection } = buildLocationContext(profile);
 
@@ -487,6 +522,14 @@ DO NOT rely on conversation history to remember these - SAVE THEM NOW so you nev
 - save_user_insight: When you learn an important fact about the user - USE THIS PROACTIVELY!
 - capture_plant_snapshot: Save a visual snapshot of a plant for its memory timeline. Auto-captured when you identify/diagnose a saved plant from a photo. For manual use: when a user sends a routine check-in photo of a saved plant, or asks you to "remember what this looks like," capture a snapshot with a detailed visual description. If the plant isn't saved yet, set save_if_missing: true and include species so it gets saved alongside the snapshot.
 - compare_plant_snapshots: Compare how a plant looks now vs. previous snapshots. Use when user asks about progress, changes, or growth history. Reference previous Visual: descriptions in your context and mention differences naturally.
+- check_plant_sensors: Get latest IoT sensor readings for a plant (soil moisture, temperature, humidity, light). Use when user asks about conditions, sensor data, or "how is my plant doing?" with a sensor attached.
+- associate_reading: Associate an unassociated sensor reading with a plant. Used during pulse-check mode when user walks around with a handheld sensor.
+
+## SENSOR DATA
+Some plants have IoT sensors attached. When you see "Sensor:" data in the plant listing:
+- Proactively mention concerning readings (e.g., "Your monstera's soil looks dry at 18%")
+- Use check_plant_sensors for detailed status with health assessments
+- Use associate_reading when user says they just took a reading for a specific plant
 
 ## BULK OPERATIONS (CRITICAL!)
 These tools support bulk operations via the plant_identifier parameter:
@@ -541,7 +584,7 @@ export function buildVoiceSystemPrompt(
   const commPrefsSection = buildCommPrefsSection(context);
   const insightsSection = buildInsightsSection(context);
   const summariesSection = buildSummariesSection(context);
-  const plantsContext = buildPlantsContext(userPlants, plantSnapshots);
+  const plantsContext = buildPlantsContext(userPlants, plantSnapshots, context.latestSensorReadings);
   const remindersSection = buildRemindersSection(context);
   const { locationContext, locationSection } = buildLocationContext(profile);
 
@@ -643,6 +686,14 @@ When it returns, synthesize the answer in your own voice — don't just read it 
 - generate_image: Generate an illustration or visual guide image
 - capture_plant_snapshot: Save a visual snapshot during a voice call. NEVER call without explicit user consent — always ask first and wait for confirmation. If the plant isn't saved yet, save it first with save_plant.
 - compare_plant_snapshots: Compare how a plant has changed over time using stored visual snapshots. Reference Visual: descriptions in context.
+- check_plant_sensors: Get latest IoT sensor readings (soil moisture, temp, humidity, light) with health status. Use when user asks about conditions or says "how are my plants doing?"
+- associate_reading: Link an unassociated sensor reading to a plant during pulse-check mode. Use when user says "this is for my monstera" after taking a reading with a handheld sensor.
+
+## SENSOR DATA
+Some plants have IoT sensors. When "Sensor:" data appears in plant listings:
+- Proactively flag concerning readings ("Your pothos soil is at 15% — that's really dry")
+- Use check_plant_sensors for full status breakdown
+- During pulse checks: when user says they're checking a plant, use associate_reading to link the latest reading
 
 ## VISUAL MEMORY (Plant Snapshots)
 You can capture visual snapshots of plants to build a visual timeline.

@@ -321,6 +321,28 @@ export const voiceToolDeclarations = [
           required: ["plant_identifier"],
         },
       },
+      {
+        name: "check_plant_sensors",
+        description: "Get latest IoT sensor readings for a plant. Returns soil moisture, temperature, humidity, light level with health status assessments. Use when user asks about sensor data, plant conditions, or during pulse checks.",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            plant_identifier: { type: "STRING", description: "Plant name, nickname, or 'all' for all plants with sensors" },
+          },
+          required: ["plant_identifier"],
+        },
+      },
+      {
+        name: "associate_reading",
+        description: "Associate the most recent unassociated sensor reading with a specific plant. Used during pulse-check mode when a handheld sensor takes a reading and the user says which plant it's for.",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            plant_identifier: { type: "STRING", description: "Plant name or nickname to associate the reading with" },
+          },
+          required: ["plant_identifier"],
+        },
+      },
     ],
   },
 ];

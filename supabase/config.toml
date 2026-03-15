@@ -2,6 +2,8 @@ project_id = "ewkfjmekrootyiijrgfh"
 
 [functions.pwa-agent]
 verify_jwt = false
+[functions.sensor-reading]
+verify_jwt = false
 [functions.delete-account]
 enabled = true
 verify_jwt = true

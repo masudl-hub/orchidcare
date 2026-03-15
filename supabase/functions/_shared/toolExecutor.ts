@@ -14,6 +14,8 @@ import {
   updateProfile,
   capturePlantSnapshot,
   comparePlantSnapshots,
+  checkPlantSensors,
+  associateReading,
 } from "./tools.ts";
 import {
   callResearchAgent,
@@ -212,6 +214,14 @@ export async function executeTool(
         (args.comparison_type as string) || "latest",
         LOVABLE_API_KEY,
       );
+      break;
+
+    case "check_plant_sensors":
+      result = await checkPlantSensors(supabase, profileId, args as { plant_identifier: string });
+      break;
+
+    case "associate_reading":
+      result = await associateReading(supabase, profileId, args as { plant_identifier: string });
       break;
 
     default:

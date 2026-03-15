@@ -1,0 +1,827 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Orchid Sensor — Build Guide</title>
+<style>
+  :root {
+    --bg: #0a0a0a;
+    --surface: #141414;
+    --border: #2a2a2a;
+    --text: #e0e0e0;
+    --text-dim: #888;
+    --accent: #4ade80;
+    --accent-dim: #166534;
+    --warn: #facc15;
+    --danger: #ef4444;
+    --wire-red: #ef4444;
+    --wire-black: #555;
+    --wire-yellow: #facc15;
+    --wire-orange: #f97316;
+    --wire-green: #4ade80;
+    --wire-blue: #60a5fa;
+    --wire-white: #e0e0e0;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'SF Mono', 'Fira Code', 'JetBrains Mono', monospace;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.7;
+    max-width: 820px;
+    margin: 0 auto;
+    padding: 2rem 1.5rem 6rem;
+  }
+
+  h1 {
+    font-size: 1.8rem;
+    color: var(--accent);
+    margin-bottom: 0.25rem;
+  }
+
+  h1 + p { color: var(--text-dim); margin-bottom: 3rem; }
+
+  h2 {
+    font-size: 1.1rem;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    color: var(--accent);
+    margin-top: 3rem;
+    margin-bottom: 1rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid var(--border);
+  }
+
+  h3 {
+    font-size: 1rem;
+    color: var(--text);
+    margin-top: 1.5rem;
+    margin-bottom: 0.5rem;
+  }
+
+  p, li { font-size: 0.9rem; }
+  p { margin-bottom: 1rem; }
+  ul, ol { padding-left: 1.5rem; margin-bottom: 1rem; }
+  li { margin-bottom: 0.4rem; }
+
+  .step {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+    position: relative;
+  }
+
+  .step-number {
+    position: absolute;
+    top: -0.7rem;
+    left: 1rem;
+    background: var(--accent);
+    color: var(--bg);
+    font-weight: bold;
+    font-size: 0.75rem;
+    padding: 0.15rem 0.6rem;
+    border-radius: 4px;
+  }
+
+  .step h3 { margin-top: 0.25rem; }
+
+  pre {
+    background: #0d1117;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 1rem 1.25rem;
+    overflow-x: auto;
+    font-size: 0.78rem;
+    line-height: 1.5;
+    margin-bottom: 1rem;
+  }
+
+  code {
+    background: #1a1a2e;
+    padding: 0.15rem 0.4rem;
+    border-radius: 3px;
+    font-size: 0.85rem;
+  }
+
+  pre code { background: none; padding: 0; }
+
+  .wire-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 1rem;
+    font-size: 0.85rem;
+  }
+
+  .wire-table th {
+    text-align: left;
+    padding: 0.5rem 0.75rem;
+    border-bottom: 2px solid var(--border);
+    color: var(--text-dim);
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+  }
+
+  .wire-table td {
+    padding: 0.5rem 0.75rem;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .wire-dot {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    margin-right: 6px;
+    vertical-align: middle;
+  }
+
+  .warn-box {
+    background: #1a1500;
+    border: 1px solid #433600;
+    border-radius: 6px;
+    padding: 1rem 1.25rem;
+    margin-bottom: 1rem;
+    font-size: 0.85rem;
+  }
+
+  .warn-box strong { color: var(--warn); }
+
+  .danger-box {
+    background: #1a0500;
+    border: 1px solid #431000;
+    border-radius: 6px;
+    padding: 1rem 1.25rem;
+    margin-bottom: 1rem;
+    font-size: 0.85rem;
+  }
+
+  .danger-box strong { color: var(--danger); }
+
+  .success-box {
+    background: #001a0a;
+    border: 1px solid #00431a;
+    border-radius: 6px;
+    padding: 1rem 1.25rem;
+    margin-bottom: 1rem;
+    font-size: 0.85rem;
+  }
+
+  .success-box strong { color: var(--accent); }
+
+  .checklist {
+    list-style: none;
+    padding-left: 0;
+  }
+
+  .checklist li::before {
+    content: "[ ] ";
+    color: var(--text-dim);
+    font-weight: bold;
+  }
+
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+
+  .breadboard {
+    background: #0d1117;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 1.25rem;
+    margin-bottom: 1rem;
+    overflow-x: auto;
+  }
+
+  .breadboard pre {
+    background: none;
+    border: none;
+    padding: 0;
+    margin: 0;
+    font-size: 0.72rem;
+    line-height: 1.4;
+  }
+
+  .parts-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+  }
+
+  .part-card {
+    background: #0d1117;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 1rem;
+  }
+
+  .part-card h4 {
+    font-size: 0.85rem;
+    color: var(--accent);
+    margin-bottom: 0.35rem;
+  }
+
+  .part-card p {
+    font-size: 0.8rem;
+    color: var(--text-dim);
+    margin-bottom: 0;
+  }
+
+  .toc {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1.25rem 1.5rem;
+    margin-bottom: 2rem;
+  }
+
+  .toc ol { margin-bottom: 0; }
+  .toc li { font-size: 0.85rem; }
+
+  @media (max-width: 600px) {
+    body { padding: 1rem; }
+    .parts-grid { grid-template-columns: 1fr; }
+    pre { font-size: 0.68rem; }
+  }
+</style>
+</head>
+<body>
+
+<h1>Orchid Sensor</h1>
+<p>Hardware build guide &mdash; ESP32 + soil moisture + temp/humidity + light</p>
+
+<div class="toc">
+  <ol>
+    <li><a href="#parts">What's in the box</a></li>
+    <li><a href="#breadboard">How a breadboard works</a></li>
+    <li><a href="#esp32">Place the ESP32</a></li>
+    <li><a href="#power">Wire the power rails</a></li>
+    <li><a href="#soil">Wire the soil moisture sensor</a></li>
+    <li><a href="#dht">Wire the DHT11 (temp + humidity)</a></li>
+    <li><a href="#light">Wire the BH1750 (light)</a></li>
+    <li><a href="#full">Full wiring diagram</a></li>
+    <li><a href="#software">Software setup</a></li>
+    <li><a href="#flash">Flash the firmware</a></li>
+    <li><a href="#calibrate">Calibrate the soil sensor</a></li>
+    <li><a href="#mistakes">Common mistakes</a></li>
+    <li><a href="#resources">Tutorials & videos</a></li>
+  </ol>
+</div>
+
+<!-- ================================================================ -->
+<h2 id="parts">1. What's in the box</h2>
+
+<div class="parts-grid">
+  <div class="part-card">
+    <h4>ESP32 Dev Board</h4>
+    <p>Small blue/black board with a micro-USB port. This is the brain — it has WiFi, reads the sensors, and POSTs data to your server.</p>
+  </div>
+  <div class="part-card">
+    <h4>Capacitive Soil Moisture Sensor</h4>
+    <p>Long flat probe with a small circuit board at the top. 3 pins: VCC, GND, AOUT. Measures how wet the soil is.</p>
+  </div>
+  <div class="part-card">
+    <h4>DHT11 Module</h4>
+    <p>Small blue square on a breakout board. 3 pins: + (VCC), - (GND), S or DATA. Measures air temperature and humidity.</p>
+  </div>
+  <div class="part-card">
+    <h4>BH1750 Light Sensor</h4>
+    <p>Tiny purple/blue board. 4-5 pins: VCC, GND, SDA, SCL (and maybe ADDR). Measures light level in lux.</p>
+  </div>
+  <div class="part-card">
+    <h4>Breadboard</h4>
+    <p>White/clear plastic rectangle with a grid of holes. Lets you connect everything without soldering.</p>
+  </div>
+  <div class="part-card">
+    <h4>Jumper Wires</h4>
+    <p>Colorful wires with metal pins on each end. You'll need 12 total. Use colors to keep things organized.</p>
+  </div>
+</div>
+
+<p>You also need a <strong>micro-USB cable</strong> (the same kind that charges older Android phones) to connect the ESP32 to your laptop.</p>
+
+<!-- ================================================================ -->
+<h2 id="breadboard">2. How YOUR breadboard works</h2>
+
+<p>Your breadboard: columns A-J, rows 1-30, with + and - rails on both sides.</p>
+
+<div class="breadboard"><pre>
+  LEFT           MAIN GRID                RIGHT
+  RAILS   A  B  C  D  E │ F  G  H  I  J  RAILS
+  ─────   ───────────────┼───────────────  ─────
+  + | -   o  o  o  o  o  │  o  o  o  o  o  + | -    Row 1
+  + | -   o  o  o  o  o  │  o  o  o  o  o  + | -    Row 2
+  + | -   o  o  o  o  o  │  o  o  o  o  o  + | -    Row 3
+   ...     ...           │           ...    ...
+  + | -   o  o  o  o  o  │  o  o  o  o  o  + | -    Row 30
+</pre></div>
+
+<div class="success-box">
+  <strong>The golden rule:</strong> Holes in the same row, same side of the center gap,
+  are connected. <code>A5 B5 C5 D5 E5</code> = all connected.
+  <code>F5 G5 H5 I5 J5</code> = all connected. But left side and right side
+  are NOT connected to each other. The + rail holes are all connected vertically.
+  Same for the - rail.
+</div>
+
+<!-- ================================================================ -->
+<h2 id="esp32">3. Place the ESP32</h2>
+
+<div class="step">
+  <span class="step-number">STEP</span>
+  <h3>Straddle the center gap, rows 1-15</h3>
+  <p>Push the ESP32 into the breadboard with its left pins in <strong>column B</strong> and right pins in <strong>column J</strong>. USB port faces up (off the top edge).</p>
+
+  <div class="warn-box">
+    <strong>Your ESP32 is wide!</strong> The board covers columns C through I.
+    Only <strong>column A is free</strong> (next to the left-side pins). The right-side pins in column J have no free neighbor.<br><br>
+    &bull; <strong>Left-side pins</strong> &mdash; connect via <strong>column A</strong> (male-male wires into the breadboard)<br>
+    &bull; <strong>Right-side pins</strong> &mdash; connect via <strong>male-female wires</strong> that clip directly onto the pin sticking up above the board
+  </div>
+
+  <div class="breadboard"><pre>
+  Left                                                    Right
+  rail   A    B    C    D    E  │  F    G    H    I    J  rail
+         │    │                 │                      │
+         │   ┌┴────────────────────────────────────────┤
+         │   │           ESP32 body                    │
+         │   │       (covers C through I)              │
+         │   │                                         │
+  Row 1: . <span style="color:var(--wire-red)">3V3</span>                                       VIN    Row 1
+  Row 2: . <span style="color:var(--wire-black)">GND</span>                                       <span style="color:var(--wire-black)">GND</span>    Row 2  &larr; also GND
+  Row 3: . D15                                       D13    Row 3
+  Row 4: .  D2                                       D12    Row 4
+  Row 5: .  <span style="color:var(--wire-green)">D4</span>                                       D14    Row 5  &larr; DHT DATA
+  Row 6: . RX2                                       D27    Row 6
+  Row 7: . TX2                                       D26    Row 7
+  Row 8: .  D5                                       D25    Row 8
+  Row 9: . D18                                       D33    Row 9
+ Row 10: . D19                                       D32    Row 10
+ Row 11: . <span style="color:var(--wire-blue)">D21</span>                                       D35    Row 11 &larr; BH1750 SDA
+ Row 12: . RX0                                       D34    Row 12
+ Row 13: . TX0                                        VN    Row 13
+ Row 14: . <span style="color:var(--wire-white)">D22</span>                                        VP    Row 14 &larr; BH1750 SCL
+ Row 15: . D23                                        EN    Row 15
+         │   │                                         │
+         │   └─────────────────────────────────────────┘
+         ▲                                         no free
+       COLUMN A                                    column!
+       Free hole                                   Use clip
+       for left pins                               wires
+
+  Rows 16-30: FREE for sensors
+</pre></div>
+
+  <div class="success-box">
+    <strong>Two types of wires you'll use:</strong><br>
+    &bull; <strong>Male-male</strong> (pin↔pin) &mdash; for left-side ESP32 pins (poke into column A) and for sensor modules in rows 16-30<br>
+    &bull; <strong>Male-female</strong> (pin↔socket) &mdash; the socket clips onto right-side ESP32 pins (D34, GND at J2) that have no free breadboard hole. The pin end goes wherever you need it.
+  </div>
+</div>
+
+<!-- ================================================================ -->
+<h2 id="power">4. Wire the power rails</h2>
+
+<p>Two wires to get power flowing to the left-side rails (we'll use these for all sensors).</p>
+
+<div class="step">
+  <span class="step-number">WIRE 1</span>
+  <h3><span class="wire-dot" style="background:var(--wire-red)"></span> A1 &rarr; left + rail (male-male)</h3>
+  <p>Red wire. Poke one end into <code>A1</code> (same row as 3V3 at B1 &mdash; they're connected). Poke the other end into the <strong>left + (red) rail</strong>.</p>
+</div>
+
+<div class="step">
+  <span class="step-number">WIRE 2</span>
+  <h3><span class="wire-dot" style="background:var(--wire-black)"></span> A2 &rarr; left - rail (male-male)</h3>
+  <p>Black wire. Poke one end into <code>A2</code> (same row as GND at B2). Poke the other end into the <strong>left - (blue) rail</strong>.</p>
+</div>
+
+<div class="success-box">
+  <strong>Checkpoint:</strong> The left + rail is now 3.3V. The left - rail is now ground.
+  Every sensor will tap into these two rails.
+</div>
+
+<!-- ================================================================ -->
+<h2 id="soil">5. Wire the soil moisture sensor</h2>
+
+<p>The soil sensor is a probe on a cable ending in 3 female sockets. It came with small straight <strong>header pins</strong> (little metal prongs). Push those into the female sockets &mdash; they'll stay snug. Then plug the header pins into the breadboard.</p>
+
+<div class="step">
+  <span class="step-number">PLACE</span>
+  <h3>Insert header pins into the soil sensor's sockets, then plug into the breadboard</h3>
+  <p>Push header pins into all 3 female sockets on the sensor cable. Then insert into <code>C18</code> (VCC), <code>C19</code> (GND), <code>C20</code> (AOUT). Check your sensor's pin labels &mdash; order may vary!</p>
+</div>
+
+<div class="step">
+  <span class="step-number">WIRE 3</span>
+  <h3><span class="wire-dot" style="background:var(--wire-red)"></span> Soil VCC &rarr; left + rail (male-male)</h3>
+  <p>Red wire from <code>A18</code> (same row as VCC) to the <strong>left + rail</strong>.</p>
+</div>
+
+<div class="step">
+  <span class="step-number">WIRE 4</span>
+  <h3><span class="wire-dot" style="background:var(--wire-black)"></span> Soil GND &rarr; left - rail (male-male)</h3>
+  <p>Black wire from <code>A19</code> (same row as GND) to the <strong>left - rail</strong>.</p>
+</div>
+
+<div class="step">
+  <span class="step-number">WIRE 5</span>
+  <h3><span class="wire-dot" style="background:var(--wire-orange)"></span> Soil AOUT &rarr; A6 (GPIO 35) (male-male)</h3>
+  <p>Orange wire from <code>A20</code> (same row as AOUT) to <code>A6</code>. Why A6? Because B6 = RX2/GPIO 35, and A6 is the free hole in that row. GPIO 35 is on ADC1, same as GPIO 34 — works perfectly for soil moisture.</p>
+</div>
+
+<table class="wire-table">
+  <tr><th>Sensor Pin</th><th>Breadboard</th><th>Wire Type</th><th>Goes To</th></tr>
+  <tr><td>VCC</td><td>C18</td><td><span class="wire-dot" style="background:var(--wire-red)"></span> M-M: A18 &rarr; left + rail</td><td>3.3V power</td></tr>
+  <tr><td>GND</td><td>C19</td><td><span class="wire-dot" style="background:var(--wire-black)"></span> M-M: A19 &rarr; left - rail</td><td>Ground</td></tr>
+  <tr><td>AOUT</td><td>C20</td><td><span class="wire-dot" style="background:var(--wire-orange)"></span> M-M: A20 &rarr; A6</td><td>GPIO 35 (row 6 left)</td></tr>
+</table>
+
+<!-- ================================================================ -->
+<h2 id="dht">6. Wire the DHT11 (temp + humidity)</h2>
+
+<p>The DHT11 module has 3 pins. Plugged into <strong>column E, rows 21-23</strong>.</p>
+
+<div class="step">
+  <span class="step-number">WIRE 6</span>
+  <h3><span class="wire-dot" style="background:var(--wire-red)"></span> DHT + &rarr; left + rail (male-male)</h3>
+  <p>Red wire from <code>A21</code> (same row as + at E21) to the <strong>left + rail</strong>.</p>
+</div>
+
+<div class="step">
+  <span class="step-number">WIRE 7</span>
+  <h3><span class="wire-dot" style="background:var(--wire-black)"></span> DHT - &rarr; left - rail (male-male)</h3>
+  <p>Black wire from <code>A23</code> (same row as - at E23) to the <strong>left - rail</strong>.</p>
+</div>
+
+<div class="step">
+  <span class="step-number">WIRE 8</span>
+  <h3><span class="wire-dot" style="background:var(--wire-green)"></span> DHT DATA &rarr; A5 (GPIO 4) (male-male)</h3>
+  <p>Green wire from <code>A22</code> (same row as DATA at E22) to <code>A5</code>. Why A5? Because B5 = D4 (GPIO 4), and A5 is the free hole in that row.</p>
+</div>
+
+<table class="wire-table">
+  <tr><th>Sensor Pin</th><th>Breadboard</th><th>Wire Type</th><th>Goes To</th></tr>
+  <tr><td>+ (VCC)</td><td>E21</td><td><span class="wire-dot" style="background:var(--wire-red)"></span> M-M: A21 &rarr; left + rail</td><td>3.3V power</td></tr>
+  <tr><td>DATA</td><td>E22</td><td><span class="wire-dot" style="background:var(--wire-green)"></span> M-M: A22 &rarr; A5</td><td>GPIO 4 (row 5 left)</td></tr>
+  <tr><td>- (GND)</td><td>E23</td><td><span class="wire-dot" style="background:var(--wire-black)"></span> M-M: A23 &rarr; left - rail</td><td>Ground</td></tr>
+</table>
+
+<!-- ================================================================ -->
+<h2 id="light">7. Wire the BH1750 (light sensor)</h2>
+
+<p>The BH1750 has 5 pins. Plugged into <strong>column E, rows 27-30</strong> (ADDR hangs off at row 30, unconnected). SDA at top.</p>
+
+<div class="step">
+  <span class="step-number">WIRE 9</span>
+  <h3><span class="wire-dot" style="background:var(--wire-red)"></span> BH1750 VCC &rarr; left + rail (male-male)</h3>
+  <p>Red wire from <code>A30</code> (same row as VCC at E30) to the <strong>left + rail</strong>.</p>
+</div>
+
+<div class="step">
+  <span class="step-number">WIRE 10</span>
+  <h3><span class="wire-dot" style="background:var(--wire-black)"></span> BH1750 GND &rarr; left - rail (male-male)</h3>
+  <p>Black wire from <code>A29</code> (same row as GND at E29) to the <strong>left - rail</strong>.</p>
+</div>
+
+<div class="step">
+  <span class="step-number">WIRE 11</span>
+  <h3><span class="wire-dot" style="background:var(--wire-yellow)"></span> BH1750 SCL &rarr; A14 (GPIO 22) (male-male)</h3>
+  <p>Yellow wire from <code>A28</code> (same row as SCL at E28) to <code>A14</code>. Why A14? Because B14 = D22 (GPIO 22), and A14 is the free hole in that row.</p>
+</div>
+
+<div class="step">
+  <span class="step-number">WIRE 12</span>
+  <h3><span class="wire-dot" style="background:var(--wire-yellow)"></span> BH1750 SDA &rarr; A11 (GPIO 21) (male-male)</h3>
+  <p>Yellow wire from <code>A27</code> (same row as SDA at E27) to <code>A11</code>. Why A11? Because B11 = D21 (GPIO 21), and A11 is the free hole in that row.</p>
+</div>
+
+<table class="wire-table">
+  <tr><th>Sensor Pin</th><th>Breadboard</th><th>Wire Type</th><th>Goes To</th></tr>
+  <tr><td>SDA</td><td>E27</td><td><span class="wire-dot" style="background:var(--wire-yellow)"></span> M-M: A27 &rarr; A11</td><td>GPIO 21 (row 11 left)</td></tr>
+  <tr><td>SCL</td><td>E28</td><td><span class="wire-dot" style="background:var(--wire-yellow)"></span> M-M: A28 &rarr; A14</td><td>GPIO 22 (row 14 left)</td></tr>
+  <tr><td>GND</td><td>E29</td><td><span class="wire-dot" style="background:var(--wire-black)"></span> M-M: A29 &rarr; left - rail</td><td>Ground</td></tr>
+  <tr><td>VCC</td><td>E30</td><td><span class="wire-dot" style="background:var(--wire-red)"></span> M-M: A30 &rarr; left + rail</td><td>3.3V power</td></tr>
+  <tr><td>ADDR</td><td><em>hanging off bottom or not inserted</em></td><td colspan="2"><em>Leave unconnected</em></td></tr>
+</table>
+
+<!-- ================================================================ -->
+<h2 id="full">8. Full wiring diagram</h2>
+
+<p>Your complete breadboard. Every occupied hole is shown. Empty holes are dots.</p>
+
+<div class="breadboard"><pre>
+ <span style="color:var(--text-dim)">LEFT</span>                                                                     <span style="color:var(--text-dim)">RIGHT</span>
+ <span style="color:var(--text-dim)">RAIL</span>    A     B     C     D     E  <span style="color:var(--text-dim)">│</span>  F     G     H     I     J     <span style="color:var(--text-dim)">RAIL</span>
+ <span style="color:var(--wire-red)">+</span><span style="color:var(--wire-black)">-</span>                                  <span style="color:var(--text-dim)">│</span>                                  <span style="color:var(--wire-red)">+</span><span style="color:var(--wire-black)">-</span>
+───── ═══════════════════════════════╪═══════════════════════════════ ─────
+        ┌──────────────────────────────────────────────────────────┐
+ <span style="color:var(--wire-red)">W1</span>←<span style="color:var(--wire-red)">A1</span>  │<span style="color:var(--wire-red)">3V3</span>  ░░░░░░░░░░░░░░░░░░░░░░░<span style="color:var(--text-dim)">│</span>░░░░░░░░░░░░░░░░░░░░░░VIN │       1
+ <span style="color:var(--wire-black)">W2</span>←<span style="color:var(--wire-black)">A2</span>  │<span style="color:var(--wire-black)">GND</span>  ░░░░░░░░░░░░░░░░░░░░░░░<span style="color:var(--text-dim)">│</span>░░░░░░░░░░░░░░░░░░░░░░GND │       2
+        │D15  ░░░░░░░░░░░░░░░░░░░░░░░<span style="color:var(--text-dim)">│</span>░░░░░░░░░░░░░░░░░░░░░░D13 │       3
+        │ D2  ░░░░░░░░░░░░░░░░░░░░░░░<span style="color:var(--text-dim)">│</span>░░░░░░░░░░░░░░░░░░░░░░D12 │       4
+ <span style="color:var(--wire-green)">W8</span>→<span style="color:var(--wire-green)">A5</span>  │ <span style="color:var(--wire-green)">D4</span>  ░░░░░░░░░░░░░░░░░░░░░░░<span style="color:var(--text-dim)">│</span>░░░░░░░░░░░░░░░░░░░░░░D14 │       5
+ <span style="color:var(--wire-orange)">W5</span>→<span style="color:var(--wire-orange)">A6</span>  │<span style="color:var(--wire-orange)">RX2</span>  ░░░░░░░░░░░░░░░░░░░░░░░<span style="color:var(--text-dim)">│</span>░░░░░░░░░░░░░░░░░░░░░░D27 │       6  &larr; SOIL AOUT
+        │TX2  ░░░░░░░░░░░░░░░░░░░░░░░<span style="color:var(--text-dim)">│</span>░░░░░░░░░░░░░░░░░░░░░░D26 │       7
+        │ D5  ░░░░░░░░░░░░░░░░░░░░░░░<span style="color:var(--text-dim)">│</span>░░░░░░░░░░░░░░░░░░░░░░D25 │       8
+        │D18  ░░░░░░░░░░░░░░░░░░░░░░░<span style="color:var(--text-dim)">│</span>░░░░░░░░░░░░░░░░░░░░░░D33 │       9
+        │D19  ░░░░░░░░░░░░░░░░░░░░░░░<span style="color:var(--text-dim)">│</span>░░░░░░░░░░░░░░░░░░░░░░D32 │      10
+<span style="color:var(--wire-yellow)">W12</span>→<span style="color:var(--wire-yellow)">A11</span> │<span style="color:var(--wire-yellow)">D21</span>  ░░░░░░░░░░░░░░░░░░░░░░░<span style="color:var(--text-dim)">│</span>░░░░░░░░░░░░░░░░░░░░░░D35 │      11 &larr; BH1750 SDA
+        │RX0  ░░░░░░░░░░░░░░░░░░░░░░░<span style="color:var(--text-dim)">│</span>░░░░░░░░░░░░░░░░░░░░░░D34 │      12
+        │TX0  ░░░░░░░░░░░░░░░░░░░░░░░<span style="color:var(--text-dim)">│</span>░░░░░░░░░░░░░░░░░░░░░░ VN │      13
+<span style="color:var(--wire-yellow)">W11</span>→<span style="color:var(--wire-yellow)">A14</span> │<span style="color:var(--wire-yellow)">D22</span>  ░░░░░░░░░░░░░░░░░░░░░░░<span style="color:var(--text-dim)">│</span>░░░░░░░░░░░░░░░░░░░░░░ VP │      14 &larr; BH1750 SCL
+        │D23  ░░░░░░░░░░░░░░░░░░░░░░░<span style="color:var(--text-dim)">│</span>░░░░░░░░░░░░░░░░░░░░░░ EN │      15
+        └──────────────────────────────────────────────────────────┘
+              <span style="color:var(--text-dim)">(rows 16-17 under board overhang — skip)</span>                      16-17
+───── ═══════════════════════════════╪═══════════════════════════════ ─────
+                    <span style="color:var(--text-dim)">SOIL SENSOR (orange cable + header pins)</span>
+ <span style="color:var(--wire-red)">W3</span>←A18  .    <span style="color:var(--wire-red)">VCC</span>   .     .  <span style="color:var(--text-dim)">│</span>  .     .     .     .     .        18
+ <span style="color:var(--wire-black)">W4</span>←A19  .    <span style="color:var(--wire-black)">GND</span>   .     .  <span style="color:var(--text-dim)">│</span>  .     .     .     .     .        19
+     A20  .   <span style="color:var(--wire-orange)">AOUT</span>   .     .  <span style="color:var(--text-dim)">│</span>  .     .     .     .     .        20
+        .     .     .     .     .  <span style="color:var(--text-dim)">│</span>  .     .     .     .     .        21
+                    <span style="color:var(--text-dim)">DHT11 MODULE (plugged into col E)</span>
+ <span style="color:var(--wire-red)">W6</span>←A21  .     .     .     <span style="color:var(--wire-red)">+</span>  <span style="color:var(--text-dim)">│</span>  .     .     .     .     .        21
+ <span style="color:var(--wire-green)">W8</span>←A22  .     .     .   <span style="color:var(--wire-green)">DATA</span> <span style="color:var(--text-dim)">│</span>  .     .     .     .     .        22
+ <span style="color:var(--wire-black)">W7</span>←A23  .     .     .     <span style="color:var(--wire-black)">-</span>  <span style="color:var(--text-dim)">│</span>  .     .     .     .     .        23
+        .     .     .     .     .  <span style="color:var(--text-dim)">│</span>  .     .     .     .     .        24
+        .     .     .     .     .  <span style="color:var(--text-dim)">│</span>  .     .     .     .     .        25
+        .     .     .     .     .  <span style="color:var(--text-dim)">│</span>  .     .     .     .     .        26
+                    <span style="color:var(--text-dim)">BH1750 LIGHT SENSOR (plugged into col E)</span>
+<span style="color:var(--wire-yellow)">W12</span>←A27  .     .     .    <span style="color:var(--wire-yellow)">SDA</span> <span style="color:var(--text-dim)">│</span>  .     .     .     .     .        27
+<span style="color:var(--wire-yellow)">W11</span>←A28  .     .     .    <span style="color:var(--wire-yellow)">SCL</span> <span style="color:var(--text-dim)">│</span>  .     .     .     .     .        28
+<span style="color:var(--wire-black)">W10</span>←A29  .     .     .    <span style="color:var(--wire-black)">GND</span> <span style="color:var(--text-dim)">│</span>  .     .     .     .     .        29
+ <span style="color:var(--wire-red)">W9</span>←A30  .     .     .    <span style="color:var(--wire-red)">VCC</span> <span style="color:var(--text-dim)">│</span>  .     .     .     .     .        30
+</pre></div>
+
+<h3>What the arrows mean</h3>
+<p><code><span style="color:var(--wire-red)">W1</span>←A1</code> = wire W1 goes FROM hole A1 TO the left + rail (pick any hole on the + strip).</p>
+<p><code><span style="color:var(--wire-green)">W8</span>→A5</code> = wire W8 arrives INTO hole A5 (coming from A23 where the DHT data is).</p>
+<p><code><span style="color:var(--wire-yellow)">W5</span></code> on row 12 right side = male-female clip wire. Pin end in A20, socket clips onto the D34 pin sticking up from the ESP32.</p>
+
+<h3>Where every wire goes</h3>
+<table class="wire-table">
+  <tr><th>#</th><th>Color</th><th>Type</th><th>One end</th><th>Other end</th><th>What it does</th></tr>
+  <tr><td>W1</td><td><span class="wire-dot" style="background:var(--wire-red)"></span> Red</td><td>M-M</td><td>A1</td><td>Left + rail (any hole)</td><td>Sends 3.3V to the rail</td></tr>
+  <tr><td>W2</td><td><span class="wire-dot" style="background:var(--wire-black)"></span> Black</td><td>M-M</td><td>A2</td><td>Left - rail (any hole)</td><td>Sends ground to the rail</td></tr>
+  <tr><td>W3</td><td><span class="wire-dot" style="background:var(--wire-red)"></span> Red</td><td>M-M</td><td>A18</td><td>Left + rail (any hole)</td><td>Powers soil sensor</td></tr>
+  <tr><td>W4</td><td><span class="wire-dot" style="background:var(--wire-black)"></span> Black</td><td>M-M</td><td>A19</td><td>Left - rail (any hole)</td><td>Grounds soil sensor</td></tr>
+  <tr><td>W5</td><td><span class="wire-dot" style="background:var(--wire-yellow)"></span> Yellow</td><td>M-M</td><td>A20</td><td>A6</td><td>Soil data &rarr; GPIO 35</td></tr>
+  <tr><td>W6</td><td><span class="wire-dot" style="background:var(--wire-red)"></span> Red</td><td>M-M</td><td>A21</td><td>Left + rail (any hole)</td><td>Powers DHT11</td></tr>
+  <tr><td>W7</td><td><span class="wire-dot" style="background:var(--wire-black)"></span> Black</td><td>M-M</td><td>A23</td><td>Left - rail (any hole)</td><td>Grounds DHT11</td></tr>
+  <tr><td>W8</td><td><span class="wire-dot" style="background:var(--wire-green)"></span> Green</td><td>M-M</td><td>A22</td><td>A5</td><td>DHT data &rarr; GPIO 4</td></tr>
+  <tr><td>W9</td><td><span class="wire-dot" style="background:var(--wire-red)"></span> Red</td><td>M-M</td><td>A30</td><td>Left + rail (any hole)</td><td>Powers BH1750</td></tr>
+  <tr><td>W10</td><td><span class="wire-dot" style="background:var(--wire-black)"></span> Black</td><td>M-M</td><td>A29</td><td>Left - rail (any hole)</td><td>Grounds BH1750</td></tr>
+  <tr><td>W11</td><td><span class="wire-dot" style="background:var(--wire-yellow)"></span> Yellow</td><td>M-M</td><td>A28</td><td>A14</td><td>BH1750 clock (SCL) &rarr; GPIO 22</td></tr>
+  <tr><td>W12</td><td><span class="wire-dot" style="background:var(--wire-yellow)"></span> Yellow</td><td>M-M</td><td>A27</td><td>A11</td><td>BH1750 data (SDA) &rarr; GPIO 21</td></tr>
+</table>
+
+<h3>Every wire, every hole</h3>
+<table class="wire-table">
+  <tr><th>#</th><th>Color</th><th>Type</th><th>From</th><th>To</th><th>Why</th></tr>
+  <tr><td>W1</td><td><span class="wire-dot" style="background:var(--wire-red)"></span></td><td>M-M</td><td>A1</td><td>Left + rail</td><td>3V3 power to rail</td></tr>
+  <tr><td>W2</td><td><span class="wire-dot" style="background:var(--wire-black)"></span></td><td>M-M</td><td>A2</td><td>Left - rail</td><td>GND to rail</td></tr>
+  <tr><td>W3</td><td><span class="wire-dot" style="background:var(--wire-red)"></span></td><td>M-M</td><td>A18</td><td>Left + rail</td><td>Soil VCC power</td></tr>
+  <tr><td>W4</td><td><span class="wire-dot" style="background:var(--wire-black)"></span></td><td>M-M</td><td>A19</td><td>Left - rail</td><td>Soil GND</td></tr>
+  <tr><td>W5</td><td><span class="wire-dot" style="background:var(--wire-orange)"></span> Orange</td><td>M-M</td><td>A20</td><td>A6</td><td>Soil data &rarr; GPIO 35</td></tr>
+  <tr><td>W6</td><td><span class="wire-dot" style="background:var(--wire-red)"></span></td><td>M-M</td><td>A22</td><td>Left + rail</td><td>DHT VCC power</td></tr>
+  <tr><td>W7</td><td><span class="wire-dot" style="background:var(--wire-black)"></span></td><td>M-M</td><td>A24</td><td>Left - rail</td><td>DHT GND</td></tr>
+  <tr><td>W8</td><td><span class="wire-dot" style="background:var(--wire-green)"></span></td><td>M-M</td><td>A23</td><td>A5</td><td>DHT DATA &rarr; GPIO 4</td></tr>
+  <tr><td>W9</td><td><span class="wire-dot" style="background:var(--wire-red)"></span></td><td>M-M</td><td>A26</td><td>Left + rail</td><td>BH1750 VCC power</td></tr>
+  <tr><td>W10</td><td><span class="wire-dot" style="background:var(--wire-black)"></span></td><td>M-M</td><td>A27</td><td>Left - rail</td><td>BH1750 GND</td></tr>
+  <tr><td>W11</td><td><span class="wire-dot" style="background:var(--wire-blue)"></span></td><td>M-M</td><td>A28</td><td>A11</td><td>BH1750 SDA &rarr; GPIO 21</td></tr>
+  <tr><td>W12</td><td><span class="wire-dot" style="background:var(--wire-white)"></span></td><td>M-M</td><td>A29</td><td>A14</td><td>BH1750 SCL &rarr; GPIO 22</td></tr>
+</table>
+
+<div class="success-box">
+  <strong>Wire count:</strong> 12 male-male wires. No clip wires needed.
+  Everything goes through the breadboard via column A.
+</div>
+
+<h3>Wire checklist</h3>
+<ul class="checklist">
+  <li><span style="color:var(--wire-red)">W1  Red M-M</span> &mdash; A1 &rarr; left + rail (3V3 power)</li>
+  <li><span style="color:var(--wire-black)">W2  Black M-M</span> &mdash; A2 &rarr; left - rail (ground)</li>
+  <li><span style="color:var(--wire-red)">W3  Red M-M</span> &mdash; A18 &rarr; left + rail (soil VCC)</li>
+  <li><span style="color:var(--wire-black)">W4  Black M-M</span> &mdash; A19 &rarr; left - rail (soil GND)</li>
+  <li><span style="color:var(--wire-orange)">W5  Orange M-M</span> &mdash; A20 &rarr; A6 (soil AOUT to GPIO 35)</li>
+  <li><span style="color:var(--wire-red)">W6  Red M-M</span> &mdash; A21 &rarr; left + rail (DHT VCC)</li>
+  <li><span style="color:var(--wire-black)">W7  Black M-M</span> &mdash; A23 &rarr; left - rail (DHT GND)</li>
+  <li><span style="color:var(--wire-green)">W8  Green M-M</span> &mdash; A22 &rarr; A5 (DHT DATA to GPIO 4)</li>
+  <li><span style="color:var(--wire-red)">W9  Red M-M</span> &mdash; A30 &rarr; left + rail (BH1750 VCC)</li>
+  <li><span style="color:var(--wire-black)">W10 Black M-M</span> &mdash; A29 &rarr; left - rail (BH1750 GND)</li>
+  <li><span style="color:var(--wire-yellow)">W11 Yellow M-M</span> &mdash; A28 &rarr; A14 (BH1750 SCL to GPIO 22)</li>
+  <li><span style="color:var(--wire-yellow)">W12 Yellow M-M</span> &mdash; A27 &rarr; A11 (BH1750 SDA to GPIO 21)</li>
+</ul>
+
+<!-- ================================================================ -->
+<h2 id="software">9. Software setup</h2>
+
+<div class="step">
+  <span class="step-number">9A</span>
+  <h3>Install Arduino IDE</h3>
+  <p>Download from <a href="https://www.arduino.cc/en/software" target="_blank">arduino.cc/en/software</a>. It's free. Pick your OS. Install it.</p>
+</div>
+
+<div class="step">
+  <span class="step-number">9B</span>
+  <h3>Add ESP32 board support</h3>
+  <ol>
+    <li>Open Arduino IDE</li>
+    <li>Go to <code>File</code> &rarr; <code>Preferences</code></li>
+    <li>In "Additional Board Manager URLs", paste:<br>
+      <code style="font-size:0.75rem;word-break:break-all">https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_index.json</code></li>
+    <li>Click OK</li>
+    <li>Go to <code>Tools</code> &rarr; <code>Board</code> &rarr; <code>Boards Manager</code></li>
+    <li>Search <strong>"esp32"</strong></li>
+    <li>Install <strong>"esp32 by Espressif Systems"</strong></li>
+  </ol>
+</div>
+
+<div class="step">
+  <span class="step-number">9C</span>
+  <h3>Install sensor libraries</h3>
+  <p>Go to <code>Sketch</code> &rarr; <code>Include Library</code> &rarr; <code>Manage Libraries</code></p>
+  <p>Search and install each of these (click "Install All" if asked about dependencies):</p>
+  <ol>
+    <li><strong>"DHT sensor library"</strong> by Adafruit</li>
+    <li><strong>"Adafruit Unified Sensor"</strong> by Adafruit (may install automatically)</li>
+    <li><strong>"BH1750"</strong> by Christopher Laws</li>
+  </ol>
+</div>
+
+<div class="step">
+  <span class="step-number">9D</span>
+  <h3>Select board & port</h3>
+  <ol>
+    <li>Go to <code>Tools</code> &rarr; <code>Board</code> &rarr; <code>ESP32 Arduino</code> &rarr; <strong>"ESP32 Dev Module"</strong></li>
+    <li>Plug in the ESP32 via USB</li>
+    <li>Go to <code>Tools</code> &rarr; <code>Port</code> &rarr; pick the new one that appeared<br>
+      (usually <code>/dev/cu.usbserial-...</code> or <code>/dev/cu.SLAB_USBtoUART</code> on Mac)</li>
+  </ol>
+  <div class="warn-box">
+    <strong>No port showing?</strong> You may need a USB driver. Google
+    "CP2102 driver" or "CH340 driver" for your OS. The chip is printed on
+    the ESP32 board near the USB port.
+  </div>
+</div>
+
+<!-- ================================================================ -->
+<h2 id="flash">10. Flash the firmware</h2>
+
+<div class="step">
+  <span class="step-number">10A</span>
+  <h3>Open the sketch</h3>
+  <p>In Arduino IDE, open <code>firmware/orchid-sensor/orchid-sensor.ino</code></p>
+</div>
+
+<div class="step">
+  <span class="step-number">10B</span>
+  <h3>Edit the config</h3>
+  <p>At the top of the file, change these values:</p>
+<pre><code>const char* WIFI_SSID      = "YourWiFiName";
+const char* WIFI_PASS      = "YourWiFiPassword";
+const char* ENDPOINT       = "https://ewkfjmekrootyiijrgfh.supabase.co/functions/v1/sensor-reading";
+const char* DEVICE_TOKEN   = "odev_YourTokenHere";</code></pre>
+  <p>Get the device token by running the provisioning script (see the project README), or create one manually in Supabase.</p>
+</div>
+
+<div class="step">
+  <span class="step-number">10C</span>
+  <h3>Upload</h3>
+  <ol>
+    <li>Click the <strong>Upload</strong> button (&rarr; arrow icon in the toolbar)</li>
+    <li>Wait for "Compiling sketch..." then "Uploading..."</li>
+    <li>If it says <code>Connecting........_____</code> and fails: <strong>hold the BOOT button</strong> on the ESP32 while it's connecting, release when you see progress</li>
+  </ol>
+</div>
+
+<div class="step">
+  <span class="step-number">10D</span>
+  <h3>Monitor output</h3>
+  <ol>
+    <li>Go to <code>Tools</code> &rarr; <code>Serial Monitor</code></li>
+    <li>Set baud rate to <strong>115200</strong> (dropdown at bottom right)</li>
+    <li>You should see output like:</li>
+  </ol>
+<pre><code>=== Orchid Sensor ===
+Connecting to MyWiFi....
+Connected! IP: 192.168.1.42
+[Reading] Soil: 45% (raw: 2800) | Temp: 22.5°C | Humidity: 55.0% | Light: 350 lux
+[OK] Posted successfully: {"success":true,"reading_id":"abc-123","plant_id":"def-456"}</code></pre>
+</div>
+
+<div class="success-box">
+  <strong>If you see [OK] lines:</strong> Your sensor is live and sending data to Orchid.
+  You're done with the hardware!
+</div>
+
+<!-- ================================================================ -->
+<h2 id="calibrate">11. Calibrate the soil sensor</h2>
+
+<p>The soil sensor gives raw numbers (0-4095), not percentages. You need to tell it what "dry" and "wet" look like for YOUR specific sensor.</p>
+
+<div class="step">
+  <span class="step-number">STEP</span>
+  <h3>Enter calibration mode</h3>
+  <ol>
+    <li>Hold the <strong>BOOT button</strong> on the ESP32 while pressing the <strong>RST (reset) button</strong></li>
+    <li>Release both — the Serial Monitor will show raw values every second for 60 seconds</li>
+    <li>Hold the soil sensor <strong>in the air</strong> &mdash; note the number (e.g., <code>3650</code>). That's your <strong>SOIL_DRY_VALUE</strong>.</li>
+    <li>Dip the probe <strong>in a glass of water</strong> &mdash; note the number (e.g., <code>1600</code>). That's your <strong>SOIL_WET_VALUE</strong>.</li>
+  </ol>
+</div>
+
+<div class="danger-box">
+  <strong>Do NOT submerge past the line!</strong> The soil sensor has a
+  line where the probe ends and the electronics begin. Only dip the flat
+  probe part into water or soil. Getting the electronics wet will destroy it.
+</div>
+
+<p>Update the constants in the sketch and re-upload:</p>
+<pre><code>const int SOIL_DRY_VALUE   = 3650;  // YOUR air reading
+const int SOIL_WET_VALUE   = 1600;  // YOUR water reading</code></pre>
+
+<!-- ================================================================ -->
+<h2 id="mistakes">12. Common mistakes</h2>
+
+<div class="danger-box">
+  <strong>Wrong side of the gap.</strong> The center gap on the breadboard
+  splits each row into two independent halves. If the ESP32 pin is on the
+  LEFT side, your jumper wire must also go into the LEFT side of that same row.
+</div>
+
+<div class="warn-box">
+  <strong>Wrong GPIO pin.</strong> The numbers printed on the board are GPIO
+  numbers, not physical pin numbers. Look at the silkscreen text on YOUR
+  board &mdash; it might say "D34" or "34" or "G34" for GPIO 34.
+</div>
+
+<div class="warn-box">
+  <strong>Upload fails.</strong> Hold the BOOT button on the ESP32 while
+  clicking Upload. Release when you see "Writing at 0x..." in the console.
+  This is normal for many ESP32 boards.
+</div>
+
+<div class="warn-box">
+  <strong>DHT11 reads NaN.</strong> The data pin isn't connected properly, or
+  you need to add a 10K resistor between DATA and VCC. The breakout module
+  you ordered should have this built in &mdash; if you bought a bare sensor
+  (4 pins, no board), you'll need the resistor.
+</div>
+
+<div class="warn-box">
+  <strong>BH1750 reads -1 or 0.</strong> The I2C connection isn't working.
+  Double-check that SDA goes to GPIO 21 and SCL goes to GPIO 22 (not swapped).
+  Also check that the ADDR pin is NOT connected to 3.3V.
+</div>
+
+<div class="warn-box">
+  <strong>WiFi won't connect.</strong> The ESP32 only supports <strong>2.4 GHz
+  WiFi</strong>, not 5 GHz. If your router broadcasts both, make sure you're
+  connecting to the 2.4 GHz network. Also: SSID and password are case-sensitive.
+</div>
+
+<!-- ================================================================ -->
+<h2 id="resources">13. Tutorials & reference</h2>
+
+<h3>Best written guides (with wiring photos)</h3>
+<ul>
+  <li><a href="https://docs.sunfounder.com/projects/umsk/en/latest/03_esp32/esp32_lesson43_plant_monitor.html" target="_blank">SunFounder: ESP32 Plant Monitor</a> &mdash; closest to this exact project</li>
+  <li><a href="https://randomnerdtutorials.com/getting-started-with-esp32/" target="_blank">Random Nerd Tutorials: Getting Started with ESP32</a> &mdash; best intro</li>
+  <li><a href="https://randomnerdtutorials.com/esp32-dht11-dht22-temperature-humidity-sensor-arduino-ide/" target="_blank">Random Nerd Tutorials: ESP32 + DHT11</a> &mdash; real breadboard photos</li>
+  <li><a href="https://randomnerdtutorials.com/esp32-bh1750-ambient-light-sensor/" target="_blank">Random Nerd Tutorials: ESP32 + BH1750</a> &mdash; I2C wiring photos</li>
+  <li><a href="https://esp32io.com/tutorials/esp32-soil-moisture-sensor" target="_blank">ESP32io: Soil Moisture Sensor</a> &mdash; Fritzing pin-to-pin diagrams</li>
+  <li><a href="https://lastminuteengineers.com/esp32-arduino-ide-tutorial/" target="_blank">Last Minute Engineers: Arduino IDE Setup</a> &mdash; detailed IDE walkthrough</li>
+</ul>
+
+<h3>YouTube search terms</h3>
+<p>Search these on YouTube &mdash; each will give you multiple video walkthroughs:</p>
+<ul>
+  <li><strong>"ESP32 DHT11 tutorial wiring"</strong> &mdash; temp/humidity sensor</li>
+  <li><strong>"ESP32 soil moisture sensor tutorial"</strong> &mdash; analog sensor</li>
+  <li><strong>"ESP32 BH1750 light sensor"</strong> &mdash; I2C wiring</li>
+  <li><strong>"ESP32 breadboard beginner"</strong> &mdash; breadboard basics</li>
+  <li><strong>"ESP32 Arduino IDE setup Mac"</strong> &mdash; software setup</li>
+</ul>
+
+<h3>Channels to trust</h3>
+<ul>
+  <li><strong>Random Nerd Tutorials</strong> &mdash; gold standard for ESP32</li>
+  <li><strong>DroneBot Workshop</strong> &mdash; clear, slow-paced explanations</li>
+  <li><strong>Andreas Spiess</strong> &mdash; deep dives, great for "why"</li>
+  <li><strong>Last Minute Engineers</strong> &mdash; beginner-friendly</li>
+</ul>
+
+<hr style="border-color: var(--border); margin: 3rem 0;">
+<p style="color: var(--text-dim); font-size: 0.8rem; text-align: center;">
+  Orchid Sensor Build Guide &mdash; part of the
+  <a href="https://github.com/masudl-hub/orchidcare">orchidcare</a> project
+</p>
+
+</body>
+</html>

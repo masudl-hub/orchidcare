@@ -853,6 +853,193 @@ export async function comparePlantSnapshots(
   }
 }
 
+// ============================================================================
+// SENSOR TOOLS
+// ============================================================================
+
+export async function checkPlantSensors(
+  supabase: any,
+  profileId: string,
+  args: { plant_identifier: string },
+): Promise<Record<string, unknown>> {
+  try {
+    const resolution = await resolvePlants(supabase, profileId, args.plant_identifier);
+
+    if (resolution.plants.length === 0) {
+      return { success: false, error: `Couldn't find any plants matching "${args.plant_identifier}"` };
+    }
+
+    const plantIds = resolution.plants.map((p: any) => p.id);
+
+    // Fetch latest sensor readings for matched plants
+    const { data: readings, error } = await supabase
+      .from("sensor_readings")
+      .select("plant_id, soil_moisture, temperature, humidity, light_lux, battery_pct, created_at")
+      .in("plant_id", plantIds)
+      .order("created_at", { ascending: false })
+      .limit(plantIds.length * 3); // Fetch a few extra to ensure we get latest per plant
+
+    if (error) {
+      console.error("[checkPlantSensors] Query error:", error);
+      return { success: false, error: error.message };
+    }
+
+    // Dedupe to latest reading per plant
+    const latestByPlant: Record<string, any> = {};
+    for (const r of readings || []) {
+      if (!latestByPlant[r.plant_id]) {
+        latestByPlant[r.plant_id] = r;
+      }
+    }
+
+    // Build results with status assessments
+    const results = resolution.plants.map((plant: any) => {
+      const reading = latestByPlant[plant.id];
+      const plantName = plant.nickname || plant.species || plant.name;
+
+      if (!reading) {
+        return { plant: plantName, plant_id: plant.id, has_sensor: false };
+      }
+
+      const now = Date.now();
+      const readingAge = now - new Date(reading.created_at).getTime();
+      const minutesAgo = Math.round(readingAge / 60000);
+
+      return {
+        plant: plantName,
+        plant_id: plant.id,
+        has_sensor: true,
+        soil_moisture: reading.soil_moisture != null ? {
+          value: reading.soil_moisture,
+          unit: "%",
+          status: reading.soil_moisture < 20 ? "critical" :
+                  reading.soil_moisture < 35 ? "warning" :
+                  reading.soil_moisture <= 75 ? "ok" : "warning",
+          note: reading.soil_moisture < 20 ? "Very dry — needs water urgently" :
+                reading.soil_moisture < 35 ? "Getting dry — water soon" :
+                reading.soil_moisture <= 75 ? "Good moisture level" : "Very wet — risk of overwatering",
+        } : null,
+        temperature: reading.temperature != null ? {
+          value: reading.temperature,
+          unit: "°C",
+          status: reading.temperature < 10 ? "critical" :
+                  reading.temperature < 15 ? "warning" :
+                  reading.temperature <= 30 ? "ok" : "critical",
+          note: reading.temperature < 10 ? "Too cold for most houseplants" :
+                reading.temperature < 15 ? "A bit cool" :
+                reading.temperature <= 30 ? "Good temperature" : "Too hot — move to cooler spot",
+        } : null,
+        humidity: reading.humidity != null ? {
+          value: reading.humidity,
+          unit: "%",
+          status: reading.humidity < 30 ? "warning" :
+                  reading.humidity <= 70 ? "ok" : "warning",
+          note: reading.humidity < 30 ? "Very dry air — consider misting or a humidifier" :
+                reading.humidity <= 70 ? "Good humidity" : "Very humid — watch for fungal issues",
+        } : null,
+        light_lux: reading.light_lux != null ? {
+          value: reading.light_lux,
+          unit: "lux",
+          status: reading.light_lux < 50 ? "low" :
+                  reading.light_lux < 500 ? "medium" :
+                  reading.light_lux <= 10000 ? "bright" : "direct",
+          note: reading.light_lux < 50 ? "Very low light — only low-light plants thrive here" :
+                reading.light_lux < 500 ? "Low to medium indirect light" :
+                reading.light_lux <= 10000 ? "Bright indirect light — great for most plants" : "Direct sunlight — watch for leaf burn",
+        } : null,
+        battery_pct: reading.battery_pct,
+        last_reading: minutesAgo < 60 ? `${minutesAgo}m ago` :
+                      minutesAgo < 1440 ? `${Math.round(minutesAgo / 60)}h ago` :
+                      `${Math.round(minutesAgo / 1440)}d ago`,
+        stale: readingAge > 30 * 60 * 1000, // >30 min = stale
+      };
+    });
+
+    const plantsWithSensors = results.filter((r: any) => r.has_sensor);
+
+    return {
+      success: true,
+      readings: results,
+      summary: plantsWithSensors.length === 0
+        ? `No sensor readings found for ${resolution.isBulk ? "those plants" : `"${args.plant_identifier}"`}`
+        : `Found readings for ${plantsWithSensors.length} plant${plantsWithSensors.length !== 1 ? "s" : ""}`,
+    };
+  } catch (error) {
+    console.error("[checkPlantSensors] Exception:", error);
+    return { success: false, error: String(error) };
+  }
+}
+
+export async function associateReading(
+  supabase: any,
+  profileId: string,
+  args: { plant_identifier: string },
+): Promise<Record<string, unknown>> {
+  try {
+    const resolution = await resolvePlants(supabase, profileId, args.plant_identifier);
+
+    if (resolution.plants.length === 0) {
+      return { success: false, error: `Couldn't find a plant matching "${args.plant_identifier}"` };
+    }
+
+    if (resolution.isBulk) {
+      return { success: false, error: "Please specify a single plant for pulse-check association, not a bulk pattern" };
+    }
+
+    const plant = resolution.plants[0];
+    const plantName = plant.nickname || plant.species || plant.name;
+
+    // Find the most recent unassociated reading for this user
+    const { data: reading, error: readError } = await supabase
+      .from("sensor_readings")
+      .select("id, soil_moisture, temperature, humidity, light_lux, battery_pct, created_at")
+      .eq("profile_id", profileId)
+      .is("plant_id", null)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .single();
+
+    if (readError || !reading) {
+      return { success: false, error: "No unassociated sensor reading found. Make sure your device has sent a reading first." };
+    }
+
+    // Check staleness (>5 minutes old)
+    const ageMs = Date.now() - new Date(reading.created_at).getTime();
+    const ageMinutes = Math.round(ageMs / 60000);
+    const stale = ageMs > 5 * 60 * 1000;
+
+    // Associate the reading with the plant
+    const { error: updateError } = await supabase
+      .from("sensor_readings")
+      .update({ plant_id: plant.id })
+      .eq("id", reading.id);
+
+    if (updateError) {
+      console.error("[associateReading] Update error:", updateError);
+      return { success: false, error: updateError.message };
+    }
+
+    console.log(`[associateReading] Associated reading ${reading.id} with plant ${plantName} (${plant.id})`);
+
+    return {
+      success: true,
+      plant: plantName,
+      plant_id: plant.id,
+      reading_id: reading.id,
+      soil_moisture: reading.soil_moisture,
+      temperature: reading.temperature,
+      humidity: reading.humidity,
+      light_lux: reading.light_lux,
+      battery_pct: reading.battery_pct,
+      age: `${ageMinutes}m ago`,
+      stale_warning: stale ? `This reading is ${ageMinutes} minutes old — it may not reflect current conditions` : null,
+    };
+  } catch (error) {
+    console.error("[associateReading] Exception:", error);
+    return { success: false, error: String(error) };
+  }
+}
+
 export async function checkAgentPermission(supabase: any, profileId: string, capability: string): Promise<boolean> {
   try {
     const { data, error } = await supabase

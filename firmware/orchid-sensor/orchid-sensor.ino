@@ -59,7 +59,7 @@ void setup() {
   // Init sensors
   analogSetAttenuation(ADC_11db);  // Set ADC to read full 0-3.3V range
   dht.begin();
-  Wire.begin(21, 22);  // Explicit SDA=GPIO21, SCL=GPIO22 (don't trust board defaults)
+  Wire.begin(18, 19);  // SDA=GPIO18 (row 9), SCL=GPIO19 (row 10) — trying alternate pins
   // Scan I2C bus to see what's connected
   Serial.println("Scanning I2C bus...");
   int devicesFound = 0;

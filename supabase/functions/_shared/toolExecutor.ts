@@ -26,6 +26,7 @@ import {
   callResearchAgent,
   callMapsShoppingAgent,
   verifyStoreInventory,
+  searchProducts,
 } from "./research.ts";
 import { callDeepThink } from "./deepThink.ts";
 
@@ -116,6 +117,20 @@ export async function executeTool(
         );
       }
       break;
+
+    case "search_products": {
+      const SERPAPI_KEY = Deno.env.get("SERPAPI_KEY");
+      if (!SERPAPI_KEY) {
+        result = { success: false, error: "Product search not configured (missing SERPAPI_KEY)" };
+      } else {
+        result = await searchProducts(
+          args.query as string,
+          SERPAPI_KEY,
+          (args.max_results as number) || 5,
+        );
+      }
+      break;
+    }
 
     case "deep_think":
       if (!LOVABLE_API_KEY) {

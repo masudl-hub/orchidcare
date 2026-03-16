@@ -1,7 +1,7 @@
 // Shared external API tool implementations (Perplexity, Gemini Maps Grounding)
 
 import { GoogleGenAI } from "npm:@google/genai";
-import type { StoreSearchResult, StoreVerification } from "./types.ts";
+import type { StoreSearchResult, StoreVerification, ProductResult, ProductSearchResult } from "./types.ts";
 
 // Helper to parse distance strings for sorting
 export function parseDistance(distStr: string | undefined): number {
@@ -481,6 +481,52 @@ Return ONLY valid JSON:
     return { success: true, data: verification };
   } catch (error) {
     console.error("[StoreVerify] Error:", error);
+    return { success: false, error: String(error) };
+  }
+}
+
+export async function searchProducts(
+  query: string,
+  SERPAPI_KEY: string,
+  maxResults: number = 5,
+): Promise<{ success: boolean; data?: ProductSearchResult; error?: string }> {
+  try {
+    console.log(`[ProductSearch] Searching for: "${query}"`);
+
+    const params = new URLSearchParams({
+      engine: "google_shopping",
+      q: query,
+      api_key: SERPAPI_KEY,
+      num: String(maxResults),
+    });
+
+    const response = await fetch(`https://serpapi.com/search.json?${params}`);
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error("[ProductSearch] SerpApi error:", response.status, errorText);
+      return { success: false, error: `Product search failed: ${response.status}` };
+    }
+
+    const data = await response.json();
+    const products: ProductResult[] = (data.shopping_results || [])
+      .slice(0, maxResults)
+      .map((item: any) => ({
+        title: item.title,
+        price: item.price,
+        extractedPrice: item.extracted_price,
+        rating: item.rating,
+        reviews: item.reviews,
+        thumbnail: item.thumbnail,
+        link: item.link,
+        source: item.source,
+        snippet: item.snippet,
+      }));
+
+    console.log(`[ProductSearch] Found ${products.length} products for "${query}"`);
+    return { success: true, data: { products, searchedFor: query } };
+  } catch (error) {
+    console.error("[ProductSearch] Error:", error);
     return { success: false, error: String(error) };
   }
 }

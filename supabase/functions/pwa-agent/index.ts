@@ -177,6 +177,7 @@ serve(async (req: Request) => {
         data: {
           reply: agentResult.reply || "",
           mediaToSend: agentResult.mediaToSend || [],
+          structuredResults: agentResult.structuredResults || undefined,
         },
       })
     );

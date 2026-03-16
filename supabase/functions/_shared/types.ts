@@ -57,3 +57,20 @@ export interface StoreVerification {
   source?: string;
   alternatives?: string[];
 }
+
+export interface ProductResult {
+  title: string;
+  price?: string;
+  extractedPrice?: number;
+  rating?: number;
+  reviews?: number;
+  thumbnail?: string;
+  link?: string;
+  source?: string;
+  snippet?: string;
+}
+
+export interface ProductSearchResult {
+  products: ProductResult[];
+  searchedFor: string;
+}

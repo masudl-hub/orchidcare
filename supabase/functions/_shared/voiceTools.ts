@@ -315,7 +315,7 @@ export const voiceToolDeclarations = [
         parameters: {
           type: "OBJECT",
           properties: {
-            plant_identifier: { type: "STRING", description: "Name/nickname of the plant to compare snapshots for" },
+            plant_identifier: { type: "STRING", description: "Plant ID from context (preferred) or name/nickname" },
             comparison_type: { type: "STRING", description: "latest (compare last 2), all (summarize full timeline), or specific" },
           },
           required: ["plant_identifier"],

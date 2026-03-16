@@ -79,7 +79,7 @@ function SuggestedChips({ entry, onAction }: { entry: ArtifactEntry; onAction: (
   return (
     <div style={{
       display: 'flex', flexWrap: 'wrap', gap: '6px',
-      marginTop: '8px', marginBottom: '4px',
+      marginTop: '4px', marginBottom: '0px',
     }}>
       {chips.map(chip => (
         <button
@@ -92,7 +92,7 @@ function SuggestedChips({ entry, onAction }: { entry: ArtifactEntry; onAction: (
             color: 'rgba(255,255,255,0.6)',
             border: '1px solid rgba(255,255,255,0.1)',
             background: 'rgba(255,255,255,0.03)',
-            borderRadius: '999px',
+            borderRadius: '0px',
             whiteSpace: 'nowrap',
             transition: 'all 0.15s',
           }}

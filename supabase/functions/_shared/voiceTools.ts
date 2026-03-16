@@ -439,7 +439,7 @@ export const voiceToolDeclarations = [
         parameters: {
           type: "OBJECT",
           properties: {
-            plant_identifier: { type: "STRING", description: "Plant name or nickname" },
+            plant_identifier: { type: "STRING", description: "Plant ID from context (preferred) or name/nickname" },
             alert_type: { type: "STRING", description: "Type of alert to dismiss: dry, wet, cold, hot, low, high, offline" },
             reason: { type: "STRING", description: "Why dismissed: 'User will water later', 'Plant is being moved', etc." },
           },

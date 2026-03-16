@@ -81,7 +81,7 @@ export const voiceToolDeclarations = [
         parameters: {
           type: "OBJECT",
           properties: {
-            plant_identifier: { type: "STRING", description: "Plant name or bulk pattern" },
+            plant_identifier: { type: "STRING", description: "Plant ID from context (preferred) or name/bulk pattern" },
             event_type: { type: "STRING", description: "water, fertilize, repot, prune, mist, rotate, treat" },
             notes: { type: "STRING", description: "Optional notes" },
           },

@@ -295,7 +295,7 @@ export const voiceToolDeclarations = [
         parameters: {
           type: "OBJECT",
           properties: {
-            plant_identifier: { type: "STRING", description: "Name/nickname of the plant to attach the snapshot to" },
+            plant_identifier: { type: "STRING", description: "Plant ID from context (preferred) or name/nickname" },
             description: { type: "STRING", description: "Detailed visual description: size, color, leaf shape/count, health markers, pot type, distinguishing features. Be specific enough to match later." },
             context: { type: "STRING", description: "Why: identification, diagnosis, routine_check, user_requested" },
             health_notes: { type: "STRING", description: "Optional health observations at this point in time" },

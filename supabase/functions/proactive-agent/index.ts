@@ -525,113 +525,167 @@ serve(async (req: Request) => {
         // Checked per-event below via fingerprint
       }
 
-      // Collect events
-      const allEvents: ProactiveEvent[] = [];
-      for (const pref of preferences) {
-        if (!pref.enabled) continue;
-        if (pref.topic === 'care_reminders') {
-          const reminders = await getDueReminders(supabase, profile.id);
-          console.log(`[ProactiveAgent] Profile ${profile.id} | care_reminders found=${reminders.length}`);
-          allEvents.push(...reminders);
-        } else if (pref.topic === 'observations') {
-          const inactive = await getInactivePlants(supabase, profile.id);
-          console.log(`[ProactiveAgent] Profile ${profile.id} | observations found=${inactive.length}`);
-          allEvents.push(...inactive);
-        } else if (pref.topic === 'health_followups') {
-          const followups = await getDiagnosisFollowups(supabase, profile.id);
-          console.log(`[ProactiveAgent] Profile ${profile.id} | health_followups found=${followups.length}`);
-          allEvents.push(...followups);
-        } else if (pref.topic === 'seasonal_tips') {
-          const seasonal = getSeasonalContext(profile.location);
-          const includeSeasonalTip = seasonal && Math.random() < 0.3;
-          if (includeSeasonalTip) {
-            allEvents.push({
-              type: 'seasonal', priority: 4,
-              data: { season: seasonal.season, tips: seasonal.tips },
-              message_hint: `Seasonal ${seasonal.season} care tip`,
-            });
-          }
-        }
-      }
-
-      // Sensor intelligence — collected once, outside preference loop
-      if (enabledTopics.includes('observations') || enabledTopics.includes('care_reminders')) {
-        const [sensorAlerts, offlineDevices, trends] = await Promise.all([
-          getActiveSensorAlerts(supabase, profile.id),
-          getOfflineDevices(supabase, profile.id),
-          getSensorTrends(supabase, profile.id),
-        ]);
-        console.log(`[ProactiveAgent] Profile ${profile.id} | sensor: alerts=${sensorAlerts.length} offline=${offlineDevices.length} trends=${trends.length}`);
-        allEvents.push(...sensorAlerts, ...offlineDevices, ...trends);
-      }
-
-      totalEventsFound += allEvents.length;
-
-      if (allEvents.length === 0) {
-        console.log(`[ProactiveAgent] SKIP profile ${profile.id} | reason=no_pending_events`);
-        trackSkip('no_pending_events');
-        continue;
-      }
-
-      // ===== EVENT FINGERPRINT DEDUP (especially for realtime) =====
-      const dedupedEvents: ProactiveEvent[] = [];
-      for (const event of allEvents) {
-        const identifiers: Record<string, string> = { type: event.type };
-        if (event.data.reminder_id) identifiers.reminder_id = event.data.reminder_id;
-        if (event.data.plant_id) identifiers.plant_id = event.data.plant_id;
-        if (event.data.diagnosis_id) identifiers.diagnosis_id = event.data.diagnosis_id;
-        if (event.data.alert_id) identifiers.alert_id = event.data.alert_id;
-        if (event.data.device_id) identifiers.device_id = event.data.device_id;
-        
-        const fingerprint = computeEventFingerprint(profile.id, event.type, identifiers);
-        
-        if (frequency === 'realtime') {
-          // For realtime, check per-event dedup
-          if (await hasRecentFingerprint(supabase, profile.id, fingerprint)) {
-            console.log(`[ProactiveAgent] DEDUP: skipping event ${event.type} for profile ${profile.id} (fingerprint=${fingerprint})`);
-            continue;
-          }
-        }
-        dedupedEvents.push(event);
-      }
-
-      if (dedupedEvents.length === 0) {
-        console.log(`[ProactiveAgent] SKIP profile ${profile.id} | reason=all_events_deduped`);
-        trackSkip('all_events_deduped');
-        continue;
-      }
-
-      // Priority boosting
-      const userConcerns = profile.primary_concerns || [];
-      for (const event of dedupedEvents) {
-        if (userConcerns.includes('watering') && event.type === 'reminder_due' && event.data?.reminder_type === 'water') event.priority -= 0.5;
-        if (userConcerns.includes('pests') && event.type === 'diagnosis_followup') event.priority -= 0.5;
-        if (userConcerns.includes('identification') && event.type === 'inactivity') event.priority -= 0.3;
-        if (userConcerns.includes('general') && event.type === 'seasonal') event.priority -= 0.3;
-      }
-
-      dedupedEvents.sort((a, b) => a.priority - b.priority);
-      const topEvents = dedupedEvents.slice(0, 3);
-
+      // ===== GATHER ALL CONTEXT FOR LLM TRIAGE =====
+      const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
       const correlationId = generateCorrelationId('proactive');
-      const eventSummary = topEvents.map(e => `${e.type}(p=${e.priority})`).join(',');
-      console.log(`[ProactiveAgent] DECISION: SEND profile ${profile.id} | correlation=${correlationId} | total_events=${allEvents.length} deduped=${dedupedEvents.length} selected=${topEvents.length} | events=[${eventSummary}]`);
 
-      // Fetch weather + sensor snapshot for richer LLM context
+      // Fetch all data in parallel
       const { data: profileFull } = await supabase
         .from('profiles')
         .select('latitude, longitude')
         .eq('id', profile.id)
         .single();
 
-      const [weather, sensorSnapshot] = await Promise.all([
+      const [
+        dueReminders, inactivePlants, diagnosisFollowups,
+        sensorAlerts, offlineDevices, sensorTrends,
+        weather, sensorSnapshot,
+        recentCareEvents,
+      ] = await Promise.all([
+        getDueReminders(supabase, profile.id),
+        getInactivePlants(supabase, profile.id),
+        getDiagnosisFollowups(supabase, profile.id),
+        getActiveSensorAlerts(supabase, profile.id),
+        getOfflineDevices(supabase, profile.id),
+        getSensorTrends(supabase, profile.id),
         fetchWeather(profileFull?.latitude, profileFull?.longitude),
         getLatestSensorSnapshot(supabase, profile.id),
+        supabase.from('care_events').select('event_type, created_at, plants(nickname, name, species)').eq('plant_id', profile.id).gte('created_at', new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString()).order('created_at', { ascending: false }).limit(10).then((r: any) => r.data || []),
       ]);
 
+      const seasonal = getSeasonalContext(profile.location);
+
+      // Build context document for Flash triage
+      let triageContext = `Current time: ${new Date().toLocaleString('en-US', { timeZone: profile.timezone || 'America/New_York' })}\n`;
+      triageContext += `User: ${profile.display_name || 'Unknown'}, ${profile.experience_level || 'beginner'} level, location: ${profile.location || 'unknown'}\n`;
+      triageContext += `Season: ${seasonal?.season || 'unknown'}\n`;
+      triageContext += `Notification preferences: ${enabledTopics.join(', ')}\n`;
+
       if (weather) {
-        console.log(`[ProactiveAgent] Weather for ${profile.id}: ${weather.temperature}°C, ${weather.humidity}% humidity, UV ${weather.uv_index}, ${weather.description}`);
+        triageContext += `\nWeather: ${weather.temperature}°C, ${weather.humidity}% humidity, UV ${weather.uv_index}, ${weather.description}\n`;
       }
+
+      if (sensorSnapshot) {
+        triageContext += `\nSensor readings:\n${sensorSnapshot}\n`;
+      }
+
+      if (dueReminders.length > 0) {
+        triageContext += `\nOverdue reminders:\n${dueReminders.map(e => `- ${e.message_hint}`).join('\n')}\n`;
+      }
+
+      if (sensorAlerts.length > 0) {
+        triageContext += `\nActive sensor alerts:\n${sensorAlerts.map(e => `- ${e.message_hint}`).join('\n')}\n`;
+      }
+
+      if (offlineDevices.length > 0) {
+        triageContext += `\nOffline devices:\n${offlineDevices.map(e => `- ${e.message_hint}`).join('\n')}\n`;
+      }
+
+      if (sensorTrends.length > 0) {
+        triageContext += `\nSensor trends:\n${sensorTrends.map(e => `- ${e.message_hint}`).join('\n')}\n`;
+      }
+
+      if (inactivePlants.length > 0) {
+        triageContext += `\nInactive plants (no care in 14+ days):\n${inactivePlants.map(e => `- ${e.data.plant_name}`).join('\n')}\n`;
+      }
+
+      if (diagnosisFollowups.length > 0) {
+        triageContext += `\nDiagnosis followups:\n${diagnosisFollowups.map(e => `- ${e.message_hint}`).join('\n')}\n`;
+      }
+
+      if (recentCareEvents.length > 0) {
+        triageContext += `\nRecent care (last 3 days):\n${recentCareEvents.map((e: any) => `- ${e.event_type} ${e.plants?.nickname || e.plants?.name || ''}`).join('\n')}\n`;
+      }
+
+      totalEventsFound += dueReminders.length + inactivePlants.length + diagnosisFollowups.length + sensorAlerts.length + offlineDevices.length + sensorTrends.length;
+
+      console.log(`[ProactiveAgent] Profile ${profile.id} | triage context: ${triageContext.length} chars, ${totalEventsFound} raw signals`);
+
+      // ===== LLM TRIAGE: Should we message this user? =====
+      let shouldMessage = false;
+      let triageTopics: string[] = [];
+      let triageReasoning = '';
+
+      if (LOVABLE_API_KEY) {
+        try {
+          const triageResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              model: 'google/gemini-3-flash-preview',
+              messages: [
+                {
+                  role: 'system',
+                  content: `You are a plant care triage agent. Given the current state of a user's plants, decide if there's anything worth proactively messaging them about RIGHT NOW.
+
+Rules:
+- Only recommend messaging if there's something genuinely useful or timely
+- Don't message just because you can — respect the user's attention
+- Critical sensor alerts or overdue watering always warrant a message
+- Combine related signals (e.g., hot weather + dry soil = urgent)
+- If nothing is noteworthy, say so
+
+Return JSON: {"should_message": boolean, "reasoning": "1 sentence why/why not", "topics": ["short topic strings for dedup"]}`
+                },
+                { role: 'user', content: triageContext },
+              ],
+              max_tokens: 150,
+            }),
+          });
+
+          if (triageResponse.ok) {
+            const triageData = await triageResponse.json();
+            const triageText = triageData.choices?.[0]?.message?.content || '';
+            try {
+              const jsonMatch = triageText.match(/\{[\s\S]*\}/);
+              const parsed = JSON.parse(jsonMatch ? jsonMatch[0] : triageText);
+              shouldMessage = parsed.should_message === true;
+              triageTopics = parsed.topics || [];
+              triageReasoning = parsed.reasoning || '';
+            } catch {
+              console.error('[ProactiveAgent] Triage JSON parse error, defaulting to skip:', triageText);
+            }
+          } else {
+            console.error('[ProactiveAgent] Triage LLM call failed:', await triageResponse.text());
+          }
+        } catch (triageErr) {
+          console.error('[ProactiveAgent] Triage exception:', triageErr);
+        }
+      } else {
+        // Fallback: message if there are any high-priority signals
+        shouldMessage = sensorAlerts.some(a => a.data.severity === 'critical') || dueReminders.length > 0 || sensorTrends.length > 0;
+        triageReasoning = 'fallback: no LOVABLE_API_KEY for triage';
+        triageTopics = ['fallback'];
+      }
+
+      console.log(`[ProactiveAgent] Triage result for ${profile.id}: should_message=${shouldMessage}, reasoning="${triageReasoning}", topics=[${triageTopics.join(',')}]`);
+
+      if (!shouldMessage) {
+        trackSkip('llm_triage_no_message');
+        continue;
+      }
+
+      // Dedup by triage topics (for realtime frequency)
+      if (frequency === 'realtime') {
+        const topicFingerprint = computeEventFingerprint(profile.id, 'triage', { topics: triageTopics.sort().join(',') });
+        if (await hasRecentFingerprint(supabase, profile.id, topicFingerprint)) {
+          console.log(`[ProactiveAgent] DEDUP: triage topics already sent today for ${profile.id}`);
+          trackSkip('triage_deduped');
+          continue;
+        }
+      }
+
+      // Build synthetic events for the orchid-agent payload (backward compat)
+      const topEvents: ProactiveEvent[] = [
+        ...sensorAlerts.slice(0, 2),
+        ...dueReminders.slice(0, 2),
+        ...sensorTrends.slice(0, 1),
+        ...offlineDevices.slice(0, 1),
+        ...diagnosisFollowups.slice(0, 1),
+        ...inactivePlants.slice(0, 1),
+      ].slice(0, 5);
+
+      console.log(`[ProactiveAgent] DECISION: SEND profile ${profile.id} | correlation=${correlationId} | triage="${triageReasoning}" | events=${topEvents.length}`);
 
       let delivered = false;
 
@@ -640,7 +694,6 @@ serve(async (req: Request) => {
         const TELEGRAM_BOT_TOKEN = Deno.env.get('TELEGRAM_BOT_TOKEN');
 
         if (profile.telegram_chat_id) {
-          // Log attempt
           await logOutboundMessage(supabase, {
             sourceFunction: 'proactive-agent',
             sourceMode: 'proactive',
@@ -648,17 +701,18 @@ serve(async (req: Request) => {
             telegramChatId: profile.telegram_chat_id,
             correlationId,
             deliveryStatus: 'attempted',
-            triggerPayload: { events: topEvents.map(e => ({ type: e.type, hint: e.message_hint, data: e.data })) },
+            triggerPayload: { triage: { reasoning: triageReasoning, topics: triageTopics }, events: topEvents.map(e => ({ type: e.type, hint: e.message_hint })) },
           });
 
-          // Build enriched context for the LLM
+          // Build enriched summary with ALL context for orchid-agent
           let environmentContext = '';
           if (weather) {
-            environmentContext += `\nCurrent weather at user's location: ${weather.temperature}°C, ${weather.humidity}% outdoor humidity, UV index ${weather.uv_index}, ${weather.description}.`;
+            environmentContext += `\nCurrent weather: ${weather.temperature}°C, ${weather.humidity}% humidity, UV ${weather.uv_index}, ${weather.description}.`;
           }
           if (sensorSnapshot) {
-            environmentContext += `\nLatest sensor readings:\n${sensorSnapshot}`;
+            environmentContext += `\nSensor readings:\n${sensorSnapshot}`;
           }
+          environmentContext += `\nTriage reasoning: ${triageReasoning}`;
 
           const proactivePayload = {
             proactiveMode: true,

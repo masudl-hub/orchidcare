@@ -398,7 +398,7 @@ export const voiceToolDeclarations = [
         parameters: {
           type: "OBJECT",
           properties: {
-            plant_identifier: { type: "STRING", description: "Plant name or nickname" },
+            plant_identifier: { type: "STRING", description: "Plant ID from context (preferred) or name/nickname" },
             metric: { type: "STRING", description: "soil_moisture, temperature, humidity, light_lux, or all" },
             period: { type: "STRING", description: "24h, 7d, or 30d" },
           },

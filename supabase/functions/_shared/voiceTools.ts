@@ -327,7 +327,7 @@ export const voiceToolDeclarations = [
         parameters: {
           type: "OBJECT",
           properties: {
-            plant_identifier: { type: "STRING", description: "Plant name, nickname, or 'all' for all plants with sensors" },
+            plant_identifier: { type: "STRING", description: "Plant ID from context (preferred), name, or 'all' for all plants with sensors" },
           },
           required: ["plant_identifier"],
         },

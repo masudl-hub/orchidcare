@@ -427,7 +427,7 @@ export const voiceToolDeclarations = [
             action: { type: "STRING", description: "assign, unassign, rename, identify, status, or provision" },
             device_name: { type: "STRING", description: "Name of the device (fuzzy match)" },
             device_id: { type: "STRING", description: "Device UUID (if known)" },
-            plant_identifier: { type: "STRING", description: "Plant name — required for assign and optional for provision" },
+            plant_identifier: { type: "STRING", description: "Plant ID from context (preferred) or name — required for assign, optional for provision" },
             new_name: { type: "STRING", description: "New name — required for rename, optional for provision (defaults to 'New Sensor')" },
           },
           required: ["action"],

@@ -142,7 +142,7 @@ async function validateAuthAndGetProfile(
   return null;
 }
 
-import { voiceToolDeclarations } from "../_shared/voiceTools.ts";
+import { voiceToolsGemini as voiceToolDeclarations } from "../_shared/toolSchemas.ts";
 import { executeTool } from "../_shared/toolExecutor.ts";
 
 // ---------------------------------------------------------------------------

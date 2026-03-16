@@ -9,6 +9,7 @@ export interface HierarchicalContext {
   latestSensorReadings: any[];
   sensorRanges: Record<string, any>;
   activeSensorAlerts: Record<string, any[]>;
+  careEventsByPlant: Record<string, any[]>;
 }
 
 export interface PlantResolutionResult {

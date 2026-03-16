@@ -147,11 +147,22 @@ export function PwaChat() {
               ? (await Promise.all(rawUrls.map(async (url) => ({ url: await resolveMediaUrl(url), title: 'Image' })))).filter(img => img.url)
               : undefined;
 
+            // Resolve user media URLs from the preceding inbound message
+            let userImageUrls: string[] | undefined;
+            if (i > 0 && historyData[i - 1].direction === 'inbound') {
+              const userRawUrls: string[] = historyData[i - 1].media_urls || [];
+              if (userRawUrls.length > 0) {
+                const resolved = await Promise.all(userRawUrls.map(resolveMediaUrl));
+                userImageUrls = resolved.filter(Boolean);
+              }
+            }
+
             historyArtifacts.push({
               id: historyData[i].id,
               element: <ChatResponse text={historyData[i].content} images={images} />,
               userMessage: userMsg,
               userMessageId: i > 0 && historyData[i - 1].direction === 'inbound' ? historyData[i - 1].id : undefined,
+              userImageUrls,
               artifactType: 'chat',
               artifactData: { text: historyData[i].content },
               responseMessage: historyData[i].content,
@@ -439,6 +450,9 @@ export function PwaChat() {
           element,
           userMessage: text !== '(photo)' ? text : undefined,
           userMessageId: userMsg.id,
+          userImageUrls: media && media.length > 0
+            ? media.map(m => `data:${m.type};base64,${m.data}`)
+            : undefined,
           artifactType: 'chat',
           artifactData: { text: reply },
           responseMessage: reply,

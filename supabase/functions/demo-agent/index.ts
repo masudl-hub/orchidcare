@@ -5,7 +5,7 @@ import {
   callMapsShoppingAgent,
   verifyStoreInventory,
 } from "../_shared/research.ts";
-import { callDeepThink } from "../_shared/deepThink.ts";
+import { callDeepThink } from "../_shared/tools.ts";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -683,7 +683,7 @@ MANDATORY STYLE:
   }
 }
 
-// callDeepThink is now imported from ../_shared/deepThink.ts
+// callDeepThink is imported from ../_shared/tools.ts
 
 async function executeDemoTool(
   toolName: string,

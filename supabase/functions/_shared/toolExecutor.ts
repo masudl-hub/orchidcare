@@ -1,34 +1,11 @@
-// Shared tool executor for voice call sessions.
-// Used by call-session and dev-call-proxy.
+// Voice call tool executor — used by call-session and dev-call-proxy.
+// Delegates shared tools to toolDispatch.ts, handles voice-specific tools locally.
 
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
-import {
-  savePlant,
-  modifyPlant,
-  deletePlant,
-  createReminder,
-  deleteReminder,
-  logCareEvent,
-  saveUserInsight,
-  updateNotificationPreferences,
-  updateProfile,
-  capturePlantSnapshot,
-  comparePlantSnapshots,
-  checkPlantSensors,
-  associateReading,
-  setPlantRanges,
-  getSensorHistory,
-  comparePlantEnvironments,
-  manageDevice,
-  dismissSensorAlert,
-} from "./tools.ts";
-import {
-  callResearchAgent,
-  callMapsShoppingAgent,
-  verifyStoreInventory,
-  searchProducts,
-} from "./research.ts";
-import { callDeepThink } from "./deepThink.ts";
+import { capturePlantSnapshot } from "./tools.ts";
+import { callMapsShoppingAgent } from "./research.ts";
+import { callDeepThink } from "./tools.ts";
+import { executeSharedTool } from "./toolDispatch.ts";
 
 export async function executeTool(
   supabase: SupabaseClient,
@@ -43,48 +20,28 @@ export async function executeTool(
   const startTime = Date.now();
   console.log(`[ToolExecutor] ${toolName}, args=${JSON.stringify(args).substring(0, 500)}`);
 
+  // Try shared dispatch first (handles ~20 common tools)
+  const shared = await executeSharedTool(
+    {
+      supabase,
+      profileId,
+      apiKeys: { PERPLEXITY: PERPLEXITY_API_KEY, LOVABLE: LOVABLE_API_KEY, GEMINI: GEMINI_API_KEY },
+      sourceMessageId,
+    },
+    toolName,
+    args,
+  );
+
+  if (shared.handled) {
+    const elapsed = Date.now() - startTime;
+    console.log(`[ToolExecutor] ${toolName} complete (${elapsed}ms)`);
+    return shared.result!;
+  }
+
+  // Voice-specific tools below
   let result: Record<string, unknown>;
 
   switch (toolName) {
-    case "research":
-      if (!PERPLEXITY_API_KEY)
-        result = { success: false, error: "Research not configured" };
-      else
-        result = await callResearchAgent(args.query, PERPLEXITY_API_KEY);
-      break;
-
-    case "save_plant":
-      result = await savePlant(supabase, profileId, args);
-      break;
-
-    case "modify_plant":
-      result = await modifyPlant(supabase, profileId, args);
-      break;
-
-    case "delete_plant":
-      result = await deletePlant(supabase, profileId, args);
-      break;
-
-    case "create_reminder":
-      result = await createReminder(supabase, profileId, args, sourceMessageId);
-      break;
-
-    case "log_care_event":
-      result = await logCareEvent(supabase, profileId, args, sourceMessageId);
-      break;
-
-    case "save_user_insight":
-      result = await saveUserInsight(supabase, profileId, args);
-      break;
-
-    case "update_notification_preferences":
-      result = await updateNotificationPreferences(supabase, profileId, args);
-      break;
-
-    case "update_profile":
-      result = await updateProfile(supabase, profileId, args);
-      break;
-
     case "find_stores": {
       if (!GEMINI_API_KEY) {
         result = { success: false, error: "Store search not configured (missing GEMINI_API_KEY)" };
@@ -105,49 +62,6 @@ export async function executeTool(
       break;
     }
 
-    case "verify_store_inventory":
-      if (!PERPLEXITY_API_KEY) {
-        result = { success: false, error: "Verification not configured" };
-      } else {
-        result = await verifyStoreInventory(
-          args.store_name,
-          args.product,
-          args.location,
-          PERPLEXITY_API_KEY,
-        );
-      }
-      break;
-
-    case "search_products": {
-      const SERPAPI_KEY = Deno.env.get("SERPAPI_KEY");
-      if (!SERPAPI_KEY) {
-        result = { success: false, error: "Product search not configured (missing SERPAPI_KEY)" };
-      } else {
-        result = await searchProducts(
-          args.query as string,
-          SERPAPI_KEY,
-          (args.max_results as number) || 5,
-        );
-      }
-      break;
-    }
-
-    case "deep_think":
-      if (!LOVABLE_API_KEY) {
-        result = { success: false, error: "Deep think not configured" };
-      } else {
-        result = await callDeepThink(
-          args.question as string,
-          args.context as string | undefined,
-          LOVABLE_API_KEY,
-        );
-      }
-      break;
-
-    case "delete_reminder":
-      result = await deleteReminder(supabase, profileId, args);
-      break;
-
     case "identify_plant":
     case "diagnose_plant":
     case "analyze_environment": {
@@ -155,11 +69,15 @@ export async function executeTool(
         result = { success: false, error: "Vision analysis not configured" };
       } else {
         const taskPrompts: Record<string, string> = {
-          identify_plant: "You are a plant identification expert. Based on this description, identify the plant. Return JSON: { species, confidence (0-1), commonNames: [], careSummary }",
-          diagnose_plant: "You are a plant pathologist. Based on this description, diagnose the issue. Return JSON: { diagnosis, severity (mild/moderate/severe), treatment, prevention }",
-          analyze_environment: "You are a horticultural environment analyst. Based on this description, assess growing conditions. Return JSON: { lightLevel (low/medium/bright/direct), lightNotes, spaceAssessment, recommendations: [] }",
+          identify_plant:
+            "You are a plant identification expert. Based on this description, identify the plant. Return JSON: { species, confidence (0-1), commonNames: [], careSummary }",
+          diagnose_plant:
+            "You are a plant pathologist. Based on this description, diagnose the issue. Return JSON: { diagnosis, severity (mild/moderate/severe), treatment, prevention }",
+          analyze_environment:
+            "You are a horticultural environment analyst. Based on this description, assess growing conditions. Return JSON: { lightLevel (low/medium/bright/direct), lightNotes, spaceAssessment, recommendations: [] }",
         };
-        const prompt = (args.description as string) +
+        const prompt =
+          (args.description as string) +
           (args.plant_species ? `\nPlant species: ${args.plant_species}` : "") +
           (args.context ? `\nContext: ${args.context}` : "");
         const resp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
@@ -172,7 +90,11 @@ export async function executeTool(
         });
         const data = await resp.json();
         const text = data.choices?.[0]?.message?.content || "";
-        try { result = { success: true, data: JSON.parse(text) }; } catch { result = { success: true, data: text }; }
+        try {
+          result = { success: true, data: JSON.parse(text) };
+        } catch {
+          result = { success: true, data: text };
+        }
       }
       break;
     }
@@ -182,9 +104,10 @@ export async function executeTool(
       if (!LOVABLE_API_KEY) {
         result = { success: false, error: "Not configured" };
       } else {
-        const prompt = toolName === "generate_visual_guide"
-          ? `Create a detailed text guide for: ${args.topic}${args.plant_species ? ` (${args.plant_species})` : ""}. Be specific and actionable.`
-          : `Based on this observation: ${args.observation}\n\nQuestion: ${args.question || "What do you notice?"}\n\nProvide expert plant care analysis.`;
+        const prompt =
+          toolName === "generate_visual_guide"
+            ? `Create a detailed text guide for: ${args.topic}${args.plant_species ? ` (${args.plant_species})` : ""}. Be specific and actionable.`
+            : `Based on this observation: ${args.observation}\n\nQuestion: ${args.question || "What do you notice?"}\n\nProvide expert plant care analysis.`;
         result = await callDeepThink(prompt, undefined, LOVABLE_API_KEY);
       }
       break;
@@ -213,57 +136,28 @@ export async function executeTool(
 
     case "capture_plant_snapshot": {
       if (!args.confirmed) {
-        result = { success: false, error: "User confirmation required. Ask them first, then call with confirmed=true." };
+        result = {
+          success: false,
+          error: "User confirmation required. Ask them first, then call with confirmed=true.",
+        };
       } else {
-        result = await capturePlantSnapshot(supabase, profileId, {
-          plant_identifier: args.plant_identifier as string,
-          description: args.description as string,
-          context: (args.context as string) || "user_requested",
-          health_notes: args.health_notes as string | undefined,
-          image_base64: args.image_base64 as string | undefined,
-          source: "voice_call_capture",
-        }, undefined, sourceMessageId);
+        result = await capturePlantSnapshot(
+          supabase,
+          profileId,
+          {
+            plant_identifier: args.plant_identifier as string,
+            description: args.description as string,
+            context: (args.context as string) || "user_requested",
+            health_notes: args.health_notes as string | undefined,
+            image_base64: args.image_base64 as string | undefined,
+            source: "voice_call_capture",
+          },
+          undefined,
+          sourceMessageId,
+        );
       }
       break;
     }
-
-    case "compare_plant_snapshots":
-      result = await comparePlantSnapshots(
-        supabase,
-        profileId,
-        args.plant_identifier as string,
-        (args.comparison_type as string) || "latest",
-        LOVABLE_API_KEY,
-      );
-      break;
-
-    case "check_plant_sensors":
-      result = await checkPlantSensors(supabase, profileId, args as { plant_identifier: string });
-      break;
-
-    case "associate_reading":
-      result = await associateReading(supabase, profileId, args as { plant_identifier: string });
-      break;
-
-    case "set_plant_ranges":
-      result = await setPlantRanges(supabase, profileId, args as any, sourceMessageId);
-      break;
-
-    case "get_sensor_history":
-      result = await getSensorHistory(supabase, profileId, args as { plant_identifier: string; metric: string; period: string });
-      break;
-
-    case "compare_plant_environments":
-      result = await comparePlantEnvironments(supabase, profileId, args as { plant_identifiers: string; metric: string });
-      break;
-
-    case "manage_device":
-      result = await manageDevice(supabase, profileId, args as any);
-      break;
-
-    case "dismiss_sensor_alert":
-      result = await dismissSensorAlert(supabase, profileId, args as { plant_identifier: string; alert_type: string; reason?: string });
-      break;
 
     default:
       result = { success: false, error: `Unknown tool: ${toolName}` };

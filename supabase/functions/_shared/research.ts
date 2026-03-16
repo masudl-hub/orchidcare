@@ -530,3 +530,110 @@ export async function searchProducts(
     return { success: false, error: String(error) };
   }
 }
+
+// ─── URL Analysis Agent ───────────────────────────────────────────────────────
+
+interface UrlAnalysis {
+  url: string;
+  title?: string;
+  summary: string;
+  keyPoints: string[];
+  careInstructions?: string[];
+  productEvaluation?: {
+    recommended: boolean;
+    pros: string[];
+    cons: string[];
+  };
+  reliability: "high" | "medium" | "low" | "unknown";
+  warnings?: string[];
+}
+
+export async function analyzeUrl(
+  url: string,
+  analysisType: string,
+  userQuestion: string | null,
+  LOVABLE_API_KEY: string,
+): Promise<{ success: boolean; data?: UrlAnalysis; error?: string }> {
+  try {
+    console.log(`[UrlAgent] Analyzing URL: ${url} (type: ${analysisType})`);
+
+    const prompts: Record<string, string> = {
+      summarize: `Summarize this webpage. Focus on plant-related content. Extract key points, main recommendations, and any actionable advice.`,
+      extract_care: `Extract all plant care instructions from this page. Create a structured summary with: watering, light, humidity, soil, fertilizing, and common issues sections.`,
+      evaluate_product: `Evaluate this product for plant care. Consider: effectiveness based on ingredients/description, value, user reviews if visible, and whether you'd recommend it for plant care.`,
+      fact_check: `Fact-check the plant care claims on this page. Note any outdated, incorrect, or misleading information based on current horticultural knowledge.`,
+    };
+
+    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${LOVABLE_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "google/gemini-3-flash-preview",
+        thinking_config: { thinking_level: "low" },
+        messages: [
+          {
+            role: "system",
+            content: `${prompts[analysisType] || prompts.summarize}
+
+Return ONLY valid JSON with this structure:
+{
+  "url": "the analyzed URL",
+  "title": "page title if found",
+  "summary": "2-3 sentence overview",
+  "keyPoints": ["point 1", "point 2", "point 3"],
+  "careInstructions": ["instruction 1", "instruction 2"] (only for extract_care),
+  "productEvaluation": {"recommended": true/false, "pros": [...], "cons": [...]} (only for evaluate_product),
+  "reliability": "high|medium|low|unknown",
+  "warnings": ["any concerns about the information"] (optional)
+}`,
+          },
+          {
+            role: "user",
+            content: userQuestion
+              ? `Analyze this URL and answer: ${userQuestion}\n\nURL: ${url}`
+              : `Analyze this URL: ${url}`,
+          },
+        ],
+        tools: [
+          {
+            type: "url_context",
+            url_context: { urls: [url] },
+          },
+        ],
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error("[UrlAgent] API error:", response.status, errorText);
+      return { success: false, error: `URL analysis failed: ${response.status}` };
+    }
+
+    const data = await response.json();
+    const content = data.choices?.[0]?.message?.content || "";
+
+    let analysis: UrlAnalysis;
+    try {
+      const jsonMatch = content.match(/\{[\s\S]*\}/);
+      analysis = JSON.parse(jsonMatch ? jsonMatch[0] : content);
+      analysis.url = url;
+    } catch {
+      analysis = {
+        url,
+        summary:
+          content || "Unable to analyze this URL. The page may be inaccessible or have no plant-related content.",
+        keyPoints: [],
+        reliability: "unknown",
+      };
+    }
+
+    console.log("[UrlAgent] Analysis complete:", analysis.summary?.substring(0, 100));
+    return { success: true, data: analysis };
+  } catch (error) {
+    console.error("[UrlAgent] Error:", error);
+    return { success: false, error: String(error) };
+  }
+}

@@ -77,7 +77,7 @@ export function formatInsightKey(key: string): string {
 export async function loadHierarchicalContext(supabase: any, profileId: string): Promise<HierarchicalContext> {
   console.log("[ContextEngineering] Loading hierarchical context for profile:", profileId);
 
-  const [recentResult, summariesResult, insightsResult, identificationsResult, remindersResult, sensorResult, rangesResult, alertsResult] = await Promise.all([
+  const [recentResult, summariesResult, insightsResult, identificationsResult, remindersResult, sensorResult, rangesResult, alertsResult, careEventsResult] = await Promise.all([
     supabase
       .from("conversations")
       .select("content, direction, created_at, media_urls")
@@ -133,6 +133,14 @@ export async function loadHierarchicalContext(supabase: any, profileId: string):
       .select("plant_id, alert_type, severity, metric, message, status")
       .eq("profile_id", profileId)
       .eq("status", "active"),
+
+    // Fetch recent care events (via plants join since care_events has no profile_id)
+    supabase
+      .from("care_events")
+      .select("id, plant_id, event_type, notes, created_at, plants!inner(profile_id)")
+      .eq("plants.profile_id", profileId)
+      .order("created_at", { ascending: false })
+      .limit(50),
   ]);
 
   // Dedupe sensor readings to latest per plant
@@ -154,6 +162,15 @@ export async function loadHierarchicalContext(supabase: any, profileId: string):
     alertsByPlant[a.plant_id].push(a);
   }
 
+  // Group care events by plant (already ordered by created_at desc), keep last 3 per plant
+  const careEventsByPlant: Record<string, any[]> = {};
+  for (const e of careEventsResult.data || []) {
+    if (!careEventsByPlant[e.plant_id]) careEventsByPlant[e.plant_id] = [];
+    if (careEventsByPlant[e.plant_id].length < 3) {
+      careEventsByPlant[e.plant_id].push(e);
+    }
+  }
+
   const context: HierarchicalContext = {
     recentMessages: recentResult.data || [],
     summaries: summariesResult.data || [],
@@ -163,6 +180,7 @@ export async function loadHierarchicalContext(supabase: any, profileId: string):
     latestSensorReadings: Object.values(sensorByPlant),
     sensorRanges: rangesByPlant,
     activeSensorAlerts: alertsByPlant,
+    careEventsByPlant,
   };
 
   console.log(
@@ -242,6 +260,7 @@ function buildPlantsContext(
   sensorReadings?: any[],
   sensorRanges?: Record<string, any>,
   activeSensorAlerts?: Record<string, any[]>,
+  careEventsByPlant?: Record<string, any[]>,
 ): string {
   if (!userPlants?.length) return "## SAVED PLANTS\nNo plants saved yet.";
 
@@ -315,6 +334,13 @@ ${userPlants.map((p) => {
     if (alerts?.length) {
       const alertMsgs = alerts.map((a: any) => `${a.severity.toUpperCase()}: ${a.message}`);
       line += `\n  Alerts: ${alertMsgs.join("; ")}`;
+    }
+
+    // Show recent care history
+    const careEvents = careEventsByPlant?.[p.id];
+    if (careEvents?.length) {
+      const careItems = careEvents.map((e: any) => `${e.event_type} ${formatTimeAgo(new Date(e.created_at))}`);
+      line += `\n  Care: ${careItems.join(", ")}`;
     }
 
     return line;
@@ -430,7 +456,7 @@ export function buildEnrichedSystemPrompt(
   const commPrefsSection = buildCommPrefsSection(context);
   const insightsSection = buildInsightsSection(context);
   const summariesSection = buildSummariesSection(context);
-  const plantsContext = buildPlantsContext(userPlants, plantSnapshots, context.latestSensorReadings, context.sensorRanges, context.activeSensorAlerts);
+  const plantsContext = buildPlantsContext(userPlants, plantSnapshots, context.latestSensorReadings, context.sensorRanges, context.activeSensorAlerts, context.careEventsByPlant);
   const remindersSection = buildRemindersSection(context);
   const { locationContext, locationSection } = buildLocationContext(profile);
 
@@ -665,7 +691,7 @@ export function buildVoiceSystemPrompt(
   const commPrefsSection = buildCommPrefsSection(context);
   const insightsSection = buildInsightsSection(context);
   const summariesSection = buildSummariesSection(context);
-  const plantsContext = buildPlantsContext(userPlants, plantSnapshots, context.latestSensorReadings, context.sensorRanges, context.activeSensorAlerts);
+  const plantsContext = buildPlantsContext(userPlants, plantSnapshots, context.latestSensorReadings, context.sensorRanges, context.activeSensorAlerts, context.careEventsByPlant);
   const remindersSection = buildRemindersSection(context);
   const { locationContext, locationSection } = buildLocationContext(profile);
 

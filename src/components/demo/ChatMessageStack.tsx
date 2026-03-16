@@ -19,6 +19,7 @@ export interface ArtifactEntry extends ArtifactData {
   element: React.ReactNode;
   userMessage?: string;
   userMessageId?: string;
+  userImageUrls?: string[];
   createdAt?: string;
   rating?: number | null;
 }
@@ -116,6 +117,7 @@ function UserBubble({
   text,
   id,
   timestamp,
+  imageUrls,
   onCopy,
   onResend,
   onDelete,
@@ -123,6 +125,7 @@ function UserBubble({
   text: string;
   id?: string;
   timestamp?: string;
+  imageUrls?: string[];
   onCopy?: (text: string) => void;
   onResend?: (text: string) => void;
   onDelete?: (id: string) => void;
@@ -144,6 +147,26 @@ function UserBubble({
         marginBottom: '8px',
       }}
     >
+      {imageUrls && imageUrls.length > 0 && (
+        <div style={{ maxWidth: '80%', marginBottom: text && text !== '(photo)' ? '4px' : 0 }}>
+          {imageUrls.map((url, i) => (
+            <img
+              key={i}
+              src={url}
+              alt="Sent image"
+              loading="lazy"
+              style={{
+                width: '100%',
+                maxWidth: 240,
+                borderRadius: '4px',
+                border: '1px solid rgba(255,255,255,0.08)',
+                display: 'block',
+              }}
+            />
+          ))}
+        </div>
+      )}
+      {text && text !== '(photo)' && (
       <div
         style={{
           fontFamily: mono,
@@ -159,6 +182,7 @@ function UserBubble({
       >
         {text}
       </div>
+      )}
 
       {/* Actions Row — right-aligned */}
       <div style={{
@@ -353,11 +377,12 @@ export function ChatMessageStack({
                 }}
               >
                 {/* User message bubble */}
-                {entry.userMessage && (
+                {(entry.userMessage || (entry.userImageUrls && entry.userImageUrls.length > 0)) && (
                   <UserBubble
-                    text={entry.userMessage}
+                    text={entry.userMessage || ''}
                     id={entry.userMessageId}
                     timestamp={entry.createdAt}
+                    imageUrls={entry.userImageUrls}
                     onCopy={onCopy}
                     onResend={onResend}
                     onDelete={onDelete}

@@ -9,7 +9,8 @@ import { resolvePlants, savePlant, modifyPlant, deletePlant, createReminder, del
 import { callResearchAgent, callMapsShoppingAgent, verifyStoreInventory, searchProducts, parseDistance, geocodeLocation } from "../_shared/research.ts";
 import { loadHierarchicalContext, buildEnrichedSystemPrompt, formatTimeUntil, formatTimeSince, formatTimeAgo, formatInsightKey } from "../_shared/context.ts";
 import type { HierarchicalContext, PlantResolutionResult, StoreRecommendation, StoreSearchResult, StoreVerification } from "../_shared/types.ts";
-import { agentTools, functionTools } from "../_shared/agentToolDefinitions.ts";
+import { allAgentToolsOpenAI } from "../_shared/toolSchemas.ts";
+import { executeSharedTool } from "../_shared/toolDispatch.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -273,7 +274,7 @@ RULES:
 // ============================================================================
 
 // Combine all tools
-const allTools = [...agentTools, ...functionTools];
+const allTools = allAgentToolsOpenAI;
 
 // ============================================================================
 // AGENT IMPLEMENTATIONS (Sub-LLM calls)
@@ -494,119 +495,7 @@ Return ONLY valid JSON with this structure:
 
 
 // ============================================================================
-// URL ANALYSIS AGENT
-// ============================================================================
-
-interface UrlAnalysis {
-  url: string;
-  title?: string;
-  summary: string;
-  keyPoints: string[];
-  careInstructions?: string[];
-  productEvaluation?: {
-    recommended: boolean;
-    pros: string[];
-    cons: string[];
-  };
-  reliability: "high" | "medium" | "low" | "unknown";
-  warnings?: string[];
-}
-
-async function callUrlAnalysisAgent(
-  url: string,
-  analysisType: string,
-  userQuestion: string | null,
-  LOVABLE_API_KEY: string,
-): Promise<{ success: boolean; data?: UrlAnalysis; error?: string }> {
-  try {
-    console.log(`[UrlAgent] Analyzing URL: ${url} (type: ${analysisType})`);
-
-    const prompts: Record<string, string> = {
-      summarize: `Summarize this webpage. Focus on plant-related content. Extract key points, main recommendations, and any actionable advice.`,
-      extract_care: `Extract all plant care instructions from this page. Create a structured summary with: watering, light, humidity, soil, fertilizing, and common issues sections.`,
-      evaluate_product: `Evaluate this product for plant care. Consider: effectiveness based on ingredients/description, value, user reviews if visible, and whether you'd recommend it for plant care.`,
-      fact_check: `Fact-check the plant care claims on this page. Note any outdated, incorrect, or misleading information based on current horticultural knowledge.`,
-    };
-
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "google/gemini-3-flash-preview",
-        thinking_config: { thinking_level: "low" },
-        messages: [
-          {
-            role: "system",
-            content: `${prompts[analysisType] || prompts.summarize}
-
-Return ONLY valid JSON with this structure:
-{
-  "url": "the analyzed URL",
-  "title": "page title if found",
-  "summary": "2-3 sentence overview",
-  "keyPoints": ["point 1", "point 2", "point 3"],
-  "careInstructions": ["instruction 1", "instruction 2"] (only for extract_care),
-  "productEvaluation": {"recommended": true/false, "pros": [...], "cons": [...]} (only for evaluate_product),
-  "reliability": "high|medium|low|unknown",
-  "warnings": ["any concerns about the information"] (optional)
-}`,
-          },
-          {
-            role: "user",
-            content: userQuestion
-              ? `Analyze this URL and answer: ${userQuestion}\n\nURL: ${url}`
-              : `Analyze this URL: ${url}`,
-          },
-        ],
-        tools: [
-          {
-            type: "url_context",
-            url_context: { urls: [url] },
-          },
-        ],
-      }),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error("[UrlAgent] API error:", response.status, errorText);
-      return { success: false, error: `URL analysis failed: ${response.status}` };
-    }
-
-    const data = await response.json();
-    const content = data.choices?.[0]?.message?.content || "";
-
-    // Parse JSON from response
-    let analysis: UrlAnalysis;
-    try {
-      const jsonMatch = content.match(/\{[\s\S]*\}/);
-      analysis = JSON.parse(jsonMatch ? jsonMatch[0] : content);
-      analysis.url = url; // Ensure URL is set
-    } catch {
-      // Fallback structure
-      analysis = {
-        url,
-        summary:
-          content || "Unable to analyze this URL. The page may be inaccessible or have no plant-related content.",
-        keyPoints: [],
-        reliability: "unknown",
-      };
-    }
-
-    console.log("[UrlAgent] Analysis complete:", analysis.summary?.substring(0, 100));
-    return { success: true, data: analysis };
-  } catch (error) {
-    console.error("[UrlAgent] Error:", error);
-    return { success: false, error: String(error) };
-  }
-}
-
-
-// ============================================================================
-// NEW MULTIMEDIA AGENTS
+// MULTIMEDIA AGENTS
 // ============================================================================
 
 interface ImageGuideStep {
@@ -2172,8 +2061,37 @@ ${proactiveContext.events.map((e: any) => `- ${e.message_hint}`).join("\n")}
 
             let toolResult: any;
 
-            // Agent tools
-            if (functionName === "identify_plant") {
+            // Try shared dispatch first (handles ~20 common DB/API tools)
+            const shared = await executeSharedTool(
+              {
+                supabase,
+                profileId: profile?.id,
+                apiKeys: {
+                  PERPLEXITY: PERPLEXITY_API_KEY,
+                  LOVABLE: LOVABLE_API_KEY,
+                  GEMINI: Deno.env.get("GEMINI_API_KEY") || undefined,
+                  SERPAPI: Deno.env.get("SERPAPI_KEY") || undefined,
+                },
+                sourceMessageId: inboundMessage?.id,
+                photoUrl: uploadedPhotoPath || mediaUrl0 || undefined,
+              },
+              functionName,
+              args,
+            );
+            if (shared.handled) {
+              toolResult = shared.result;
+              // Special post-processing: sync in-memory profile for subsequent tools
+              if (functionName === "update_profile" && toolResult?.success && profile) {
+                if (args.field === "pets" || args.field === "primary_concerns") {
+                  (profile as any)[args.field] = (args.value as string).split(",").map((v: string) => v.trim().toLowerCase());
+                } else {
+                  (profile as any)[args.field] = toolResult.updated?.value ?? args.value;
+                }
+              }
+            }
+
+            // Path-specific agent tools (vision, media, complex orchestration)
+            else if (functionName === "identify_plant") {
               if (mediaInfo?.mediaType === "image") {
                 toolResult = await callVisionAgent(
                   "identify",
@@ -2407,25 +2325,7 @@ ${proactiveContext.events.map((e: any) => `- ${e.message_hint}`).join("\n")}
                 functionName,
                 { type: "environment" },
               );
-            } else if (functionName === "research") {
-              if (!PERPLEXITY_API_KEY) {
-                toolResult = { success: false, error: "Research not configured" };
-              } else {
-                toolResult = await callResearchAgent(args.query, PERPLEXITY_API_KEY);
-                await logAgentOperation(
-                  supabase,
-                  profile?.id,
-                  correlationId,
-                  "read",
-                  "external_search",
-                  null,
-                  functionName,
-                  { query: args.query },
-                );
-              }
-            }
-            // New multimedia tools
-            else if (functionName === "generate_visual_guide") {
+            } else if (functionName === "generate_visual_guide") {
               // Thread telegramChatId for fire-and-forget delivery
               const telegramChatId = (channel === "telegram" && profile?.telegram_chat_id)
                 ? String(profile.telegram_chat_id)
@@ -2493,159 +2393,6 @@ ${proactiveContext.events.map((e: any) => `- ${e.message_hint}`).join("\n")}
               } else {
                 toolResult = { success: false, error: "No audio message to transcribe" };
               }
-            }
-            // Function tools (DB operations) - with audit logging
-            else if (functionName === "save_plant") {
-              toolResult = await savePlant(supabase, profile?.id, args, uploadedPhotoPath || mediaUrl0 || undefined);
-              if (toolResult.success && toolResult.plant) {
-                await logAgentOperation(
-                  supabase,
-                  profile?.id,
-                  correlationId,
-                  "create",
-                  "plants",
-                  toolResult.plant.id,
-                  functionName,
-                  { species: args.species },
-                );
-              }
-            } else if (functionName === "modify_plant") {
-              toolResult = await modifyPlant(supabase, profile?.id, args);
-              if (toolResult.success) {
-                if (toolResult.plants) {
-                  // Bulk operation
-                  for (const plant of toolResult.plants) {
-                    await logAgentOperation(
-                      supabase,
-                      profile?.id,
-                      correlationId,
-                      "update",
-                      "plants",
-                      plant.id,
-                      functionName,
-                      { updates: args.updates, bulk: true },
-                    );
-                  }
-                } else if (toolResult.plant) {
-                  await logAgentOperation(
-                    supabase,
-                    profile?.id,
-                    correlationId,
-                    "update",
-                    "plants",
-                    toolResult.plant.id,
-                    functionName,
-                    { updates: args.updates },
-                  );
-                }
-              }
-            } else if (functionName === "delete_plant") {
-              toolResult = await deletePlant(supabase, profile?.id, args);
-              if (toolResult.success) {
-                if (toolResult.deletedNames) {
-                  // Bulk operation
-                  for (const name of toolResult.deletedNames) {
-                    await logAgentOperation(
-                      supabase,
-                      profile?.id,
-                      correlationId,
-                      "delete",
-                      "plants",
-                      null,
-                      functionName,
-                      { deleted: name, bulk: true },
-                    );
-                  }
-                } else {
-                  await logAgentOperation(supabase, profile?.id, correlationId, "delete", "plants", null, functionName, {
-                    deleted: toolResult.deletedName,
-                  });
-                }
-              }
-            } else if (functionName === "create_reminder") {
-              toolResult = await createReminder(supabase, profile?.id, args, inboundMessage?.id);
-              if (toolResult.success) {
-                if (toolResult.reminders) {
-                  // Log bulk operation - each reminder individually
-                  for (const r of toolResult.reminders) {
-                    await logAgentOperation(
-                      supabase,
-                      profile?.id,
-                      correlationId,
-                      "create",
-                      "reminders",
-                      r.reminder.id,
-                      functionName,
-                      { type: args.reminder_type, plant: r.plantName, bulk: true },
-                    );
-                  }
-                } else if (toolResult.reminder) {
-                  await logAgentOperation(
-                    supabase,
-                    profile?.id,
-                    correlationId,
-                    "create",
-                    "reminders",
-                    toolResult.reminder.id,
-                    functionName,
-                    { type: args.reminder_type, plant: args.plant_identifier },
-                  );
-                }
-              } else {
-                console.error(`[${correlationId}] Tool ${functionName} FAILED:`, toolResult.error);
-              }
-            } else if (functionName === "delete_reminder") {
-              toolResult = await deleteReminder(supabase, profile?.id, args);
-              if (toolResult.success) {
-                const auditId = generateCorrelationId();
-                await logAgentOperation(supabase, profile?.id, auditId, "delete", "reminders", null, "delete_reminder", { deletedCount: toolResult.deletedCount });
-              }
-            } else if (functionName === "log_care_event") {
-              toolResult = await logCareEvent(supabase, profile?.id, args, inboundMessage?.id);
-              if (toolResult.success) {
-                if (toolResult.events) {
-                  // Bulk operation
-                  for (const e of toolResult.events) {
-                    await logAgentOperation(
-                      supabase,
-                      profile?.id,
-                      correlationId,
-                      "create",
-                      "care_events",
-                      e.event.id,
-                      functionName,
-                      { type: args.event_type, plant: e.plantName, bulk: true },
-                    );
-                  }
-                } else if (toolResult.event) {
-                  await logAgentOperation(
-                    supabase,
-                    profile?.id,
-                    correlationId,
-                    "create",
-                    "care_events",
-                    toolResult.event.id,
-                    functionName,
-                    { type: args.event_type, plant: args.plant_identifier },
-                  );
-                }
-              } else {
-                console.error(`[${correlationId}] Tool ${functionName} FAILED:`, toolResult.error);
-              }
-            } else if (functionName === "save_user_insight") {
-              toolResult = await saveUserInsight(supabase, profile?.id, args, inboundMessage?.id);
-              if (toolResult.success) {
-                await logAgentOperation(
-                  supabase,
-                  profile?.id,
-                  correlationId,
-                  "create",
-                  "user_insights",
-                  null,
-                  functionName,
-                  { key: args.insight_key },
-                );
-              }
             } else if (functionName === "capture_plant_snapshot") {
               toolResult = await capturePlantSnapshot(
                 supabase,
@@ -2676,26 +2423,6 @@ ${proactiveContext.events.map((e: any) => `- ${e.message_hint}`).join("\n")}
                   { plant: toolResult.plantName, context: args.context },
                 );
               }
-            } else if (functionName === "compare_plant_snapshots") {
-              toolResult = await comparePlantSnapshots(
-                supabase,
-                profile?.id,
-                args.plant_identifier,
-                args.comparison_type || "latest",
-                LOVABLE_API_KEY,
-              );
-              if (toolResult.success) {
-                await logAgentOperation(
-                  supabase,
-                  profile?.id,
-                  correlationId,
-                  "read",
-                  "plant_snapshots",
-                  null,
-                  functionName,
-                  { plant: toolResult.plantName, snapshotCount: toolResult.snapshotCount },
-                );
-              }
             } else if (functionName === "recall_media") {
               const source = args.source;
               const limit = Math.min(args.limit || 3, 5);
@@ -2704,7 +2431,7 @@ ${proactiveContext.events.map((e: any) => `- ${e.message_hint}`).join("\n")}
                 if (!args.plant_identifier) {
                   toolResult = { success: false, error: "Need a plant name to look up snapshots" };
                 } else {
-                  const resolution = await resolvePlants(supabase, profileId, args.plant_identifier);
+                  const resolution = await resolvePlants(supabase, profile?.id, args.plant_identifier);
                   if (resolution.plants.length === 0) {
                     toolResult = { success: false, error: `No plant found matching "${args.plant_identifier}"` };
                   } else {
@@ -2713,7 +2440,7 @@ ${proactiveContext.events.map((e: any) => `- ${e.message_hint}`).join("\n")}
                       .from("plant_snapshots")
                       .select("image_path, description, created_at, context")
                       .eq("plant_id", plant.id)
-                      .eq("profile_id", profileId)
+                      .eq("profile_id", profile?.id)
                       .order("created_at", { ascending: false })
                       .limit(limit);
 
@@ -2753,7 +2480,7 @@ ${proactiveContext.events.map((e: any) => `- ${e.message_hint}`).join("\n")}
                 const { data: guides } = await supabase
                   .from("generated_content")
                   .select("content, task_description, created_at")
-                  .eq("profile_id", profileId)
+                  .eq("profile_id", profile?.id)
                   .eq("content_type", "image_guide")
                   .order("created_at", { ascending: false })
                   .limit(1);
@@ -2888,27 +2615,6 @@ ${proactiveContext.events.map((e: any) => `- ${e.message_hint}`).join("\n")}
                   );
                 }
               }
-            } else if (functionName === "verify_store_inventory") {
-              if (!PERPLEXITY_API_KEY) {
-                toolResult = { success: false, error: "Store verification not configured" };
-              } else {
-                toolResult = await verifyStoreInventory(
-                  args.store_name,
-                  args.product,
-                  args.location || profile?.location || null,
-                  PERPLEXITY_API_KEY,
-                );
-                await logAgentOperation(
-                  supabase,
-                  profile?.id,
-                  correlationId,
-                  "read",
-                  "external_search",
-                  null,
-                  functionName,
-                  { store: args.store_name, product: args.product },
-                );
-              }
             } else if (functionName === "get_cached_stores") {
               // Retrieve cached store search results from generated_content
               const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
@@ -2961,90 +2667,7 @@ ${proactiveContext.events.map((e: any) => `- ${e.message_hint}`).join("\n")}
                 functionName,
                 { query: args.product_query },
               );
-            } else if (functionName === "search_products") {
-              const SERPAPI_KEY = Deno.env.get("SERPAPI_KEY");
-              if (!SERPAPI_KEY) {
-                toolResult = { success: false, error: "Product search not configured" };
-              } else {
-                toolResult = await searchProducts(
-                  args.query,
-                  SERPAPI_KEY,
-                  args.max_results || 5,
-                );
-              }
-              await logAgentOperation(
-                supabase,
-                profile?.id,
-                correlationId,
-                "read",
-                "external_search",
-                null,
-                functionName,
-                { query: args.query },
-              );
-            } else if (functionName === "update_notification_preferences") {
-              toolResult = await updateNotificationPreferences(supabase, profile?.id, args);
-              if (toolResult.success) {
-                await logAgentOperation(
-                  supabase,
-                  profile?.id,
-                  correlationId,
-                  "update",
-                  "proactive_preferences",
-                  null,
-                  functionName,
-                  { topic: args.topic, action: args.action },
-                );
-              }
-            }
-            // Profile update tool
-            else if (functionName === "update_profile") {
-              toolResult = await updateProfile(supabase, profile?.id, args);
-              if (toolResult.success && profile) {
-                // Update in-memory profile so subsequent tools (e.g. find_stores) see the new value immediately
-                if (args.field === "pets" || args.field === "primary_concerns") {
-                  (profile as any)[args.field] = args.value.split(",").map((v: string) => v.trim().toLowerCase());
-                } else {
-                  (profile as any)[args.field] = toolResult.updated?.value ?? args.value;
-                }
-                await logAgentOperation(
-                  supabase,
-                  profile?.id,
-                  correlationId,
-                  "update",
-                  "profiles",
-                  profile?.id,
-                  functionName,
-                  { field: args.field },
-                );
-              }
-            }
-            else if (functionName === "deep_think") {
-              const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY") || "";
-              if (!LOVABLE_API_KEY) {
-                toolResult = { success: false, error: "Deep think not configured" };
-              } else {
-                try {
-                  const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-                    method: "POST",
-                    headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                      model: "google/gemini-3.1-pro-preview",
-                      messages: [
-                        { role: "system", content: "You are an expert botanist and plant pathologist. Provide detailed, actionable advice. Be specific about symptoms, causes, and treatments." },
-                        { role: "user", content: args.context ? `${args.question}\n\nContext: ${args.context}` : args.question },
-                      ],
-                      temperature: 1.0,
-                    }),
-                  });
-                  const data = await response.json();
-                  toolResult = { success: true, answer: data.choices?.[0]?.message?.content || "" };
-                } catch (err) {
-                  toolResult = { success: false, error: String(err) };
-                }
-              }
-            }
-            else if (functionName === "generate_image") {
+            } else if (functionName === "generate_image") {
               const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY") || "";
               if (!LOVABLE_API_KEY) {
                 toolResult = { success: false, error: "Image generation not configured" };
@@ -3082,45 +2705,7 @@ ${proactiveContext.events.map((e: any) => `- ${e.message_hint}`).join("\n")}
               }
             }
             // ── IoT Sensor Tool Handlers ──────────────────────────────────────
-            else if (functionName === "check_plant_sensors") {
-              toolResult = await checkPlantSensors(supabase, profile?.id, args as any);
-            } else if (functionName === "associate_reading") {
-              toolResult = await associateReading(supabase, profile?.id, args as any);
-            } else if (functionName === "set_plant_ranges") {
-              toolResult = await setPlantRanges(supabase, profile?.id, args as any, inboundMessage?.id);
-              if (toolResult.success) {
-                await logAgentOperation(
-                  supabase,
-                  profile?.id,
-                  correlationId,
-                  "update",
-                  "plant_sensor_ranges",
-                  null,
-                  functionName,
-                  { plant: args.plant_identifier, reasoning: args.reasoning },
-                );
-              }
-            } else if (functionName === "get_sensor_history") {
-              toolResult = await getSensorHistory(supabase, profile?.id, args as any);
-            } else if (functionName === "compare_plant_environments") {
-              toolResult = await comparePlantEnvironments(supabase, profile?.id, args as any);
-            } else if (functionName === "manage_device") {
-              toolResult = await manageDevice(supabase, profile?.id, args as any);
-              if (toolResult.success) {
-                await logAgentOperation(
-                  supabase,
-                  profile?.id,
-                  correlationId,
-                  args.action === "provision" ? "create" : "update",
-                  "iot_devices",
-                  toolResult.deviceId || null,
-                  functionName,
-                  { action: args.action, device_name: args.device_name || args.new_name, plant: args.plant_identifier },
-                );
-              }
-            } else if (functionName === "dismiss_sensor_alert") {
-              toolResult = await dismissSensorAlert(supabase, profile?.id, args as any);
-            }
+            
             else {
               toolResult = { success: false, error: `Unknown tool: ${functionName}` };
             }

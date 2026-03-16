@@ -107,6 +107,27 @@ TIP: If user shares a URL, include it in your query for context.`,
     behavior: "NON_BLOCKING",
   },
   {
+    name: "analyze_url",
+    description: `Analyze a webpage URL in depth — summarize content, extract care instructions, evaluate products, or fact-check claims. USE THIS TOOL WHEN:
+- User shares a URL and wants a summary, care extraction, or fact-check
+- User pastes a product link and wants an evaluation
+- User wants to verify plant care advice from an external source
+Prefer this over research when the user has shared a specific URL to analyze.`,
+    parameters: {
+      properties: {
+        url: { type: "string", description: "The full URL to analyze" },
+        analysis_type: {
+          type: "string",
+          enum: ["summarize", "extract_care", "evaluate_product", "fact_check"],
+          description: "Type of analysis to perform",
+        },
+        question: { type: "string", description: "Optional specific question about the URL content" },
+      },
+      required: ["url"],
+    },
+    behavior: "NON_BLOCKING",
+  },
+  {
     name: "save_plant",
     description:
       "Save a plant to user's collection for tracking. Use when user says 'save', 'add to collection', 'track', or 'remember this plant'. After saving, use the returned plant ID for subsequent operations on this plant.",

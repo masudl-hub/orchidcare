@@ -12,7 +12,7 @@ const corsHeaders = {
 // ============================================================================
 
 interface ProactiveEvent {
-  type: 'reminder_due' | 'inactivity' | 'seasonal' | 'diagnosis_followup';
+  type: 'reminder_due' | 'inactivity' | 'seasonal' | 'diagnosis_followup' | 'sensor_alert' | 'device_offline' | 'sensor_trend';
   priority: number;
   data: any;
   message_hint: string;
@@ -197,6 +197,122 @@ function getSeasonalContext(location: string | null): { season: string; tips: st
   return { season, tips };
 }
 
+async function getActiveSensorAlerts(supabase: any, profileId: string): Promise<ProactiveEvent[]> {
+  const { data: alerts } = await supabase
+    .from('sensor_alerts')
+    .select(`id, alert_type, severity, metric, current_value, threshold_value, message, created_at, plants!inner(id, name, nickname, species)`)
+    .eq('profile_id', profileId)
+    .eq('status', 'active')
+    .order('severity', { ascending: true }); // critical first
+
+  if (!alerts || alerts.length === 0) return [];
+
+  return alerts.map((a: any) => ({
+    type: 'sensor_alert' as const,
+    priority: a.severity === 'critical' ? 0.5 : 1.5, // critical outranks everything
+    data: {
+      alert_id: a.id,
+      plant_id: a.plants.id,
+      plant_name: a.plants.nickname || a.plants.name || a.plants.species,
+      alert_type: a.alert_type,
+      severity: a.severity,
+      metric: a.metric,
+      current_value: a.current_value,
+      threshold_value: a.threshold_value,
+      message: a.message,
+    },
+    message_hint: a.message,
+  }));
+}
+
+async function getOfflineDevices(supabase: any, profileId: string): Promise<ProactiveEvent[]> {
+  const threeHoursAgo = new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString();
+  const { data: devices } = await supabase
+    .from('devices')
+    .select('id, name, plant_id, last_seen_at, plants(name, nickname, species)')
+    .eq('profile_id', profileId)
+    .eq('status', 'active')
+    .not('plant_id', 'is', null) // only care about assigned devices
+    .lt('last_seen_at', threeHoursAgo);
+
+  if (!devices || devices.length === 0) return [];
+
+  return devices.map((d: any) => {
+    const ageMs = Date.now() - new Date(d.last_seen_at).getTime();
+    const ageHours = Math.round(ageMs / (60 * 60 * 1000));
+    const plantName = d.plants?.nickname || d.plants?.name || d.plants?.species || 'Unknown';
+    return {
+      type: 'device_offline' as const,
+      priority: ageHours > 24 ? 1 : 2.5,
+      data: {
+        device_id: d.id,
+        device_name: d.name,
+        plant_id: d.plant_id,
+        plant_name: plantName,
+        hours_offline: ageHours,
+      },
+      message_hint: `${d.name} on ${plantName} hasn't reported in ${ageHours}h`,
+    };
+  });
+}
+
+async function getSensorTrends(supabase: any, profileId: string): Promise<ProactiveEvent[]> {
+  // Find plants where soil moisture is dropping fast (>10% in last 6 hours)
+  const sixHoursAgo = new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString();
+  const { data: readings } = await supabase
+    .from('sensor_readings')
+    .select('plant_id, soil_moisture, created_at')
+    .eq('profile_id', profileId)
+    .not('plant_id', 'is', null)
+    .not('soil_moisture', 'is', null)
+    .gte('created_at', sixHoursAgo)
+    .order('created_at', { ascending: true });
+
+  if (!readings || readings.length < 2) return [];
+
+  // Group by plant, compute trend
+  const byPlant: Record<string, { values: number[]; times: number[] }> = {};
+  for (const r of readings) {
+    if (!byPlant[r.plant_id]) byPlant[r.plant_id] = { values: [], times: [] };
+    byPlant[r.plant_id].values.push(r.soil_moisture);
+    byPlant[r.plant_id].times.push(new Date(r.created_at).getTime());
+  }
+
+  const events: ProactiveEvent[] = [];
+  for (const [plantId, data] of Object.entries(byPlant)) {
+    if (data.values.length < 2) continue;
+    const first = data.values[0];
+    const last = data.values[data.values.length - 1];
+    const drop = first - last;
+
+    if (drop > 10) {
+      // Soil is drying fast — fetch plant name
+      const { data: plant } = await supabase
+        .from('plants')
+        .select('name, nickname, species')
+        .eq('id', plantId)
+        .single();
+
+      const plantName = plant?.nickname || plant?.name || plant?.species || 'Unknown';
+      events.push({
+        type: 'sensor_trend' as const,
+        priority: drop > 20 ? 1 : 2,
+        data: {
+          plant_id: plantId,
+          plant_name: plantName,
+          metric: 'soil_moisture',
+          current_value: last,
+          drop_amount: Math.round(drop),
+          hours: 6,
+        },
+        message_hint: `${plantName}'s soil moisture dropped ${Math.round(drop)}% in the last 6 hours (now at ${Math.round(last)}%)`,
+      });
+    }
+  }
+
+  return events;
+}
+
 serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -371,6 +487,17 @@ serve(async (req: Request) => {
         }
       }
 
+      // Sensor intelligence — collected once, outside preference loop
+      if (enabledTopics.includes('observations') || enabledTopics.includes('care_reminders')) {
+        const [sensorAlerts, offlineDevices, trends] = await Promise.all([
+          getActiveSensorAlerts(supabase, profile.id),
+          getOfflineDevices(supabase, profile.id),
+          getSensorTrends(supabase, profile.id),
+        ]);
+        console.log(`[ProactiveAgent] Profile ${profile.id} | sensor: alerts=${sensorAlerts.length} offline=${offlineDevices.length} trends=${trends.length}`);
+        allEvents.push(...sensorAlerts, ...offlineDevices, ...trends);
+      }
+
       totalEventsFound += allEvents.length;
 
       if (allEvents.length === 0) {
@@ -386,6 +513,8 @@ serve(async (req: Request) => {
         if (event.data.reminder_id) identifiers.reminder_id = event.data.reminder_id;
         if (event.data.plant_id) identifiers.plant_id = event.data.plant_id;
         if (event.data.diagnosis_id) identifiers.diagnosis_id = event.data.diagnosis_id;
+        if (event.data.alert_id) identifiers.alert_id = event.data.alert_id;
+        if (event.data.device_id) identifiers.device_id = event.data.device_id;
         
         const fingerprint = computeEventFingerprint(profile.id, event.type, identifiers);
         

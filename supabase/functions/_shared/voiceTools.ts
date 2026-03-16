@@ -55,7 +55,7 @@ export const voiceToolDeclarations = [
         parameters: {
           type: "OBJECT",
           properties: {
-            plant_identifier: { type: "STRING", description: "Plant name or bulk pattern" },
+            plant_identifier: { type: "STRING", description: "Plant ID from context (preferred) or name/bulk pattern" },
             user_confirmed: { type: "BOOLEAN", description: "True only after explicit voice confirmation" },
           },
           required: ["plant_identifier"],

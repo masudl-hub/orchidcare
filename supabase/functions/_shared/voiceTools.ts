@@ -338,7 +338,7 @@ export const voiceToolDeclarations = [
         parameters: {
           type: "OBJECT",
           properties: {
-            plant_identifier: { type: "STRING", description: "Plant name or nickname to associate the reading with" },
+            plant_identifier: { type: "STRING", description: "Plant ID from context (preferred) or name/nickname" },
           },
           required: ["plant_identifier"],
         },

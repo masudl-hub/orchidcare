@@ -36,7 +36,7 @@ export const voiceToolDeclarations = [
         parameters: {
           type: "OBJECT",
           properties: {
-            plant_identifier: { type: "STRING", description: "Plant name or bulk pattern" },
+            plant_identifier: { type: "STRING", description: "Plant ID from context (preferred) or name/bulk pattern like 'all' or 'bedroom plants'" },
             updates: {
               type: "OBJECT",
               properties: {

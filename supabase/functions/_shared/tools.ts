@@ -95,6 +95,19 @@ export async function savePlant(
   photoUrl?: string,
 ): Promise<{ success: boolean; plant?: any; error?: string }> {
   try {
+    // Dedup: return existing plant if same species already saved for this profile
+    const { data: existing } = await supabase
+      .from("plants")
+      .select("id, name, nickname, species, location_in_home, notes, photo_url")
+      .eq("profile_id", profileId)
+      .ilike("species", args.species)
+      .maybeSingle();
+
+    if (existing) {
+      console.log(`[savePlant] Deduped: plant "${existing.id}" already exists for species "${args.species}"`);
+      return { success: true, plant: existing };
+    }
+
     const { data: plant, error } = await supabase
       .from("plants")
       .insert({

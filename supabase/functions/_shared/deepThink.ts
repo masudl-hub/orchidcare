@@ -21,7 +21,7 @@ export async function callDeepThink(
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-3-flash-preview",
+        model: "google/gemini-3.1-pro-preview",
         messages: [
           {
             role: "system",
@@ -46,7 +46,7 @@ Keep your response concise but thorough — this will be spoken aloud in a voice
     const elapsed = Date.now() - startTime;
     console.log(`[DeepThink] Complete in ${elapsed}ms, ${answer.length} chars`);
 
-    return { success: true, answer, model: "gemini-3-flash", latencyMs: elapsed };
+    return { success: true, answer, model: "gemini-3.1-pro", latencyMs: elapsed };
   } catch (error) {
     console.error("[DeepThink] Error:", error);
     return { success: false, error: String(error) };

@@ -1,11 +1,11 @@
 // Voice call tool executor — used by call-session and dev-call-proxy.
-// Delegates shared tools to toolDispatch.ts, handles voice-specific tools locally.
+// Delegates shared tools to toolRouter.ts, handles voice-specific tools locally.
 
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { capturePlantSnapshot } from "./tools.ts";
 import { callMapsShoppingAgent } from "./research.ts";
 import { callDeepThink } from "./tools.ts";
-import { executeSharedTool } from "./toolDispatch.ts";
+import { executeSharedTool } from "./toolRouter.ts";
 
 export async function executeTool(
   supabase: SupabaseClient,

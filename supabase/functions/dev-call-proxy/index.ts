@@ -93,8 +93,8 @@ async function getProfile(
   return data as Profile;
 }
 
-import { voiceToolsGemini as voiceToolDeclarations } from "../_shared/toolSchemas.ts";
-import { executeTool } from "../_shared/toolExecutor.ts";
+import { voiceToolsGemini as voiceToolDeclarations } from "../_shared/toolDefinitions.ts";
+import { executeTool } from "../_shared/voiceToolHandler.ts";
 
 // ---------------------------------------------------------------------------
 // Route handlers

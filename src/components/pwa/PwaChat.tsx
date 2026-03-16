@@ -221,20 +221,42 @@ export function PwaChat() {
   // Tool name → label
   const toolLabel = useCallback((name: string): string => {
     switch (name) {
-      case 'identify_plant': return 'identifying plant';
-      case 'diagnose_plant': return 'diagnosing';
+      // Shared tools
       case 'research': return 'researching';
-      case 'find_stores': return 'finding stores';
-      case 'verify_store_inventory': return 'checking inventory';
-      case 'generate_image': return 'generating image';
-      case 'generate_visual_guide': return 'drawing illustrations';
-      case 'analyze_environment': return 'analyzing environment';
-      case 'analyze_video': return 'analyzing video';
+      case 'analyze_url': return 'analyzing link';
       case 'save_plant': return 'saving plant';
       case 'modify_plant': return 'updating plant';
+      case 'delete_plant': return 'removing plant';
       case 'create_reminder': return 'setting reminder';
-      case 'deep_think': return 'reasoning';
+      case 'delete_reminder': return 'removing reminder';
+      case 'log_care_event': return 'logging care';
+      case 'save_user_insight': return 'remembering';
+      case 'update_notification_preferences': return 'updating notifications';
+      case 'update_profile': return 'updating profile';
+      case 'find_stores': return 'finding stores';
+      case 'verify_store_inventory': return 'checking inventory';
+      case 'get_cached_stores': return 'checking stores';
       case 'search_products': return 'searching products';
+      case 'deep_think': return 'reasoning';
+      case 'generate_image': return 'generating image';
+      case 'compare_plant_snapshots': return 'comparing snapshots';
+      case 'recall_media': return 'recalling media';
+      // Sensor tools
+      case 'check_plant_sensors': return 'checking sensors';
+      case 'associate_reading': return 'associating reading';
+      case 'set_plant_ranges': return 'setting ranges';
+      case 'get_sensor_history': return 'fetching history';
+      case 'compare_plant_environments': return 'comparing environments';
+      case 'manage_device': return 'managing device';
+      case 'dismiss_sensor_alert': return 'dismissing alert';
+      // Agent-only tools
+      case 'identify_plant': return 'identifying plant';
+      case 'diagnose_plant': return 'diagnosing';
+      case 'analyze_environment': return 'analyzing environment';
+      case 'generate_visual_guide': return 'drawing illustrations';
+      case 'analyze_video': return 'analyzing video';
+      case 'transcribe_voice': return 'transcribing voice';
+      case 'capture_plant_snapshot': return 'capturing snapshot';
       default: return 'working';
     }
   }, []);

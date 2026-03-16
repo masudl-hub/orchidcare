@@ -7,7 +7,7 @@
 //
 // Callers add their own orchestration concerns:
 //   - orchid-agent: audit logging, media handling, agentic retries
-//   - toolExecutor: lean stateless execution for voice calls
+//   - voiceToolHandler: lean stateless execution for voice calls
 
 import {
   savePlant,

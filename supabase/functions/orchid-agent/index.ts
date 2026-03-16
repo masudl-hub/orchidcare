@@ -9,8 +9,8 @@ import { resolvePlants, savePlant, modifyPlant, deletePlant, createReminder, del
 import { callResearchAgent, callMapsShoppingAgent, verifyStoreInventory, searchProducts, parseDistance, geocodeLocation } from "../_shared/research.ts";
 import { loadHierarchicalContext, buildEnrichedSystemPrompt, formatTimeUntil, formatTimeSince, formatTimeAgo, formatInsightKey } from "../_shared/context.ts";
 import type { HierarchicalContext, PlantResolutionResult, StoreRecommendation, StoreSearchResult, StoreVerification } from "../_shared/types.ts";
-import { allAgentToolsOpenAI } from "../_shared/toolSchemas.ts";
-import { executeSharedTool } from "../_shared/toolDispatch.ts";
+import { allAgentToolsOpenAI } from "../_shared/toolDefinitions.ts";
+import { executeSharedTool } from "../_shared/toolRouter.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",

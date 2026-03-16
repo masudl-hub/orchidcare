@@ -76,19 +76,43 @@ export function CallScreen({
       case 'connected':
         if (isToolExecuting) {
           const toolLabels: Record<string, string> = {
-            deep_think: 'thinking deeply...',
+            // Shared tools
             research: 'researching...',
-            find_stores: 'finding stores...',
-            verify_store_inventory: 'checking inventory...',
+            analyze_url: 'analyzing link...',
             save_plant: 'saving plant...',
             modify_plant: 'updating plant...',
             delete_plant: 'removing plant...',
             create_reminder: 'setting reminder...',
+            delete_reminder: 'removing reminder...',
             log_care_event: 'logging care...',
             save_user_insight: 'remembering...',
+            update_notification_preferences: 'updating notifications...',
             update_profile: 'updating profile...',
-            capture_plant_snapshot: 'capturing snapshot...',
+            find_stores: 'finding stores...',
+            verify_store_inventory: 'checking inventory...',
+            get_cached_stores: 'checking stores...',
+            search_products: 'searching products...',
+            deep_think: 'thinking deeply...',
+            generate_image: 'generating image...',
             compare_plant_snapshots: 'comparing snapshots...',
+            recall_media: 'recalling media...',
+            // Sensor tools
+            check_plant_sensors: 'checking sensors...',
+            associate_reading: 'associating reading...',
+            set_plant_ranges: 'setting ranges...',
+            get_sensor_history: 'fetching history...',
+            compare_plant_environments: 'comparing environments...',
+            manage_device: 'managing device...',
+            dismiss_sensor_alert: 'dismissing alert...',
+            // Voice-only tools
+            identify_plant: 'identifying plant...',
+            diagnose_plant: 'diagnosing...',
+            analyze_environment: 'analyzing environment...',
+            generate_visual_guide: 'drawing guide...',
+            analyze_video: 'analyzing video...',
+            capture_plant_snapshot: 'capturing snapshot...',
+            show_visual: 'showing visual...',
+            annotate_view: 'annotating view...',
           };
           return toolLabels[executingToolName] || 'orchid is thinking...';
         }

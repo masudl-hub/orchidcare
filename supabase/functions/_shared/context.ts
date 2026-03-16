@@ -276,7 +276,7 @@ function buildPlantsContext(
 
   return `## SAVED PLANTS
 ${userPlants.map((p) => {
-    let line = `- ${p.nickname || p.name}${p.species ? ` (${p.species})` : ""}${p.location_in_home ? ` - ${p.location_in_home}` : ""}`;
+    let line = `- [id:${p.id}] ${p.nickname || p.name}${p.species ? ` (${p.species})` : ""}${p.location_in_home ? ` - ${p.location_in_home}` : ""}`;
 
     const snaps = snapshotsByPlant[p.id];
     if (snaps?.length) {

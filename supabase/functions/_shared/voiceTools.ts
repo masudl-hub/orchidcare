@@ -36,7 +36,7 @@ export const voiceToolDeclarations = [
         parameters: {
           type: "OBJECT",
           properties: {
-            plant_identifier: { type: "STRING", description: "Plant name or bulk pattern" },
+            plant_identifier: { type: "STRING", description: "Plant ID from context (preferred) or name/bulk pattern like 'all' or 'bedroom plants'" },
             updates: {
               type: "OBJECT",
               properties: {
@@ -55,7 +55,7 @@ export const voiceToolDeclarations = [
         parameters: {
           type: "OBJECT",
           properties: {
-            plant_identifier: { type: "STRING", description: "Plant name or bulk pattern" },
+            plant_identifier: { type: "STRING", description: "Plant ID from context (preferred) or name/bulk pattern" },
             user_confirmed: { type: "BOOLEAN", description: "True only after explicit voice confirmation" },
           },
           required: ["plant_identifier"],
@@ -67,7 +67,7 @@ export const voiceToolDeclarations = [
         parameters: {
           type: "OBJECT",
           properties: {
-            plant_identifier: { type: "STRING", description: "Plant name or bulk pattern" },
+            plant_identifier: { type: "STRING", description: "Plant ID from context (preferred) or name/bulk pattern" },
             reminder_type: { type: "STRING", description: "water, fertilize, repot, rotate, check, prune, mist" },
             frequency_days: { type: "INTEGER", description: "Days between reminders" },
             notes: { type: "STRING", description: "Optional notes" },
@@ -81,7 +81,7 @@ export const voiceToolDeclarations = [
         parameters: {
           type: "OBJECT",
           properties: {
-            plant_identifier: { type: "STRING", description: "Plant name or bulk pattern" },
+            plant_identifier: { type: "STRING", description: "Plant ID from context (preferred) or name/bulk pattern" },
             event_type: { type: "STRING", description: "water, fertilize, repot, prune, mist, rotate, treat" },
             notes: { type: "STRING", description: "Optional notes" },
           },
@@ -209,7 +209,7 @@ export const voiceToolDeclarations = [
         parameters: {
           type: "OBJECT",
           properties: {
-            plant_identifier: { type: "STRING", description: "Plant name or bulk pattern" },
+            plant_identifier: { type: "STRING", description: "Plant ID from context (preferred) or name/bulk pattern" },
             reminder_type: { type: "STRING", description: "Optional filter: water, fertilize, repot, rotate, check, prune, mist. Omit to delete all." },
           },
           required: ["plant_identifier"],
@@ -295,7 +295,7 @@ export const voiceToolDeclarations = [
         parameters: {
           type: "OBJECT",
           properties: {
-            plant_identifier: { type: "STRING", description: "Name/nickname of the plant to attach the snapshot to" },
+            plant_identifier: { type: "STRING", description: "Plant ID from context (preferred) or name/nickname" },
             description: { type: "STRING", description: "Detailed visual description: size, color, leaf shape/count, health markers, pot type, distinguishing features. Be specific enough to match later." },
             context: { type: "STRING", description: "Why: identification, diagnosis, routine_check, user_requested" },
             health_notes: { type: "STRING", description: "Optional health observations at this point in time" },
@@ -315,7 +315,7 @@ export const voiceToolDeclarations = [
         parameters: {
           type: "OBJECT",
           properties: {
-            plant_identifier: { type: "STRING", description: "Name/nickname of the plant to compare snapshots for" },
+            plant_identifier: { type: "STRING", description: "Plant ID from context (preferred) or name/nickname" },
             comparison_type: { type: "STRING", description: "latest (compare last 2), all (summarize full timeline), or specific" },
           },
           required: ["plant_identifier"],
@@ -327,7 +327,7 @@ export const voiceToolDeclarations = [
         parameters: {
           type: "OBJECT",
           properties: {
-            plant_identifier: { type: "STRING", description: "Plant name, nickname, or 'all' for all plants with sensors" },
+            plant_identifier: { type: "STRING", description: "Plant ID from context (preferred), name, or 'all' for all plants with sensors" },
           },
           required: ["plant_identifier"],
         },
@@ -338,7 +338,7 @@ export const voiceToolDeclarations = [
         parameters: {
           type: "OBJECT",
           properties: {
-            plant_identifier: { type: "STRING", description: "Plant name or nickname to associate the reading with" },
+            plant_identifier: { type: "STRING", description: "Plant ID from context (preferred) or name/nickname" },
           },
           required: ["plant_identifier"],
         },
@@ -349,7 +349,7 @@ export const voiceToolDeclarations = [
         parameters: {
           type: "OBJECT",
           properties: {
-            plant_identifier: { type: "STRING", description: "Plant name or nickname" },
+            plant_identifier: { type: "STRING", description: "Plant ID from context (preferred) or name/nickname" },
             ranges: {
               type: "OBJECT",
               description: "Range values per metric. Each has min, ideal_min, ideal_max, max.",
@@ -398,7 +398,7 @@ export const voiceToolDeclarations = [
         parameters: {
           type: "OBJECT",
           properties: {
-            plant_identifier: { type: "STRING", description: "Plant name or nickname" },
+            plant_identifier: { type: "STRING", description: "Plant ID from context (preferred) or name/nickname" },
             metric: { type: "STRING", description: "soil_moisture, temperature, humidity, light_lux, or all" },
             period: { type: "STRING", description: "24h, 7d, or 30d" },
           },
@@ -412,7 +412,7 @@ export const voiceToolDeclarations = [
         parameters: {
           type: "OBJECT",
           properties: {
-            plant_identifiers: { type: "STRING", description: "Comma-separated plant names, or 'all' for all plants" },
+            plant_identifiers: { type: "STRING", description: "Comma-separated plant IDs from context (preferred), names, or 'all'" },
             metric: { type: "STRING", description: "soil_moisture, temperature, humidity, or light_lux" },
           },
           required: ["plant_identifiers", "metric"],
@@ -427,7 +427,7 @@ export const voiceToolDeclarations = [
             action: { type: "STRING", description: "assign, unassign, rename, identify, status, or provision" },
             device_name: { type: "STRING", description: "Name of the device (fuzzy match)" },
             device_id: { type: "STRING", description: "Device UUID (if known)" },
-            plant_identifier: { type: "STRING", description: "Plant name — required for assign and optional for provision" },
+            plant_identifier: { type: "STRING", description: "Plant ID from context (preferred) or name — required for assign, optional for provision" },
             new_name: { type: "STRING", description: "New name — required for rename, optional for provision (defaults to 'New Sensor')" },
           },
           required: ["action"],
@@ -439,7 +439,7 @@ export const voiceToolDeclarations = [
         parameters: {
           type: "OBJECT",
           properties: {
-            plant_identifier: { type: "STRING", description: "Plant name or nickname" },
+            plant_identifier: { type: "STRING", description: "Plant ID from context (preferred) or name/nickname" },
             alert_type: { type: "STRING", description: "Type of alert to dismiss: dry, wet, cold, hot, low, high, offline" },
             reason: { type: "STRING", description: "Why dismissed: 'User will water later', 'Plant is being moved', etc." },
           },

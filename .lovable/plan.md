@@ -1,44 +1,37 @@
 
 
-## The Exact Problem
+# Fix: pwa-agent 401 Unauthorized
 
-The LLM is **not misremembering** the name. It's doing exactly what you'd expect — it reads its context, sees `"Fiddle Leaf Fig (Ficus lyrata)"`, and passes that whole string to the tool. The bug is that **the resolver searches each database column individually** using `ILIKE`, and no single column contains the composite display string. The context format and the resolver format are mismatched.
+## Problem
+The `pwa-agent` edge function is returning 401 at the gateway level. The function code never executes (68ms response, zero function logs). This means the Lovable Cloud gateway is rejecting the request before it reaches your code.
 
-This is a **serialization/deserialization mismatch** — the context serializes plant data one way, but the tool deserializer expects a different format.
+Your `supabase/config.toml` already has `verify_jwt = false`, which should prevent this -- but the config may not have synced with the last deployment.
 
-## Production-Grade Approaches
+## Root Causes (two possible)
 
-There are really three strategies used at scale:
+### 1. Config not synced after deployment
+The `verify_jwt = false` setting may not have been picked up. Solution: redeploy `pwa-agent`.
 
-### 1. Structured IDs (what I proposed — and what most tool-calling systems do)
-Give the LLM a deterministic handle. The context shows `[id:abc123] Fiddle Leaf Fig`, the LLM passes `abc123` to tools, the resolver does `.eq("id", "abc123")`. Zero ambiguity. This is what OpenAI's Assistants API, Google's ADK, and most agentic frameworks do — tools operate on IDs, not natural language names.
+### 2. Race condition: function called before auth session is restored
+If `PwaChat` mounts and immediately calls `pwa-agent` before the Supabase client restores the session from localStorage, the request goes out without a Bearer token, causing a 401. This is the more likely cause since the function was already deployed with `verify_jwt = false`.
 
-**Tradeoff:** Slightly less natural in voice conversations (the LLM still speaks names to the user, but internally routes by ID).
+## Fix
 
-### 2. Enum-style constrained outputs
-Instead of free-text `plant_identifier`, define the tool parameter as an enum populated with the exact plant names from context. The LLM can only pick from the list. Gemini and OpenAI both support dynamic enums.
+### 1. Redeploy `pwa-agent`
+Force a fresh deployment to ensure the `verify_jwt = false` config is synced.
 
-**Tradeoff:** Requires rebuilding tool declarations per-request (you already build context per-request, so this is feasible). Doesn't scale to 430,000 plants — enum lists have token limits.
+### 2. Guard `pwa-agent` calls against missing auth session
+In `src/components/pwa/PwaChat.tsx`, before calling `supabase.functions.invoke('pwa-agent', ...)`, verify that a session exists:
 
-### 3. Server-side smart resolver (what you have now, but broken)
-The resolver tries to fuzzy-match whatever string the LLM sends. To work reliably, it would need to: split on parentheses, try each fragment, score across all columns, handle synonyms.
+```typescript
+const { data: { session } } = await supabase.auth.getSession();
+if (!session) {
+  throw new Error('Not authenticated');
+}
+```
 
-**Tradeoff:** Complex, fragile, always playing catch-up with however the LLM decides to phrase things. Not production-grade for critical operations like delete.
+This prevents the race condition where the function is called before the JWT is available.
 
-## Recommendation
-
-**Use approach #1 (Structured IDs)** for all mutating operations (delete, modify, move sensor, create reminder). It's the only approach that is:
-- Deterministic (no matching logic can fail)
-- Scalable (works with 430,000 plants — the LLM sees the list, picks the ID)
-- Simple (3 lines of code change)
-
-For the 430,000 plant scenario: the LLM wouldn't see all 430,000 in context (that's too many tokens). You'd paginate or filter the context list. But whatever subset it sees, each entry has an ID, and operations on those entries are guaranteed to resolve.
-
-## Implementation (same as before, but now you see why)
-
-1. **context.ts line 279**: Add the plant UUID to the display string
-2. **tools.ts line 70-76**: Check if identifier is a UUID first → direct `.eq("id", id)` lookup
-3. **voiceTools.ts**: Update `plant_identifier` descriptions to say "use the plant ID from context"
-
-Three files, ~15 lines changed total. The fuzzy resolver stays as fallback for conversational use ("water all my bedroom plants") but all single-plant mutations route by ID.
-
+## Scope
+- **File**: `src/components/pwa/PwaChat.tsx` (add session guard in `sendMessage`)
+- **Deployment**: Redeploy `pwa-agent`

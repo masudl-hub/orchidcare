@@ -109,13 +109,13 @@ export function useSendDeviceCommand() {
     mutationFn: async ({ deviceId, command, payload }: { deviceId: string; command: string; payload?: Record<string, unknown> }) => {
       const { data, error } = await supabase
         .from("device_commands")
-        .insert({
+        .insert([{
           device_id: deviceId,
           command,
           payload: payload || null,
           status: "pending",
           expires_at: new Date(Date.now() + 5 * 60 * 1000).toISOString(),
-        })
+        }])
         .select()
         .single();
 

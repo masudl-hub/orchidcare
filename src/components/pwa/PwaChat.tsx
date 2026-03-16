@@ -1,5 +1,6 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { PixelCanvas } from '@/lib/pixel-canvas/PixelCanvas';
 import type { Formation } from '@/lib/pixel-canvas/types';
 import { DemoInputBar } from '@/components/demo/DemoInputBar';
@@ -97,59 +98,74 @@ export function PwaChat() {
     return () => window.removeEventListener('resize', handler);
   }, []);
 
-  // Load conversation history
-  useEffect(() => {
-    if (!profile) return;
-    const loadHistory = async () => {
+  // Load conversation history — cached via React Query so navigating away/back doesn't re-fetch
+  const queryClient = useQueryClient();
+  const { data: historyData } = useQuery({
+    queryKey: ['pwa-history', profile?.id],
+    queryFn: async () => {
       const { data } = await supabase
         .from('conversations')
         .select('id, content, direction, created_at, media_urls, rating')
-        .eq('profile_id', profile.id)
+        .eq('profile_id', profile!.id)
         .eq('channel', 'pwa')
-        .order('created_at', { ascending: true })
-        .limit(20);
+        .order('created_at', { ascending: true });
 
-      if (data && data.length > 0) {
-        const historyMessages: PwaMessage[] = data.map(msg => ({
-          id: msg.id,
-          role: msg.direction === 'inbound' ? 'user' as const : 'assistant' as const,
-          content: msg.content,
-          createdAt: msg.created_at,
-          rating: msg.rating,
-        }));
-        setMessages(historyMessages);
-        setHasSentMessage(true);
+      return data || [];
+    },
+    enabled: !!profile?.id,
+    staleTime: 5 * 60 * 1000, // cached for 5 min — new messages appended locally
+  });
 
-        // Create simple chat artifacts for history
+  // Hydrate messages + artifacts from cached query data
+  const historyHydratedRef = useRef(false);
+  useEffect(() => {
+    if (!historyData || historyHydratedRef.current) {
+      if (historyData) setIsHistoryLoaded(true);
+      return;
+    }
+    historyHydratedRef.current = true;
+
+    if (historyData.length > 0) {
+      const historyMessages: PwaMessage[] = historyData.map(msg => ({
+        id: msg.id,
+        role: msg.direction === 'inbound' ? 'user' as const : 'assistant' as const,
+        content: msg.content,
+        createdAt: msg.created_at,
+        rating: msg.rating,
+      }));
+      setMessages(historyMessages);
+      setHasSentMessage(true);
+
+      // Create chat artifacts for history (async for media URL resolution)
+      (async () => {
         const historyArtifacts: ArtifactEntry[] = [];
-        for (let i = 0; i < data.length; i++) {
-          if (data[i].direction === 'outbound') {
-            const userMsg = i > 0 && data[i - 1].direction === 'inbound' ? data[i - 1].content : undefined;
-            const rawUrls: string[] = data[i].media_urls || [];
+        for (let i = 0; i < historyData.length; i++) {
+          if (historyData[i].direction === 'outbound') {
+            const userMsg = i > 0 && historyData[i - 1].direction === 'inbound' ? historyData[i - 1].content : undefined;
+            const rawUrls: string[] = historyData[i].media_urls || [];
             const images = rawUrls.length > 0
               ? (await Promise.all(rawUrls.map(async (url) => ({ url: await resolveMediaUrl(url), title: 'Image' })))).filter(img => img.url)
               : undefined;
 
             historyArtifacts.push({
-              id: data[i].id, // Use DB id instead of counter
-              element: <ChatResponse text={data[i].content} images={images} />,
+              id: historyData[i].id,
+              element: <ChatResponse text={historyData[i].content} images={images} />,
               userMessage: userMsg,
-              userMessageId: i > 0 && data[i - 1].direction === 'inbound' ? data[i - 1].id : undefined,
+              userMessageId: i > 0 && historyData[i - 1].direction === 'inbound' ? historyData[i - 1].id : undefined,
               artifactType: 'chat',
-              artifactData: { text: data[i].content },
-              responseMessage: data[i].content,
-              createdAt: data[i].created_at,
-              rating: data[i].rating,
+              artifactData: { text: historyData[i].content },
+              responseMessage: historyData[i].content,
+              createdAt: historyData[i].created_at,
+              rating: historyData[i].rating,
             });
           }
         }
         setArtifacts(historyArtifacts);
         artifactIdCounter.current = historyArtifacts.length;
-      }
-      setIsHistoryLoaded(true);
-    };
-    loadHistory();
-  }, [profile]);
+      })();
+    }
+    setIsHistoryLoaded(true);
+  }, [historyData]);
 
   // Capture autoSendText from navigation state on mount (before any re-renders clear it)
   const autoSendTextRef = useRef<string | null>(
@@ -264,10 +280,12 @@ export function PwaChat() {
       setMessages(prev => prev.filter(msg => msg.id !== messageId));
       // Remove any artifacts associated with this message (as assistant response or user message)
       setArtifacts(prev => prev.filter(art => art.id !== messageId && art.userMessageId !== messageId));
+      // Invalidate cache so next full load reflects the deletion
+      queryClient.invalidateQueries({ queryKey: ['pwa-history'] });
     } catch (err) {
       console.error('[PwaChat] delete message error:', err);
     }
-  }, []);
+  }, [queryClient]);
 
   // Send message to pwa-agent
   const sendMessage = useCallback(

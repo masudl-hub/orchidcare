@@ -313,6 +313,73 @@ async function getSensorTrends(supabase: any, profileId: string): Promise<Proact
   return events;
 }
 
+// Fetch current weather from Open-Meteo (free, no API key)
+async function fetchWeather(lat: number | null, lng: number | null): Promise<{ temperature: number; humidity: number; uv_index: number; description: string } | null> {
+  if (!lat || !lng) return null;
+  try {
+    const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&current=temperature_2m,relative_humidity_2m,uv_index,weather_code&temperature_unit=celsius&timezone=auto`;
+    const response = await fetch(url);
+    if (!response.ok) return null;
+    const data = await response.json();
+    const current = data.current;
+    if (!current) return null;
+
+    // Weather code to description (simplified)
+    const weatherCodes: Record<number, string> = {
+      0: 'clear sky', 1: 'mainly clear', 2: 'partly cloudy', 3: 'overcast',
+      45: 'foggy', 48: 'rime fog', 51: 'light drizzle', 53: 'drizzle', 55: 'heavy drizzle',
+      61: 'light rain', 63: 'rain', 65: 'heavy rain', 71: 'light snow', 73: 'snow', 75: 'heavy snow',
+      80: 'rain showers', 81: 'moderate showers', 82: 'heavy showers',
+      95: 'thunderstorm', 96: 'thunderstorm with hail', 99: 'severe thunderstorm',
+    };
+
+    return {
+      temperature: current.temperature_2m,
+      humidity: current.relative_humidity_2m,
+      uv_index: current.uv_index,
+      description: weatherCodes[current.weather_code] || 'unknown',
+    };
+  } catch (err) {
+    console.error('[ProactiveAgent] Weather fetch error:', err);
+    return null;
+  }
+}
+
+// Get latest sensor readings for all plants (for LLM context)
+async function getLatestSensorSnapshot(supabase: any, profileId: string): Promise<string> {
+  const { data: readings } = await supabase
+    .from('sensor_readings')
+    .select('plant_id, soil_moisture, temperature, humidity, light_lux, created_at, plants(name, nickname, species)')
+    .eq('profile_id', profileId)
+    .not('plant_id', 'is', null)
+    .order('created_at', { ascending: false })
+    .limit(20);
+
+  if (!readings || readings.length === 0) return '';
+
+  // Dedupe to latest per plant
+  const seen = new Set<string>();
+  const latest: any[] = [];
+  for (const r of readings) {
+    if (!seen.has(r.plant_id)) {
+      seen.add(r.plant_id);
+      latest.push(r);
+    }
+  }
+
+  return latest.map((r: any) => {
+    const name = r.plants?.nickname || r.plants?.name || r.plants?.species || 'Unknown';
+    const age = Math.round((Date.now() - new Date(r.created_at).getTime()) / 60000);
+    const ageStr = age < 60 ? `${age}m ago` : `${Math.round(age / 60)}h ago`;
+    const parts = [];
+    if (r.soil_moisture != null) parts.push(`soil ${r.soil_moisture}%`);
+    if (r.temperature != null) parts.push(`temp ${r.temperature}°C`);
+    if (r.humidity != null) parts.push(`humidity ${r.humidity}%`);
+    if (r.light_lux != null) parts.push(`light ${r.light_lux} lux`);
+    return `- ${name}: ${parts.join(', ')} (${ageStr})`;
+  }).join('\n');
+}
+
 serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -550,6 +617,22 @@ serve(async (req: Request) => {
       const eventSummary = topEvents.map(e => `${e.type}(p=${e.priority})`).join(',');
       console.log(`[ProactiveAgent] DECISION: SEND profile ${profile.id} | correlation=${correlationId} | total_events=${allEvents.length} deduped=${dedupedEvents.length} selected=${topEvents.length} | events=[${eventSummary}]`);
 
+      // Fetch weather + sensor snapshot for richer LLM context
+      const { data: profileFull } = await supabase
+        .from('profiles')
+        .select('latitude, longitude')
+        .eq('id', profile.id)
+        .single();
+
+      const [weather, sensorSnapshot] = await Promise.all([
+        fetchWeather(profileFull?.latitude, profileFull?.longitude),
+        getLatestSensorSnapshot(supabase, profile.id),
+      ]);
+
+      if (weather) {
+        console.log(`[ProactiveAgent] Weather for ${profile.id}: ${weather.temperature}°C, ${weather.humidity}% humidity, UV ${weather.uv_index}, ${weather.description}`);
+      }
+
       let delivered = false;
 
       try {
@@ -568,12 +651,21 @@ serve(async (req: Request) => {
             triggerPayload: { events: topEvents.map(e => ({ type: e.type, hint: e.message_hint, data: e.data })) },
           });
 
+          // Build enriched context for the LLM
+          let environmentContext = '';
+          if (weather) {
+            environmentContext += `\nCurrent weather at user's location: ${weather.temperature}°C, ${weather.humidity}% outdoor humidity, UV index ${weather.uv_index}, ${weather.description}.`;
+          }
+          if (sensorSnapshot) {
+            environmentContext += `\nLatest sensor readings:\n${sensorSnapshot}`;
+          }
+
           const proactivePayload = {
             proactiveMode: true,
             profileId: profile.id,
             channel: 'telegram',
             events: topEvents,
-            eventSummary: topEvents.map(e => e.message_hint).join('; '),
+            eventSummary: topEvents.map(e => e.message_hint).join('; ') + environmentContext,
             correlationId,
           };
 

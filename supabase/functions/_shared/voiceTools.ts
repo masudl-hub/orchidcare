@@ -412,7 +412,7 @@ export const voiceToolDeclarations = [
         parameters: {
           type: "OBJECT",
           properties: {
-            plant_identifiers: { type: "STRING", description: "Comma-separated plant names, or 'all' for all plants" },
+            plant_identifiers: { type: "STRING", description: "Comma-separated plant IDs from context (preferred), names, or 'all'" },
             metric: { type: "STRING", description: "soil_moisture, temperature, humidity, or light_lux" },
           },
           required: ["plant_identifiers", "metric"],

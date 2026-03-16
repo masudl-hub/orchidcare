@@ -497,11 +497,14 @@ Only call find_stores again if the product or location has CHANGED.`,
       },
     },
   },
-  {
-    type: "function",
-    function: {
-      name: "search_products",
-      description: `Search for products online with real prices, images, ratings, and purchase links from Google Shopping.
+];
+
+// Optional: SerpApi product search tool (only available when SERPAPI_KEY is set)
+const searchProductsTool = {
+  type: "function",
+  function: {
+    name: "search_products",
+    description: `Search for products online with real prices, images, ratings, and purchase links from Google Shopping.
 
 Use when:
 - User asks about product prices, comparisons, or "how much does X cost?"
@@ -510,23 +513,22 @@ Use when:
 - User explicitly asks for online options
 
 Returns: Product listings with real current prices, merchant names, ratings, images, and direct purchase links.`,
-      parameters: {
-        type: "object",
-        properties: {
-          query: {
-            type: "string",
-            description: "Product search query — be specific for best results (e.g., 'orchid bark medium grade 4 quart' not just 'bark')",
-          },
-          max_results: {
-            type: "number",
-            description: "Maximum products to return (default 5, max 10)",
-          },
+    parameters: {
+      type: "object",
+      properties: {
+        query: {
+          type: "string",
+          description: "Product search query — be specific for best results (e.g., 'orchid bark medium grade 4 quart' not just 'bark')",
         },
-        required: ["query"],
+        max_results: {
+          type: "number",
+          description: "Maximum products to return (default 5, max 10)",
+        },
       },
+      required: ["query"],
     },
   },
-];
+};
 
 // Function Tools - direct database operations
 const functionTools = [
@@ -1144,8 +1146,12 @@ Use when:
   },
 ];
 
-// Combine all tools
-const allTools = [...agentTools, ...functionTools];
+// Combine all tools (search_products only included when SERPAPI_KEY is configured)
+const allTools = [
+  ...agentTools,
+  ...(Deno.env.get("SERPAPI_KEY") ? [searchProductsTool] : []),
+  ...functionTools,
+];
 
 // ============================================================================
 // AGENT IMPLEMENTATIONS (Sub-LLM calls)

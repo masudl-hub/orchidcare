@@ -518,6 +518,7 @@ export default function PlantVitals({ plantId }: PlantVitalsProps) {
   const navigate = useNavigate();
 
   const sendCommand = useSendDeviceCommand();
+  const [commandSent, setCommandSent] = useState(false);
   const assignedDevice = (devices || []).find(d => d.plant_id === plantId && d.status === 'active');
 
   const toggleMetric = (name: string) => setExpandedMetric(prev => prev === name ? null : name);
@@ -650,20 +651,31 @@ export default function PlantVitals({ plantId }: PlantVitalsProps) {
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
           {assignedDevice && !sensorRemoved && (
             <button
-              onClick={() => sendCommand.mutate({ deviceId: assignedDevice.id, command: 'read_now' })}
-              disabled={sendCommand.isPending}
+              onClick={() => {
+                sendCommand.mutate(
+                  { deviceId: assignedDevice.id, command: 'read_now' },
+                  {
+                    onSuccess: () => {
+                      setCommandSent(true);
+                      setTimeout(() => setCommandSent(false), 10000);
+                    },
+                  },
+                );
+              }}
+              disabled={sendCommand.isPending || commandSent}
               className="cursor-pointer"
               style={{
                 fontFamily: mono,
                 fontSize: '8px',
                 padding: '2px 6px',
-                color: sendCommand.isPending ? 'rgba(255,255,255,0.4)' : 'rgba(255,255,255,0.6)',
-                border: '1px solid rgba(255,255,255,0.12)',
-                background: 'transparent',
+                color: commandSent ? '#4ade80' : sendCommand.isPending ? 'rgba(255,255,255,0.4)' : 'rgba(255,255,255,0.6)',
+                border: `1px solid ${commandSent ? 'rgba(74,222,128,0.3)' : 'rgba(255,255,255,0.12)'}`,
+                background: commandSent ? 'rgba(74,222,128,0.06)' : 'transparent',
                 letterSpacing: '0.05em',
+                transition: 'all 0.3s ease',
               }}
             >
-              {sendCommand.isPending ? 'READING...' : 'READ NOW'}
+              {sendCommand.isPending ? 'SENDING...' : commandSent ? 'SENT ✓' : sendCommand.isError ? 'FAILED' : 'READ NOW'}
             </button>
           )}
           {lastReadingAge && (

@@ -105,6 +105,8 @@ export function useCreateDevice() {
 }
 
 export function useSendDeviceCommand() {
+  const queryClient = useQueryClient();
+
   return useMutation({
     mutationFn: async ({ deviceId, command, payload }: { deviceId: string; command: string; payload?: Record<string, unknown> }) => {
       const { data, error } = await supabase
@@ -121,6 +123,19 @@ export function useSendDeviceCommand() {
 
       if (error) throw error;
       return data;
+    },
+    onSuccess: (_data, variables) => {
+      // Poll for fresh sensor data after a short delay (give ESP32 time to respond)
+      if (variables.command === "read_now") {
+        setTimeout(() => {
+          queryClient.invalidateQueries({ queryKey: ["sensorData"] });
+          queryClient.invalidateQueries({ queryKey: ["sensorStatusBatch"] });
+        }, 3000);
+        setTimeout(() => {
+          queryClient.invalidateQueries({ queryKey: ["sensorData"] });
+          queryClient.invalidateQueries({ queryKey: ["sensorStatusBatch"] });
+        }, 8000);
+      }
     },
   });
 }

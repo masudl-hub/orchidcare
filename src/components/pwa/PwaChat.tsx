@@ -578,6 +578,7 @@ export function PwaChat() {
             onResend={handleResend}
             onRate={handleRate}
             onDelete={handleDeleteMessage}
+            onSuggestedAction={(text) => sendMessageRef.current(text)}
           />
         )}
       </div>

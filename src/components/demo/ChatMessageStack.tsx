@@ -33,6 +33,77 @@ interface ChatMessageStackProps {
   onResend?: (text: string) => void;
   onRate?: (id: string, rating: number) => void;
   onDelete?: (id: string) => void;
+  onSuggestedAction?: (text: string) => void;
+}
+
+function getSuggestedChips(entry: ArtifactEntry): string[] {
+  const type = entry.artifactType;
+  const data = entry.artifactData || {};
+  const msg = (entry.responseMessage || '').toLowerCase();
+
+  // Contextual suggestions based on what just happened
+  if (type === 'identification' || msg.includes('identified') || msg.includes('species')) {
+    return ['Save this plant', 'Set care reminders', 'Show me care tips'];
+  }
+  if (type === 'diagnosis' || msg.includes('diagnos') || msg.includes('disease') || msg.includes('pest')) {
+    return ['How do I treat this?', 'Find treatment products nearby', 'Set a follow-up reminder'];
+  }
+  if (type === 'care_guide' || msg.includes('care guide') || msg.includes('how to care')) {
+    return ['Set reminders based on this', 'Save this plant', 'Show me a visual guide'];
+  }
+  if (type === 'store_list' || msg.includes('store') || msg.includes('shop')) {
+    return ['Check another store', 'Find something else', 'Thanks!'];
+  }
+  if (msg.includes('sensor') || msg.includes('moisture') || msg.includes('humidity') || msg.includes('temperature')) {
+    return ['Show sensor history', 'Set ideal ranges', 'Compare all plants'];
+  }
+  if (msg.includes('watered') || msg.includes('water')) {
+    return ['Check soil moisture', 'When should I water next?', 'Show my care schedule'];
+  }
+  if (msg.includes('reminder') || msg.includes('schedule')) {
+    return ['Show all reminders', 'How are my plants doing?', 'Any overdue care?'];
+  }
+  if (msg.includes('saved') || msg.includes('added to your collection')) {
+    return ['Set ideal sensor ranges', 'Show my collection', 'Tell me more about this plant'];
+  }
+  if (msg.includes('range') || msg.includes('ideal')) {
+    return ['Check sensor readings', 'Show sensor history', 'How are my plants doing?'];
+  }
+
+  // Default suggestions
+  return ['How are my plants doing?', 'Check my sensors', 'Any care reminders due?'];
+}
+
+function SuggestedChips({ entry, onAction }: { entry: ArtifactEntry; onAction: (text: string) => void }) {
+  const chips = getSuggestedChips(entry);
+  return (
+    <div style={{
+      display: 'flex', flexWrap: 'wrap', gap: '6px',
+      marginTop: '8px', marginBottom: '4px',
+    }}>
+      {chips.map(chip => (
+        <button
+          key={chip}
+          onClick={() => onAction(chip)}
+          className="cursor-pointer"
+          style={{
+            fontFamily: mono, fontSize: '11px',
+            padding: '5px 12px',
+            color: 'rgba(255,255,255,0.6)',
+            border: '1px solid rgba(255,255,255,0.1)',
+            background: 'rgba(255,255,255,0.03)',
+            borderRadius: '999px',
+            whiteSpace: 'nowrap',
+            transition: 'all 0.15s',
+          }}
+          onMouseEnter={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.25)'; e.currentTarget.style.color = 'rgba(255,255,255,0.85)'; }}
+          onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)'; e.currentTarget.style.color = 'rgba(255,255,255,0.6)'; }}
+        >
+          {chip}
+        </button>
+      ))}
+    </div>
+  );
 }
 
 function formatTime(isoStr?: string) {
@@ -224,6 +295,7 @@ export function ChatMessageStack({
   onResend,
   onRate,
   onDelete,
+  onSuggestedAction,
 }: ChatMessageStackProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -312,6 +384,11 @@ export function ChatMessageStack({
                   onRate={onRate}
                   onDelete={onDelete}
                 />
+
+                {/* Suggested action chips — only on latest response, when not loading */}
+                {isLatest && !isLoading && onSuggestedAction && (
+                  <SuggestedChips entry={entry} onAction={onSuggestedAction} />
+                )}
               </motion.div>
             );
           })}

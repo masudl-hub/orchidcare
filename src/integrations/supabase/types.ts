@@ -23,6 +23,7 @@ export type Database = {
           operation_type: string
           profile_id: string
           record_id: string | null
+          source_message_id: string | null
           table_name: string
           tool_name: string | null
         }
@@ -34,6 +35,7 @@ export type Database = {
           operation_type: string
           profile_id: string
           record_id?: string | null
+          source_message_id?: string | null
           table_name: string
           tool_name?: string | null
         }
@@ -45,6 +47,7 @@ export type Database = {
           operation_type?: string
           profile_id?: string
           record_id?: string | null
+          source_message_id?: string | null
           table_name?: string
           tool_name?: string | null
         }
@@ -54,6 +57,13 @@ export type Database = {
             columns: ["profile_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agent_operations_source_message_id_fkey"
+            columns: ["source_message_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
             referencedColumns: ["id"]
           },
         ]
@@ -199,6 +209,7 @@ export type Database = {
           notes: string | null
           photo_url: string | null
           plant_id: string
+          source_message_id: string | null
         }
         Insert: {
           created_at?: string | null
@@ -207,6 +218,7 @@ export type Database = {
           notes?: string | null
           photo_url?: string | null
           plant_id: string
+          source_message_id?: string | null
         }
         Update: {
           created_at?: string | null
@@ -215,6 +227,7 @@ export type Database = {
           notes?: string | null
           photo_url?: string | null
           plant_id?: string
+          source_message_id?: string | null
         }
         Relationships: [
           {
@@ -222,6 +235,13 @@ export type Database = {
             columns: ["plant_id"]
             isOneToOne: false
             referencedRelation: "plants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "care_events_source_message_id_fkey"
+            columns: ["source_message_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
             referencedColumns: ["id"]
           },
         ]
@@ -234,6 +254,7 @@ export type Database = {
           key_topics: string[] | null
           message_count: number | null
           profile_id: string
+          source_message_ids: string[] | null
           start_time: string | null
           summary: string
         }
@@ -244,6 +265,7 @@ export type Database = {
           key_topics?: string[] | null
           message_count?: number | null
           profile_id: string
+          source_message_ids?: string[] | null
           start_time?: string | null
           summary: string
         }
@@ -254,6 +276,7 @@ export type Database = {
           key_topics?: string[] | null
           message_count?: number | null
           profile_id?: string
+          source_message_ids?: string[] | null
           start_time?: string | null
           summary?: string
         }
@@ -656,6 +679,7 @@ export type Database = {
           plant_id: string | null
           profile_id: string | null
           severity: string | null
+          source_message_id: string | null
           species_guess: string | null
           treatment: string | null
         }
@@ -669,6 +693,7 @@ export type Database = {
           plant_id?: string | null
           profile_id?: string | null
           severity?: string | null
+          source_message_id?: string | null
           species_guess?: string | null
           treatment?: string | null
         }
@@ -682,6 +707,7 @@ export type Database = {
           plant_id?: string | null
           profile_id?: string | null
           severity?: string | null
+          source_message_id?: string | null
           species_guess?: string | null
           treatment?: string | null
         }
@@ -700,6 +726,13 @@ export type Database = {
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "plant_identifications_source_message_id_fkey"
+            columns: ["source_message_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
         ]
       }
       plant_snapshots: {
@@ -713,6 +746,7 @@ export type Database = {
           plant_id: string
           profile_id: string
           source: string
+          source_message_id: string | null
         }
         Insert: {
           context?: string
@@ -724,6 +758,7 @@ export type Database = {
           plant_id: string
           profile_id: string
           source?: string
+          source_message_id?: string | null
         }
         Update: {
           context?: string
@@ -735,6 +770,7 @@ export type Database = {
           plant_id?: string
           profile_id?: string
           source?: string
+          source_message_id?: string | null
         }
         Relationships: [
           {
@@ -749,6 +785,13 @@ export type Database = {
             columns: ["profile_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "plant_snapshots_source_message_id_fkey"
+            columns: ["source_message_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
             referencedColumns: ["id"]
           },
         ]
@@ -1010,6 +1053,7 @@ export type Database = {
           plant_id: string | null
           profile_id: string
           reminder_type: string
+          source_message_id: string | null
           updated_at: string | null
         }
         Insert: {
@@ -1022,6 +1066,7 @@ export type Database = {
           plant_id?: string | null
           profile_id: string
           reminder_type: string
+          source_message_id?: string | null
           updated_at?: string | null
         }
         Update: {
@@ -1034,6 +1079,7 @@ export type Database = {
           plant_id?: string | null
           profile_id?: string
           reminder_type?: string
+          source_message_id?: string | null
           updated_at?: string | null
         }
         Relationships: [
@@ -1049,6 +1095,13 @@ export type Database = {
             columns: ["profile_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reminders_source_message_id_fkey"
+            columns: ["source_message_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
             referencedColumns: ["id"]
           },
         ]
@@ -1159,6 +1212,7 @@ export type Database = {
           soil_moisture_ideal_min: number | null
           soil_moisture_max: number | null
           soil_moisture_min: number | null
+          source_message_id: string | null
           temperature_ideal_max: number | null
           temperature_ideal_min: number | null
           temperature_max: number | null
@@ -1184,6 +1238,7 @@ export type Database = {
           soil_moisture_ideal_min?: number | null
           soil_moisture_max?: number | null
           soil_moisture_min?: number | null
+          source_message_id?: string | null
           temperature_ideal_max?: number | null
           temperature_ideal_min?: number | null
           temperature_max?: number | null
@@ -1209,6 +1264,7 @@ export type Database = {
           soil_moisture_ideal_min?: number | null
           soil_moisture_max?: number | null
           soil_moisture_min?: number | null
+          source_message_id?: string | null
           temperature_ideal_max?: number | null
           temperature_ideal_min?: number | null
           temperature_max?: number | null
@@ -1228,6 +1284,13 @@ export type Database = {
             columns: ["profile_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sensor_ranges_source_message_id_fkey"
+            columns: ["source_message_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
             referencedColumns: ["id"]
           },
         ]

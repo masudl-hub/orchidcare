@@ -349,7 +349,7 @@ export const voiceToolDeclarations = [
         parameters: {
           type: "OBJECT",
           properties: {
-            plant_identifier: { type: "STRING", description: "Plant name or nickname" },
+            plant_identifier: { type: "STRING", description: "Plant ID from context (preferred) or name/nickname" },
             ranges: {
               type: "OBJECT",
               description: "Range values per metric. Each has min, ideal_min, ideal_max, max.",

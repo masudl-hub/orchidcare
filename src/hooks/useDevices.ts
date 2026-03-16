@@ -112,7 +112,7 @@ export function useSendDeviceCommand() {
         .insert([{
           device_id: deviceId,
           command,
-          payload: payload || null,
+          payload: (payload || null) as any,
           status: "pending",
           expires_at: new Date(Date.now() + 5 * 60 * 1000).toISOString(),
         }])

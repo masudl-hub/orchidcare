@@ -823,7 +823,7 @@ After updating, immediately continue with the user's original request (e.g., aft
         type: "object",
         properties: {
           prompt: { type: "string", description: "Detailed description of the image to generate" },
-          count: { type: "number", description: "Number of images to generate (default 1, max 3)" },
+          count: { type: "number", description: "Number of images to generate (default 1, max 6)" },
         },
         required: ["prompt"],
       },
@@ -1259,7 +1259,7 @@ Return ONLY valid JSON with this structure:
   };
 
   try {
-    const modelsToTry = ["google/gemini-3-pro-preview", "google/gemini-2.5-pro"];
+    const modelsToTry = ["google/gemini-3.1-pro-preview", "google/gemini-3-flash-preview"];
     let data: any = null;
     let content = "";
 
@@ -1816,7 +1816,7 @@ CRITICAL REQUIREMENTS:
               "Content-Type": "application/json",
             },
             body: JSON.stringify({
-              model: "google/gemini-3-pro-image-preview",
+              model: "google/gemini-3.1-flash-image-preview",
               messages: [{ role: "user", content: stepPrompt }],
               modalities: ["image", "text"],
             }),
@@ -2004,7 +2004,7 @@ async function callVideoAgent(
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-3-pro-preview",
+        model: "google/gemini-3.1-pro-preview",
         messages: [
           {
             role: "system",
@@ -2097,7 +2097,7 @@ async function callVoiceAgent(
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-3-pro-preview",
+        model: "google/gemini-3.1-pro-preview",
         messages: [
           {
             role: "system",
@@ -3913,7 +3913,7 @@ ${proactiveContext.events.map((e: any) => `- ${e.message_hint}`).join("\n")}
                 toolResult = { success: false, error: "Image generation not configured" };
               } else {
                 try {
-                  const imageCount = Math.max(1, Math.min(3, Math.round(args.count ?? 1)));
+                  const imageCount = Math.max(1, Math.min(6, Math.round(args.count ?? 1)));
                   const styledPrompt = `${args.prompt}\n\nVISUAL STYLE — "Botanical Pixels":\n- Clean WHITE background for maximum legibility\n- Illustrated botanical plants and foliage (detailed, lush, naturalistic — NOT pixel art for the plants themselves)\n- Typography: "Press Start 2P" style pixel font for headers, monospace for labels\n- Layout: grid-based, structured information design with clear visual hierarchy\n- Annotations: thin dark lines, small monospace labels, well-placed arrows\n- Color palette: rich botanical greens and earth tones, black text, subtle gray grid lines\n- NO watercolor washes, NO cream/beige backgrounds\n- Keep all text highly legible — avoid placing text over busy illustration areas\n- CRITICAL — FONT NAMES ARE RENDERING INSTRUCTIONS ONLY: Do NOT write "Press Start 2P", "monospace", or any font/style name as visible text in the image; these directives tell you which fonts to USE, not text to display`;
 
                   const imageUrls: string[] = [];
@@ -3922,7 +3922,7 @@ ${proactiveContext.events.map((e: any) => `- ${e.message_hint}`).join("\n")}
                       method: "POST",
                       headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
                       body: JSON.stringify({
-                        model: "google/gemini-3-pro-image-preview",
+                        model: "google/gemini-3.1-flash-image-preview",
                         modalities: ["image", "text"],
                         messages: [{ role: "user", content: styledPrompt }],
                       }),

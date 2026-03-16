@@ -627,7 +627,7 @@ MANDATORY STYLE:
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          model: "google/gemini-3-pro-image-preview",
+          model: "google/gemini-3.1-flash-image-preview",
           messages: [{ role: "user", content: stylePrompt }],
           modalities: ["image", "text"],
           temperature: 1.0,
@@ -1669,7 +1669,7 @@ async function handleVoiceTools(
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            model: "google/gemini-3-pro-image-preview",
+            model: "google/gemini-3.1-flash-image-preview",
             modalities: ["image", "text"],
             messages: [{ role: "user", content: styledPrompt }],
           }),

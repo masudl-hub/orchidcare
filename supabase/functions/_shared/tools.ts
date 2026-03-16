@@ -30,7 +30,16 @@ export const TOOL_CAPABILITY_MAP: Record<string, string> = {
  * - By type/species: "all succulents", "all ferns", "all palms"
  */
 export async function resolvePlants(supabase: any, profileId: string, identifier: string): Promise<PlantResolutionResult> {
-  const lower = identifier.toLowerCase().trim();
+  const trimmed = identifier.trim();
+  const lower = trimmed.toLowerCase();
+
+  // UUID direct lookup — deterministic, zero ambiguity
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (uuidRegex.test(trimmed)) {
+    const { data } = await supabase.from("plants").select("*").eq("id", trimmed).eq("profile_id", profileId);
+    console.log(`[resolvePlants] UUID lookup "${trimmed}": ${data?.length || 0} found`);
+    return { plants: data || [], isBulk: false };
+  }
 
   // Pattern: "all plants" or just "all"
   if (lower === "all" || lower === "all plants" || lower === "all my plants" || lower === "everything") {

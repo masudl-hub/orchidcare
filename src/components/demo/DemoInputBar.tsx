@@ -1,6 +1,46 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Image as ImageIcon, Phone } from 'lucide-react';
+import { Image as ImageIcon, Phone, Mic, MicOff } from 'lucide-react';
+
+// Web Speech API types
+interface SpeechRecognitionEvent extends Event {
+  results: SpeechRecognitionResultList;
+  resultIndex: number;
+}
+
+interface SpeechRecognitionResultList {
+  length: number;
+  item(index: number): SpeechRecognitionResult;
+  [index: number]: SpeechRecognitionResult;
+}
+
+interface SpeechRecognitionResult {
+  isFinal: boolean;
+  length: number;
+  item(index: number): SpeechRecognitionAlternative;
+  [index: number]: SpeechRecognitionAlternative;
+}
+
+interface SpeechRecognitionAlternative {
+  transcript: string;
+  confidence: number;
+}
+
+interface SpeechRecognition extends EventTarget {
+  lang: string;
+  interimResults: boolean;
+  continuous: boolean;
+  start(): void;
+  stop(): void;
+  abort(): void;
+}
+
+declare global {
+  interface Window {
+    SpeechRecognition: new () => SpeechRecognition;
+    webkitSpeechRecognition: new () => SpeechRecognition;
+  }
+}
 
 const mono = 'ui-monospace, monospace';
 
@@ -66,7 +106,70 @@ const ease = [0.22, 1, 0.36, 1] as const;
 export function DemoInputBar({ onSend, onGoLive, isLoading, disabled }: DemoInputBarProps) {
   const [text, setText] = useState('');
   const [mediaFiles, setMediaFiles] = useState<PendingMedia[]>([]);
+  const [isListening, setIsListening] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const recognitionRef = useRef<SpeechRecognition | null>(null);
+  // Text captured before the current STT session started, so interim results append cleanly
+  const preSTTTextRef = useRef('');
+
+  const speechSupported = typeof window !== 'undefined' &&
+    !!(window.SpeechRecognition || window.webkitSpeechRecognition);
+
+  const stopListening = useCallback(() => {
+    recognitionRef.current?.stop();
+    recognitionRef.current = null;
+    setIsListening(false);
+  }, []);
+
+  const startListening = useCallback(() => {
+    if (!speechSupported) return;
+    const SRConstructor = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const recognition = new SRConstructor();
+    recognition.lang = 'en-US';
+    recognition.interimResults = true;
+    recognition.continuous = true;
+
+    preSTTTextRef.current = text;
+
+    recognition.addEventListener('result', ((e: SpeechRecognitionEvent) => {
+      let transcript = '';
+      for (let i = 0; i < e.results.length; i++) {
+        transcript += e.results[i][0].transcript;
+      }
+      const prefix = preSTTTextRef.current;
+      const separator = prefix.length > 0 && !prefix.endsWith(' ') ? ' ' : '';
+      setText(prefix + separator + transcript);
+    }) as EventListener);
+
+    recognition.addEventListener('end', () => {
+      setIsListening(false);
+      recognitionRef.current = null;
+    });
+
+    recognition.addEventListener('error', () => {
+      setIsListening(false);
+      recognitionRef.current = null;
+    });
+
+    recognitionRef.current = recognition;
+    recognition.start();
+    setIsListening(true);
+  }, [speechSupported, text]);
+
+  const toggleListening = useCallback(() => {
+    if (isListening) {
+      stopListening();
+    } else {
+      startListening();
+    }
+  }, [isListening, stopListening, startListening]);
+
+  // Clean up recognition on unmount
+  useEffect(() => {
+    return () => {
+      recognitionRef.current?.stop();
+    };
+  }, []);
 
   const handleSubmit = useCallback(() => {
     const trimmed = text.trim();
@@ -299,6 +402,43 @@ export function DemoInputBar({ onSend, onGoLive, isLoading, disabled }: DemoInpu
           >
             <Phone size={16} />
           </button>
+
+          {/* Speech-to-text mic button */}
+          {speechSupported && (
+            <>
+              <style>{`
+                @keyframes mic-pulse {
+                  0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.5); }
+                  50% { box-shadow: 0 0 0 6px rgba(239, 68, 68, 0); }
+                }
+              `}</style>
+              <button
+                onClick={toggleListening}
+                disabled={isDisabled}
+                className="transition-colors duration-150 hover:bg-white hover:text-black"
+                style={{
+                  height: '36px',
+                  width: '36px',
+                  border: isListening
+                    ? '1px solid rgba(239,68,68,0.6)'
+                    : '1px solid rgba(255,255,255,0.15)',
+                  backgroundColor: isListening ? 'rgba(239,68,68,0.15)' : 'transparent',
+                  color: isListening ? '#ef4444' : 'white',
+                  cursor: isDisabled ? 'default' : 'pointer',
+                  opacity: isDisabled ? 0.3 : 1,
+                  flexShrink: 0,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  transition: 'opacity 200ms ease-out, background-color 150ms ease-out, color 150ms ease-out, border-color 150ms ease-out',
+                  animation: isListening ? 'mic-pulse 1.5s ease-in-out infinite' : 'none',
+                }}
+                aria-label={isListening ? 'Stop speech input' : 'Start speech input'}
+              >
+                {isListening ? <MicOff size={16} /> : <Mic size={16} />}
+              </button>
+            </>
+          )}
 
           {/* Send button */}
           <button

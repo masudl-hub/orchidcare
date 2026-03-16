@@ -823,6 +823,7 @@ After updating, immediately continue with the user's original request (e.g., aft
         type: "object",
         properties: {
           prompt: { type: "string", description: "Detailed description of the image to generate" },
+          count: { type: "number", description: "Number of images to generate (default 1, max 3)" },
         },
         required: ["prompt"],
       },
@@ -3055,6 +3056,9 @@ ${proactiveContext.events.map((e: any) => `- ${e.message_hint}`).join("\n")}
                 );
 
                 if (toolResult.success && toolResult.data) {
+                  // Enrich tool result with explicit confidence string for orchestrator reasoning
+                  toolResult.data.confidenceFormatted = `${((toolResult.data.confidence ?? 0) * 100).toFixed(0)}%`;
+
                   const { data: identification } = await supabase
                     .from("plant_identifications")
                     .insert({
@@ -3909,25 +3913,32 @@ ${proactiveContext.events.map((e: any) => `- ${e.message_hint}`).join("\n")}
                 toolResult = { success: false, error: "Image generation not configured" };
               } else {
                 try {
+                  const imageCount = Math.max(1, Math.min(3, Math.round(args.count ?? 1)));
                   const styledPrompt = `${args.prompt}\n\nVISUAL STYLE — "Botanical Pixels":\n- Clean WHITE background for maximum legibility\n- Illustrated botanical plants and foliage (detailed, lush, naturalistic — NOT pixel art for the plants themselves)\n- Typography: "Press Start 2P" style pixel font for headers, monospace for labels\n- Layout: grid-based, structured information design with clear visual hierarchy\n- Annotations: thin dark lines, small monospace labels, well-placed arrows\n- Color palette: rich botanical greens and earth tones, black text, subtle gray grid lines\n- NO watercolor washes, NO cream/beige backgrounds\n- Keep all text highly legible — avoid placing text over busy illustration areas\n- CRITICAL — FONT NAMES ARE RENDERING INSTRUCTIONS ONLY: Do NOT write "Press Start 2P", "monospace", or any font/style name as visible text in the image; these directives tell you which fonts to USE, not text to display`;
-                  const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-                    method: "POST",
-                    headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                      model: "google/gemini-3-pro-image-preview",
-                      modalities: ["image", "text"],
-                      messages: [{ role: "user", content: styledPrompt }],
-                    }),
-                  });
-                  const data = await response.json();
-                  const imageUrl = data.choices?.[0]?.message?.images?.[0]?.image_url?.url;
-                  toolResult = imageUrl ? { success: true, imageUrl } : { success: false, error: "No image generated" };
-                  // Push generated image to mediaToSend so it reaches the client
-                  // External URL stored as-is (no Supabase bucket to re-sign from)
-                  if (imageUrl) {
-                    mediaToSend.push({ url: imageUrl, caption: args.prompt || "" });
-                    mediaPathsForDB.push(imageUrl);
+
+                  const imageUrls: string[] = [];
+                  for (let i = 0; i < imageCount; i++) {
+                    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+                      method: "POST",
+                      headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
+                      body: JSON.stringify({
+                        model: "google/gemini-3-pro-image-preview",
+                        modalities: ["image", "text"],
+                        messages: [{ role: "user", content: styledPrompt }],
+                      }),
+                    });
+                    const data = await response.json();
+                    const imageUrl = data.choices?.[0]?.message?.images?.[0]?.image_url?.url;
+                    if (imageUrl) {
+                      imageUrls.push(imageUrl);
+                      mediaToSend.push({ url: imageUrl, caption: args.prompt || "" });
+                      mediaPathsForDB.push(imageUrl);
+                    }
                   }
+
+                  toolResult = imageUrls.length > 0
+                    ? { success: true, imageUrl: imageUrls[0], imageUrls, count: imageUrls.length }
+                    : { success: false, error: "No image generated" };
                 } catch (err) {
                   toolResult = { success: false, error: String(err) };
                 }
@@ -4002,7 +4013,16 @@ ${proactiveContext.events.map((e: any) => `- ${e.message_hint}`).join("\n")}
                 continue;
               }
               if (tr.name === "identify_plant" && tr.result.data) {
-                reply = `🌿 I identified this as ${tr.result.data.species}! ${tr.result.data.careSummary}`;
+                const confidence = tr.result.data.confidence ?? 0;
+                const species = tr.result.data.species;
+                const careSummary = tr.result.data.careSummary;
+                if (confidence >= 0.8) {
+                  reply = `🌿 I identified this as ${species}! ${careSummary}`;
+                } else if (confidence >= 0.5) {
+                  reply = `🌿 This looks like it could be ${species}, but I'm not fully confident (confidence: ${(confidence * 100).toFixed(0)}%). Let me research this further to confirm.`;
+                } else {
+                  reply = `🌿 I'm having trouble identifying this plant with certainty. My best guess is ${species} but I'd recommend we verify. Can you send a clearer photo of the leaves, or I can research this?`;
+                }
               } else if (tr.name === "diagnose_plant" && tr.result.data) {
                 reply = `🔍 Diagnosis: ${tr.result.data.diagnosis} (${tr.result.data.severity})\n\nTreatment: ${tr.result.data.treatment}`;
               } else if (tr.name === "find_stores" && tr.result.data) {

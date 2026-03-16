@@ -214,7 +214,7 @@ For each store found, provide:
     };
 
     const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
+      model: "gemini-2.5-flash", // Maps grounding requires 2.5-flash — not supported on gemini-3
       contents: prompt,
       config,
     });

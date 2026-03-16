@@ -5,6 +5,7 @@ import type { Formation } from '@/lib/pixel-canvas/types';
 import { DemoInputBar } from '@/components/demo/DemoInputBar';
 import { ChatMessageStack, type ArtifactEntry } from '@/components/demo/ChatMessageStack';
 import { ChatResponse } from '@/components/demo/artifacts/ChatResponse';
+import { ShoppingResults } from './ShoppingResults';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -150,24 +151,42 @@ export function PwaChat() {
     loadHistory();
   }, [profile]);
 
-  // Handle auto-send from URL state (e.g. from Dashboard floating input)
+  // Capture autoSendText from navigation state on mount (before any re-renders clear it)
+  const autoSendTextRef = useRef<string | null>(
+    (location.state as { autoSendText?: string } | null)?.autoSendText ?? null
+  );
+
+  // Handle auto-send from URL state (e.g. from PlantVitals "set ideal ranges")
   useEffect(() => {
-    const state = location.state as { autoSendText?: string } | null;
-    if (isHistoryLoaded && state?.autoSendText) {
-      const text = state.autoSendText;
-      // Clear location state immediately
-      navigate(location.pathname, { replace: true, state: {} });
-      // Defer execution slightly to allow React cycle to finish loading history UI
-      setTimeout(() => {
-        sendMessageRef.current(text);
-      }, 50);
-    }
-  }, [isHistoryLoaded, location.state, location.pathname, navigate]);
+    if (!isHistoryLoaded || !autoSendTextRef.current) return;
+    const text = autoSendTextRef.current;
+    autoSendTextRef.current = null; // consume it once
+    // Clear location state so a browser back/forward won't re-trigger
+    navigate(location.pathname, { replace: true, state: {} });
+    // Defer to next tick so sendMessageRef has the latest sendMessage with loaded history
+    setTimeout(() => {
+      sendMessageRef.current(text);
+    }, 0);
+  }, [isHistoryLoaded, location.pathname, navigate]);
 
   // Render artifact from type
   const renderArtifact = useCallback(
-    (_type: string, _data: Record<string, unknown>, message: string, images?: { url: string; title: string }[]): React.ReactNode => {
-      return <ChatResponse text={message} images={images?.map(img => ({ url: img.url, title: img.title }))} />;
+    (_type: string, _data: Record<string, unknown>, message: string, images?: { url: string; title: string }[], structuredResults?: Record<string, any>): React.ReactNode => {
+      const hasShoppingResults = structuredResults && (structuredResults.products?.length > 0 || structuredResults.stores?.length > 0);
+      return (
+        <>
+          <ChatResponse text={message} images={images?.map(img => ({ url: img.url, title: img.title }))} />
+          {hasShoppingResults && (
+            <ShoppingResults
+              products={structuredResults.products}
+              productSearchQuery={structuredResults.productSearchQuery}
+              stores={structuredResults.stores}
+              storeSearchQuery={structuredResults.storeSearchQuery}
+              storeLocation={structuredResults.storeLocation}
+            />
+          )}
+        </>
+      );
     },
     [],
   );
@@ -188,6 +207,7 @@ export function PwaChat() {
       case 'modify_plant': return 'updating plant';
       case 'create_reminder': return 'setting reminder';
       case 'deep_think': return 'reasoning';
+      case 'search_products': return 'searching products';
       default: return 'working';
     }
   }, []);
@@ -330,7 +350,7 @@ export function PwaChat() {
         const responseText = typeof response.data === 'string' ? response.data : JSON.stringify(response.data);
         const lines = responseText.split('\n').filter((l: string) => l.trim());
 
-        let replyData: { reply: string; mediaToSend: any[] } | null = null;
+        let replyData: { reply: string; mediaToSend: any[]; structuredResults?: Record<string, any> } | null = null;
 
         for (const line of lines) {
           try {
@@ -389,10 +409,12 @@ export function PwaChat() {
         };
         setMessages(prev => [...prev, assistantMsg]);
 
-        // Render with images if available
+        // Render with images and/or structured shopping results if available
+        const structuredResults = replyData.structuredResults || undefined;
+
         const element = images.length > 0
-          ? renderArtifact('chat', { text: reply }, reply, images)
-          : renderArtifact('chat', { text: reply }, reply);
+          ? renderArtifact('chat', { text: reply }, reply, images, structuredResults)
+          : renderArtifact('chat', { text: reply }, reply, undefined, structuredResults);
 
         const newArtifact: ArtifactEntry = {
           id: `artifact-${++artifactIdCounter.current}`,

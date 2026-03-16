@@ -5,8 +5,8 @@ import { resize } from "https://deno.land/x/deno_image@0.0.4/mod.ts";
 import { decode as base64Decode } from "https://deno.land/std@0.208.0/encoding/base64.ts";
 
 // Shared modules
-import { resolvePlants, savePlant, modifyPlant, deletePlant, createReminder, deleteReminder, logCareEvent, saveUserInsight, updateNotificationPreferences, updateProfile, checkAgentPermission, capturePlantSnapshot, comparePlantSnapshots, TOOL_CAPABILITY_MAP } from "../_shared/tools.ts";
-import { callResearchAgent, callMapsShoppingAgent, verifyStoreInventory, parseDistance, geocodeLocation } from "../_shared/research.ts";
+import { resolvePlants, savePlant, modifyPlant, deletePlant, createReminder, deleteReminder, logCareEvent, saveUserInsight, updateNotificationPreferences, updateProfile, checkAgentPermission, capturePlantSnapshot, comparePlantSnapshots, checkPlantSensors, associateReading, setPlantRanges, getSensorHistory, comparePlantEnvironments, manageDevice, dismissSensorAlert, TOOL_CAPABILITY_MAP } from "../_shared/tools.ts";
+import { callResearchAgent, callMapsShoppingAgent, verifyStoreInventory, searchProducts, parseDistance, geocodeLocation } from "../_shared/research.ts";
 import { loadHierarchicalContext, buildEnrichedSystemPrompt, formatTimeUntil, formatTimeSince, formatTimeAgo, formatInsightKey } from "../_shared/context.ts";
 import type { HierarchicalContext, PlantResolutionResult, StoreRecommendation, StoreSearchResult, StoreVerification } from "../_shared/types.ts";
 
@@ -497,6 +497,35 @@ Only call find_stores again if the product or location has CHANGED.`,
       },
     },
   },
+  {
+    type: "function",
+    function: {
+      name: "search_products",
+      description: `Search for products online with real prices, images, ratings, and purchase links from Google Shopping.
+
+Use when:
+- User asks about product prices, comparisons, or "how much does X cost?"
+- User wants to buy something online
+- No local stores found and you want to show online alternatives
+- User explicitly asks for online options
+
+Returns: Product listings with real current prices, merchant names, ratings, images, and direct purchase links.`,
+      parameters: {
+        type: "object",
+        properties: {
+          query: {
+            type: "string",
+            description: "Product search query — be specific for best results (e.g., 'orchid bark medium grade 4 quart' not just 'bark')",
+          },
+          max_results: {
+            type: "number",
+            description: "Maximum products to return (default 5, max 10)",
+          },
+        },
+        required: ["query"],
+      },
+    },
+  },
 ];
 
 // Function Tools - direct database operations
@@ -904,6 +933,212 @@ Use when:
           },
         },
         required: ["source"],
+      },
+    },
+  },
+  // ── IoT Sensor Tools ──────────────────────────────────────────────────
+  {
+    type: "function",
+    function: {
+      name: "check_plant_sensors",
+      description: "Get latest IoT sensor readings for a plant. Returns soil moisture, temperature, humidity, light level with health status assessments. Use when user asks about sensor data, plant conditions, or during pulse checks.",
+      parameters: {
+        type: "object",
+        properties: {
+          plant_identifier: {
+            type: "string",
+            description: "Plant name, nickname, or 'all' for all plants with sensors",
+          },
+        },
+        required: ["plant_identifier"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "associate_reading",
+      description: "Associate the most recent unassociated sensor reading with a specific plant. Used during pulse-check mode when a handheld sensor takes a reading and the user says which plant it's for.",
+      parameters: {
+        type: "object",
+        properties: {
+          plant_identifier: {
+            type: "string",
+            description: "Plant name or nickname to associate the reading with",
+          },
+        },
+        required: ["plant_identifier"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "set_plant_ranges",
+      description: "Set ideal sensor ranges for a plant based on its species, environment, and needs. Call this when identifying a new plant, when asked to set ranges, or when conditions change (new location, season). Uses four-value ranges: min (danger) -> ideal_min -> ideal_max -> max (danger).",
+      parameters: {
+        type: "object",
+        properties: {
+          plant_identifier: {
+            type: "string",
+            description: "Plant name or nickname",
+          },
+          ranges: {
+            type: "object",
+            description: "Range values per metric. Each has min, ideal_min, ideal_max, max.",
+            properties: {
+              soil_moisture: {
+                type: "object",
+                properties: {
+                  min: { type: "number", description: "Danger low (below this = critical)" },
+                  ideal_min: { type: "number", description: "Ideal low bound" },
+                  ideal_max: { type: "number", description: "Ideal high bound" },
+                  max: { type: "number", description: "Danger high (above this = critical)" },
+                },
+              },
+              temperature: {
+                type: "object",
+                properties: {
+                  min: { type: "number" },
+                  ideal_min: { type: "number" },
+                  ideal_max: { type: "number" },
+                  max: { type: "number" },
+                },
+              },
+              humidity: {
+                type: "object",
+                properties: {
+                  min: { type: "number" },
+                  ideal_min: { type: "number" },
+                  ideal_max: { type: "number" },
+                  max: { type: "number" },
+                },
+              },
+              light_lux: {
+                type: "object",
+                properties: {
+                  min: { type: "number" },
+                  ideal_min: { type: "number" },
+                  ideal_max: { type: "number" },
+                  max: { type: "number" },
+                },
+              },
+            },
+          },
+          reasoning: {
+            type: "string",
+            description: "Why these ranges were chosen — species needs, user environment, season, etc.",
+          },
+        },
+        required: ["plant_identifier", "ranges", "reasoning"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_sensor_history",
+      description: "Get historical sensor readings for a plant over a time period. Returns data points and summary stats (min, max, avg). Use when user asks about trends, history, or how a metric has changed.",
+      parameters: {
+        type: "object",
+        properties: {
+          plant_identifier: {
+            type: "string",
+            description: "Plant name or nickname",
+          },
+          metric: {
+            type: "string",
+            enum: ["soil_moisture", "temperature", "humidity", "light_lux", "all"],
+            description: "Which metric to retrieve history for",
+          },
+          period: {
+            type: "string",
+            enum: ["24h", "7d", "30d"],
+            description: "Time period for history",
+          },
+        },
+        required: ["plant_identifier", "metric", "period"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "compare_plant_environments",
+      description: "Compare a sensor metric across multiple plants. Use when user asks 'which plant is driest?' or 'compare humidity across my plants'. Returns plants sorted by the metric value.",
+      parameters: {
+        type: "object",
+        properties: {
+          plant_identifiers: {
+            type: "string",
+            description: "Comma-separated plant names, or 'all' for all plants",
+          },
+          metric: {
+            type: "string",
+            enum: ["soil_moisture", "temperature", "humidity", "light_lux"],
+            description: "Which metric to compare",
+          },
+        },
+        required: ["plant_identifiers", "metric"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "manage_device",
+      description: "Manage IoT sensor devices: assign to a plant, unassign, rename, identify (blinks the LED), check status, or provision a new device token. Use when user wants to move a sensor, rename it, find which physical device is which, or set up a new sensor.",
+      parameters: {
+        type: "object",
+        properties: {
+          action: {
+            type: "string",
+            enum: ["assign", "unassign", "rename", "identify", "status", "provision"],
+            description: "What to do with the device",
+          },
+          device_name: {
+            type: "string",
+            description: "Name of the device (fuzzy match)",
+          },
+          device_id: {
+            type: "string",
+            description: "Device UUID (if known)",
+          },
+          plant_identifier: {
+            type: "string",
+            description: "Plant name — required for assign and optional for provision",
+          },
+          new_name: {
+            type: "string",
+            description: "New name — required for rename, optional for provision (defaults to 'New Sensor')",
+          },
+        },
+        required: ["action"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "dismiss_sensor_alert",
+      description: "Dismiss an active sensor alert for a plant. Use when the user acknowledges an alert ('I know, I'll water later') so you don't keep nagging about it.",
+      parameters: {
+        type: "object",
+        properties: {
+          plant_identifier: {
+            type: "string",
+            description: "Plant name or nickname",
+          },
+          alert_type: {
+            type: "string",
+            description: "Type of alert to dismiss: dry, wet, cold, hot, low, high, offline",
+          },
+          reason: {
+            type: "string",
+            description: "Why dismissed: 'User will water later', 'Plant is being moved', etc.",
+          },
+        },
+        required: ["plant_identifier"],
       },
     },
   },
@@ -2696,6 +2931,7 @@ ${proactiveContext.events.map((e: any) => `- ${e.message_hint}`).join("\n")}
     // These are resolved to fresh signed URLs on load, avoiding 1-hour expiry issues.
     let mediaPathsForDB: string[] = [];
     const toolsUsed: string[] = [];
+    const allToolResults: { id: string; name: string; result: any }[] = [];
 
     if (!orchestratorResponse.ok) {
       const errorText = await orchestratorResponse.text();
@@ -3584,6 +3820,27 @@ ${proactiveContext.events.map((e: any) => `- ${e.message_hint}`).join("\n")}
                 functionName,
                 { query: args.product_query },
               );
+            } else if (functionName === "search_products") {
+              const SERPAPI_KEY = Deno.env.get("SERPAPI_KEY");
+              if (!SERPAPI_KEY) {
+                toolResult = { success: false, error: "Product search not configured" };
+              } else {
+                toolResult = await searchProducts(
+                  args.query,
+                  SERPAPI_KEY,
+                  args.max_results || 5,
+                );
+              }
+              await logAgentOperation(
+                supabase,
+                profile?.id,
+                correlationId,
+                "read",
+                "external_search",
+                null,
+                functionName,
+                { query: args.query },
+              );
             } else if (functionName === "update_notification_preferences") {
               toolResult = await updateNotificationPreferences(supabase, profile?.id, args);
               if (toolResult.success) {
@@ -3676,11 +3933,56 @@ ${proactiveContext.events.map((e: any) => `- ${e.message_hint}`).join("\n")}
                 }
               }
             }
+            // ── IoT Sensor Tool Handlers ──────────────────────────────────────
+            else if (functionName === "check_plant_sensors") {
+              toolResult = await checkPlantSensors(supabase, profile?.id, args as any);
+            } else if (functionName === "associate_reading") {
+              toolResult = await associateReading(supabase, profile?.id, args as any);
+            } else if (functionName === "set_plant_ranges") {
+              toolResult = await setPlantRanges(supabase, profile?.id, args as any, inboundMessage?.id);
+              if (toolResult.success) {
+                await logAgentOperation(
+                  supabase,
+                  profile?.id,
+                  correlationId,
+                  "update",
+                  "plant_sensor_ranges",
+                  null,
+                  functionName,
+                  { plant: args.plant_identifier, reasoning: args.reasoning },
+                );
+              }
+            } else if (functionName === "get_sensor_history") {
+              toolResult = await getSensorHistory(supabase, profile?.id, args as any);
+            } else if (functionName === "compare_plant_environments") {
+              toolResult = await comparePlantEnvironments(supabase, profile?.id, args as any);
+            } else if (functionName === "manage_device") {
+              toolResult = await manageDevice(supabase, profile?.id, args as any);
+              if (toolResult.success) {
+                await logAgentOperation(
+                  supabase,
+                  profile?.id,
+                  correlationId,
+                  args.action === "provision" ? "create" : "update",
+                  "iot_devices",
+                  toolResult.deviceId || null,
+                  functionName,
+                  { action: args.action, device_name: args.device_name || args.new_name, plant: args.plant_identifier },
+                );
+              }
+            } else if (functionName === "dismiss_sensor_alert") {
+              toolResult = await dismissSensorAlert(supabase, profile?.id, args as any);
+            }
             else {
               toolResult = { success: false, error: `Unknown tool: ${functionName}` };
             }
 
             toolResults.push({
+              id: toolCall.id,
+              name: functionName,
+              result: toolResult,
+            });
+            allToolResults.push({
               id: toolCall.id,
               name: functionName,
               result: toolResult,
@@ -3925,6 +4227,20 @@ ${proactiveContext.events.map((e: any) => `- ${e.message_hint}`).join("\n")}
       } // Close defensive check else block
     }
 
+    // Collect structured data from tool results for rich card rendering
+    const structuredResults: Record<string, any> = {};
+    for (const tr of allToolResults) {
+      if (tr.name === "search_products" && tr.result?.success && tr.result?.data?.products?.length > 0) {
+        structuredResults.products = tr.result.data.products;
+        structuredResults.productSearchQuery = tr.result.data.searchedFor;
+      }
+      if (tr.name === "find_stores" && tr.result?.success && tr.result?.data?.stores?.length > 0) {
+        structuredResults.stores = tr.result.data.stores;
+        structuredResults.storeSearchQuery = tr.result.data.searchedFor;
+        structuredResults.storeLocation = tr.result.data.location;
+      }
+    }
+
     console.log("Orchid Reply:", aiReply);
 
     // Store outgoing message
@@ -4014,6 +4330,7 @@ ${proactiveContext.events.map((e: any) => `- ${e.message_hint}`).join("\n")}
         reply: aiReply,
         mediaToSend: mediaToSend,
         toolsUsed: toolsUsed,
+        structuredResults: Object.keys(structuredResults).length > 0 ? structuredResults : undefined,
       }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });

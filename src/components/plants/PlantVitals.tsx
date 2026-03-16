@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useSensorData, type MetricStatus, type SensorReading } from "@/hooks/useSensorData";
-import { useDevices, useUpdateDevice, useCreateDevice } from "@/hooks/useDevices";
+import { useDevices, useUpdateDevice, useCreateDevice, useSendDeviceCommand } from "@/hooks/useDevices";
 import { Droplets, Thermometer, Wind, AlertTriangle, ChevronRight, Wifi, Plus, Copy, Check, ChevronDown, X } from "lucide-react";
 import SensorHistoryChart from "./SensorHistoryChart";
 
@@ -517,6 +517,7 @@ export default function PlantVitals({ plantId }: PlantVitalsProps) {
   const [showSensorPicker, setShowSensorPicker] = useState(false);
   const navigate = useNavigate();
 
+  const sendCommand = useSendDeviceCommand();
   const assignedDevice = (devices || []).find(d => d.plant_id === plantId && d.status === 'active');
 
   const toggleMetric = (name: string) => setExpandedMetric(prev => prev === name ? null : name);
@@ -647,6 +648,24 @@ export default function PlantVitals({ plantId }: PlantVitalsProps) {
           </button>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          {assignedDevice && !sensorRemoved && (
+            <button
+              onClick={() => sendCommand.mutate({ deviceId: assignedDevice.id, command: 'read_now' })}
+              disabled={sendCommand.isPending}
+              className="cursor-pointer"
+              style={{
+                fontFamily: mono,
+                fontSize: '8px',
+                padding: '2px 6px',
+                color: sendCommand.isPending ? 'rgba(255,255,255,0.4)' : 'rgba(255,255,255,0.6)',
+                border: '1px solid rgba(255,255,255,0.12)',
+                background: 'transparent',
+                letterSpacing: '0.05em',
+              }}
+            >
+              {sendCommand.isPending ? 'READING...' : 'READ NOW'}
+            </button>
+          )}
           {lastReadingAge && (
             <span style={{ fontFamily: mono, fontSize: '9px', color: 'rgba(255,255,255,0.6)' }}>
               {lastReadingAge}

@@ -93,20 +93,15 @@ export async function savePlant(
   profileId: string,
   args: { species: string; nickname?: string; location?: string; notes?: string },
   photoUrl?: string,
-): Promise<{ success: boolean; plant?: any; error?: string }> {
+): Promise<{ success: boolean; plant?: any; error?: string; existingMatches?: any[] }> {
   try {
-    // Dedup: return existing plant if same species already saved for this profile
+    // Check for existing plants of same species — return as advisory info, not a block.
+    // The LLM decides whether to proceed (user may have multiple of the same species).
     const { data: existing } = await supabase
       .from("plants")
-      .select("id, name, nickname, species, location_in_home, notes, photo_url")
+      .select("id, name, nickname, species, location_in_home")
       .eq("profile_id", profileId)
-      .ilike("species", args.species)
-      .maybeSingle();
-
-    if (existing) {
-      console.log(`[savePlant] Deduped: plant "${existing.id}" already exists for species "${args.species}"`);
-      return { success: true, plant: existing };
-    }
+      .ilike("species", args.species);
 
     const { data: plant, error } = await supabase
       .from("plants")
@@ -128,7 +123,12 @@ export async function savePlant(
     }
 
     console.log("Saved plant:", plant.id);
-    return { success: true, plant };
+    const result: { success: boolean; plant: any; existingMatches?: any[] } = { success: true, plant };
+    if (existing && existing.length > 0) {
+      result.existingMatches = existing;
+      console.log(`[savePlant] Note: user already has ${existing.length} plant(s) of species "${args.species}"`);
+    }
+    return result;
   } catch (error) {
     return { success: false, error: String(error) };
   }

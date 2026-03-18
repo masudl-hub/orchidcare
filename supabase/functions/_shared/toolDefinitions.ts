@@ -130,7 +130,7 @@ Prefer this over research when the user has shared a specific URL to analyze.`,
   {
     name: "save_plant",
     description:
-      "Save a plant to user's collection for tracking. Use when user says 'save', 'add to collection', 'track', or 'remember this plant'. After saving, use the returned plant ID for subsequent operations on this plant.",
+      "Save a plant to user's collection. Before calling, check your SAVED PLANTS context — if the user likely already has this plant (same species, matching description/location), ask them first rather than creating a duplicate. Users can have multiple plants of the same species, so species alone isn't enough to decide. If identify_plant or diagnose_plant returned _possible_match, consider whether the photo matches that existing plant. After saving, use the returned plant ID for subsequent operations.",
     parameters: {
       properties: {
         species: { type: "string", description: "Plant species name" },
@@ -724,10 +724,11 @@ const agentOnlyTools: ToolDef[] = [
   {
     name: "diagnose_plant",
     description:
-      "Diagnose health issues from a plant photo. Call when user mentions problems (yellow leaves, wilting, spots, pests, etc.) or asks 'what's wrong'.",
+      "Diagnose health issues from a plant photo. Call when user mentions problems (yellow leaves, wilting, spots, pests, etc.) or asks 'what's wrong'. If the user mentions which plant it is (by name, nickname, or species), pass it as plant_identifier so the diagnosis can be linked to their existing plant.",
     parameters: {
       properties: {
         symptoms_described: { type: "string", description: "Symptoms mentioned by user" },
+        plant_identifier: { type: "string", description: "Plant ID from context (preferred), name, or nickname — if the user indicates which plant this is" },
       },
     },
   },

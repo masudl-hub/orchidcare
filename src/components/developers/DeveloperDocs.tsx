@@ -493,6 +493,11 @@ export function DeveloperDocs() {
                     desc="Compare how a plant looks now vs. previous snapshots — AI generates a temporal health analysis."
                     params="plant_identifier, comparison_type (latest or all)"
                 />
+                <ToolEntry
+                    name="recall_media"
+                    desc="Retrieve previously stored images — plant snapshot history, past visual guides. Use for 'show me again' or 'compare photos'."
+                    params="source (plant_snapshots/generated_guides), plant_identifier (required for snapshots), limit (default 3, max 5)"
+                />
             </Section>
 
             {/* 11. Capabilities — Research & Discovery */}
@@ -501,6 +506,11 @@ export function DeveloperDocs() {
                     name="research"
                     desc="Real-time web search via Perplexity for plant info, pest treatments, product reviews, URL analysis, toxicity data."
                     params="query, focus (general/product/toxicity/article_analysis/fact_check)"
+                />
+                <ToolEntry
+                    name="analyze_url"
+                    desc="Deep-analyze a webpage URL — summarize content, extract care instructions, evaluate products, or fact-check claims."
+                    params="url (required), analysis_type (summarize/extract_care/evaluate_product/fact_check), question"
                 />
                 <ToolEntry
                     name="find_stores"
@@ -516,6 +526,11 @@ export function DeveloperDocs() {
                     name="get_cached_stores"
                     desc="Retrieve recently cached store results (< 24h) for follow-up questions like 'more stores' or 'other options'."
                     params="product_query — the original product searched for"
+                />
+                <ToolEntry
+                    name="search_products"
+                    desc="Search for products online via Google Shopping — real prices, images, ratings, and purchase links."
+                    params="query (be specific for best results), max_results (default 5, max 10)"
                 />
                 <ToolEntry
                     name="deep_think"
@@ -562,8 +577,51 @@ export function DeveloperDocs() {
                 />
             </Section>
 
-            {/* 14. Integration Examples */}
-            <Section title="14. integration examples" figLabel="§ 3.14" delay={0}>
+            {/* 14. Capabilities — IoT Sensor Tools */}
+            <Section title="14. iot sensor tools" figLabel="§ 3.14" delay={0}>
+                <p style={{ marginBottom: "12px" }}>
+                    Integration with ESP32-based plant sensors for real-time environmental monitoring.
+                    All sensor tools accept plant identifiers (ID, name, or bulk patterns like 'all').
+                </p>
+                <ToolEntry
+                    name="check_plant_sensors"
+                    desc="Get latest IoT sensor readings — soil moisture, temperature, humidity, light level with health assessments."
+                    params="plant_identifier (name, ID, or 'all' for all plants with sensors)"
+                />
+                <ToolEntry
+                    name="associate_reading"
+                    desc="Associate the most recent unassociated sensor reading with a plant. Used during pulse-check mode with handheld sensors."
+                    params="plant_identifier"
+                />
+                <ToolEntry
+                    name="set_plant_ranges"
+                    desc="Set ideal sensor ranges (four-value: min → ideal_min → ideal_max → max) per metric based on species and environment."
+                    params="plant_identifier, ranges { soil_moisture, temperature, humidity, light_lux }, reasoning"
+                />
+                <ToolEntry
+                    name="get_sensor_history"
+                    desc="Get historical sensor readings over a time period. Returns data points and summary stats (min, max, avg)."
+                    params="plant_identifier, metric (soil_moisture/temperature/humidity/light_lux/all), period (24h/7d/30d)"
+                />
+                <ToolEntry
+                    name="compare_plant_environments"
+                    desc="Compare a sensor metric across multiple plants — 'which plant is driest?', 'compare humidity across my plants'."
+                    params="plant_identifiers (comma-separated IDs/names or 'all'), metric (soil_moisture/temperature/humidity/light_lux)"
+                />
+                <ToolEntry
+                    name="manage_device"
+                    desc="Manage IoT sensor devices: assign to a plant, unassign, rename, identify (blink LED), check status, or provision a new token."
+                    params="action (assign/unassign/rename/identify/status/provision), device_name, device_id, plant_identifier, new_name"
+                />
+                <ToolEntry
+                    name="dismiss_sensor_alert"
+                    desc="Dismiss an active sensor alert. Use when user acknowledges an alert ('I know, I'll water later')."
+                    params="plant_identifier, alert_type (dry/wet/cold/hot/low/high/offline), reason"
+                />
+            </Section>
+
+            {/* 15. Integration Examples */}
+            <Section title="15. integration examples" figLabel="§ 3.15" delay={0}>
                 <p style={{ marginBottom: "12px" }}>
                     <strong style={{ color: "white" }}>Node.js / TypeScript:</strong>
                 </p>
@@ -628,8 +686,8 @@ const { data } = await fetch("${API_ENDPOINT}", {
 }).then(r => r.json());`}</CodeBlock>
             </Section>
 
-            {/* 15. Error Codes */}
-            <Section title="15. error codes" figLabel="§ 3.15" delay={0}>
+            {/* 16. Error Codes */}
+            <Section title="16. error codes" figLabel="§ 3.16" delay={0}>
                 <div className="flex flex-col gap-1">
                     {[
                         { code: "401", desc: "Missing, malformed, or invalid format Authorization header" },
@@ -666,7 +724,7 @@ const { data } = await fetch("${API_ENDPOINT}", {
             </Section>
 
             {/* 16. Rate Limits */}
-            <Section title="16. rate limits" figLabel="§ 3.16" delay={0}>
+            <Section title="17. rate limits" figLabel="§ 3.17" delay={0}>
                 <p>
                     Default: <strong style={{ color: "white" }}>7 requests/minute</strong> per API key.
                 </p>
@@ -682,7 +740,7 @@ const { data } = await fetch("${API_ENDPOINT}", {
             </Section>
 
             {/* 17. Limitations */}
-            <Section title="17. known limitations" figLabel="§ 3.17" delay={0}>
+            <Section title="18. known limitations" figLabel="§ 3.18" delay={0}>
                 <ul style={{ paddingLeft: "20px", listStyle: "disc", display: "flex", flexDirection: "column", gap: "6px" }}>
                     <li>One media URL per request — send multiple images in separate requests</li>
                     <li>Media must be publicly accessible URLs — no base64 encoding or file uploads</li>

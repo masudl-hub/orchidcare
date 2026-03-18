@@ -295,9 +295,10 @@ Return ONLY valid JSON with this structure:
   "commonNames": ["name1", "name2"],
   "careSummary": "Brief 2-3 sentence care overview"
 }`,
-    diagnose: `You are a plant pathologist. Analyze this image for health issues.
+    diagnose: `You are a plant pathologist. Analyze this image for health issues. Also identify the species.
 Return ONLY valid JSON with this structure:
 {
+  "species": "Scientific name (Common name)",
   "diagnosis": "Primary issue identified",
   "severity": "mild|moderate|severe",
   "treatment": "Recommended treatment steps",
@@ -2133,25 +2134,37 @@ ${proactiveContext.events.map((e: any) => `- ${e.message_hint}`).join("\n")}
                   // Try to match to an existing saved plant
                   if (uploadedPhotoPath || mediaUrl0) {
                     const species = toolResult.data.species || "Unknown";
-                    // Try case-insensitive exact match first, fall back to substring fuzzy
+                    // Find ALL matching plants — exact species first, then fuzzy
                     const { data: exactMatch } = await supabase
                       .from("plants")
-                      .select("id, name, nickname, species")
+                      .select("id, name, nickname, species, location_in_home")
                       .eq("profile_id", profile?.id)
-                      .ilike("species", species)
-                      .limit(1);
+                      .ilike("species", species);
                     const matchedPlants = (exactMatch && exactMatch.length > 0)
                       ? exactMatch
                       : await supabase
                           .from("plants")
-                          .select("id, name, nickname, species")
+                          .select("id, name, nickname, species, location_in_home")
                           .eq("profile_id", profile?.id)
                           .or(`name.ilike.%${species}%,species.ilike.%${species}%`)
-                          .limit(1)
                           .then(({ data }: { data: any }) => data);
 
                     if (matchedPlants && matchedPlants.length > 0) {
-                      const plant = matchedPlants[0];
+                      const plant = matchedPlants[0]; // use first for snapshot
+
+                      // Surface ALL matches so the LLM can reason about which one
+                      toolResult.data._possible_matches = matchedPlants.map((p: any) => ({
+                        id: p.id,
+                        name: p.nickname || p.name,
+                        species: p.species,
+                        location: p.location_in_home,
+                      }));
+                      if (matchedPlants.length === 1) {
+                        toolResult.data._possible_matches_hint = `The user has "${plant.nickname || plant.name}" (${plant.species}) in their collection${plant.location_in_home ? ` — ${plant.location_in_home}` : ""}. This photo is likely of that plant. Reference it by ID (${plant.id}) in follow-up tool calls.`;
+                      } else {
+                        toolResult.data._possible_matches_hint = `The user has ${matchedPlants.length} plants matching "${species}": ${matchedPlants.map((p: any) => `"${p.nickname || p.name}"${p.location_in_home ? ` (${p.location_in_home})` : ""}`).join(", ")}. Compare the photo with the visual descriptions in your context to determine which one, or ask the user.`;
+                      }
+
                       // Generate a visual description via a quick LLM call
                       const descResult = await generateVisualDescription(
                         mediaInfo.base64,
@@ -2210,18 +2223,60 @@ ${proactiveContext.events.map((e: any) => `- ${e.message_hint}`).join("\n")}
                 );
 
                 if (toolResult.success && toolResult.data) {
-                  // Try to link to an existing plant if user mentioned one
+                  // Try to link to an existing plant — first by user-provided name, then by diagnosed species
                   let diagnosePlantId: string | null = null;
+                  let diagnosePlantMatch: any = null;
                   if (args.plant_identifier || args.plant_name) {
                     const plantRef = args.plant_identifier || args.plant_name;
                     const { data: matchedPlants } = await supabase
                       .from("plants")
-                      .select("id")
+                      .select("id, name, nickname, species")
                       .eq("profile_id", profile?.id)
                       .or(`name.ilike.%${plantRef}%,nickname.ilike.%${plantRef}%,species.ilike.%${plantRef}%`)
                       .limit(1);
                     if (matchedPlants && matchedPlants.length > 0) {
                       diagnosePlantId = matchedPlants[0].id;
+                      diagnosePlantMatch = matchedPlants[0];
+                    }
+                  }
+                  // Fallback: match by species from the diagnosis result
+                  if (!diagnosePlantId && toolResult.data.species) {
+                    const species = toolResult.data.species;
+                    const { data: speciesMatch } = await supabase
+                      .from("plants")
+                      .select("id, name, nickname, species, location_in_home")
+                      .eq("profile_id", profile?.id)
+                      .ilike("species", species);
+                    if (speciesMatch && speciesMatch.length > 0) {
+                      diagnosePlantId = speciesMatch[0].id;
+                      diagnosePlantMatch = speciesMatch[0];
+                    }
+                  }
+                  // Surface all matches so the LLM can reason about which plant
+                  if (diagnosePlantMatch) {
+                    if (toolResult.data.species && !args.plant_identifier) {
+                      // If matched by species (not explicit user ref), check for siblings
+                      const { data: siblings } = await supabase
+                        .from("plants")
+                        .select("id, name, nickname, species, location_in_home")
+                        .eq("profile_id", profile?.id)
+                        .ilike("species", toolResult.data.species);
+                      if (siblings && siblings.length > 1) {
+                        // Replace single match with full list
+                        toolResult.data._possible_matches = siblings.map((p: any) => ({
+                          id: p.id, name: p.nickname || p.name, species: p.species, location: p.location_in_home,
+                        }));
+                        toolResult.data._possible_matches_hint = `The user has ${siblings.length} plants matching "${toolResult.data.species}". Compare with visual descriptions in your context or ask the user which one.`;
+                      }
+                    }
+                    if (!toolResult.data._possible_matches) {
+                      toolResult.data._possible_matches = [{
+                        id: diagnosePlantMatch.id,
+                        name: diagnosePlantMatch.nickname || diagnosePlantMatch.name,
+                        species: diagnosePlantMatch.species,
+                        location: diagnosePlantMatch.location_in_home,
+                      }];
+                      toolResult.data._possible_matches_hint = `This diagnosis likely applies to the user's "${diagnosePlantMatch.nickname || diagnosePlantMatch.name}" (ID: ${diagnosePlantMatch.id}).`;
                     }
                   }
 

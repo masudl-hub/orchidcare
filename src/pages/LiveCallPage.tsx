@@ -197,26 +197,29 @@ function LiveCallPageInner() {
             }),
           }).catch(() => {});
 
-          // Recording — wait for MediaRecorder to flush, then upload
-          await disconnectDone;
-          const blobs = getBlobs();
-          if (blobs.userBlob || blobs.agentBlob) {
-            const [userB64, agentB64] = await Promise.all([
-              blobs.userBlob ? blobToBase64(blobs.userBlob) : null,
-              blobs.agentBlob ? blobToBase64(blobs.agentBlob) : null,
-            ]);
-            console.log('[LiveCall] Sending call audio for summarization...');
-            fetch(`${SUPABASE_URL}/functions/v1/summarise-call`, {
-              method: 'POST',
-              headers,
-              body: JSON.stringify({
-                sessionId: currentSessionId,
-                initData: initData || undefined,
-                userAudio: userB64,
-                agentAudio: agentB64,
-                audioMimeType: blobs.mimeType,
-              }),
-            }).catch(() => {});
+          // Recording — only send audio for summarization if we have no transcript
+          // (call-session/end already summarizes from transcript, avoid duplicate rows)
+          if (!transcript || transcript.length === 0) {
+            await disconnectDone;
+            const blobs = getBlobs();
+            if (blobs.userBlob || blobs.agentBlob) {
+              const [userB64, agentB64] = await Promise.all([
+                blobs.userBlob ? blobToBase64(blobs.userBlob) : null,
+                blobs.agentBlob ? blobToBase64(blobs.agentBlob) : null,
+              ]);
+              console.log('[LiveCall] No transcript available — sending audio for summarization');
+              fetch(`${SUPABASE_URL}/functions/v1/summarise-call`, {
+                method: 'POST',
+                headers,
+                body: JSON.stringify({
+                  sessionId: currentSessionId,
+                  initData: initData || undefined,
+                  userAudio: userB64,
+                  agentAudio: agentB64,
+                  audioMimeType: blobs.mimeType,
+                }),
+              }).catch(() => {});
+            }
           }
         } catch (err) {
           console.error('[LiveCall] End session error:', err);

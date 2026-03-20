@@ -5,7 +5,6 @@ import { GoogleGenAI } from "npm:@google/genai";
 
 import { loadHierarchicalContext, buildVoiceSystemPrompt } from "../_shared/context.ts";
 import { validateInitData } from "../_shared/auth.ts";
-import type { TelegramUser } from "../_shared/auth.ts";
 
 // ---------------------------------------------------------------------------
 // Types

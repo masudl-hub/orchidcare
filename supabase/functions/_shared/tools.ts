@@ -155,9 +155,9 @@ export async function modifyPlant(
     }
 
     const updateData: any = {};
-    if (args.updates?.nickname) updateData.nickname = args.updates.nickname;
-    if (args.updates?.location) updateData.location_in_home = args.updates.location;
-    if (args.updates?.notes) updateData.notes = args.updates.notes;
+    if (args.updates?.nickname != null) updateData.nickname = args.updates.nickname;
+    if (args.updates?.location != null) updateData.location_in_home = args.updates.location;
+    if (args.updates?.notes != null) updateData.notes = args.updates.notes;
 
     if (resolution.isBulk) {
       // Bulk update

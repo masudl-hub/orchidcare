@@ -45,6 +45,8 @@ export function useGeminiLive() {
   const transcriptRef = useRef<{ role: 'user' | 'agent'; text: string }[]>([]);
   const currentUserUtterance = useRef('');
   const currentAgentUtterance = useRef('');
+  const sessionResumptionHandleRef = useRef<string | null>(null);
+  const isToolExecutingRef = useRef(false);
 
   const playback = useAudioPlayback();
   const capture = useAudioCapture();
@@ -130,6 +132,7 @@ export function useGeminiLive() {
       if (serverCalls.length > 0) {
         const toolNames = serverCalls.map(fc => fc.name).filter(Boolean);
         setExecutingToolName(toolNames[0] || 'working');
+        isToolExecutingRef.current = true;
         setIsToolExecuting(true);
 
         const serverResponses = await Promise.all(
@@ -185,6 +188,7 @@ export function useGeminiLive() {
         if (sessionRef.current) {
           sessionRef.current.sendToolResponse({ functionResponses: serverResponses });
         }
+        isToolExecutingRef.current = false;
         setIsToolExecuting(false);
         setExecutingToolName('');
       }
@@ -258,17 +262,47 @@ export function useGeminiLive() {
         }
       }
 
+      // Track session resumption handles — enables context-preserving reconnects
+      if ((message as any).sessionResumptionUpdate?.newHandle) {
+        sessionResumptionHandleRef.current = (message as any).sessionResumptionUpdate.newHandle;
+      }
+
+      // GoAway — server warns of imminent close; proactively reconnect before drop
+      if ((message as any).goAway) {
+        const timeLeft = (message as any).goAway.timeLeft;
+        log(`GoAway received — server closing in ${timeLeft || 'unknown'}. Initiating proactive reconnect.`);
+        // Mark as user-disconnected so the onclose handler doesn't also trigger reconnect,
+        // then immediately start our own reconnect flow with the resumption handle.
+        if (sessionRef.current && !userDisconnectedRef.current) {
+          userDisconnectedRef.current = true; // Prevent onclose from double-reconnecting
+          try { sessionRef.current.close(); } catch { /* ignore */ }
+          sessionRef.current = null;
+          connectedRef.current = false;
+          capture.onAudioData.current = null;
+          playback.flush();
+          // Reset the flag so reconnect can proceed (userDisconnected blocks connect())
+          userDisconnectedRef.current = false;
+          attemptReconnectRef.current();
+        }
+      }
+
       // On setupComplete — send a minimal turn to trigger the model's greeting.
       // A bare { turnComplete: true } without turns causes 1007 on the 12-2025
       // model, so we include actual turns content per the documented API pattern.
       // Guard with greetingSentRef to prevent StrictMode double-greeting.
+      // Skip the greeting if we reconnected with a resumption handle — the model
+      // already has the conversation context and will continue naturally.
       if ((message as any).setupComplete && sessionRef.current && !greetingSentRef.current) {
         greetingSentRef.current = true;
-        log('Setup complete — sending greeting trigger');
-        sessionRef.current.sendClientContent({
-          turns: [{ role: 'user', parts: [{ text: '(call connected)' }] }],
-          turnComplete: true,
-        });
+        if (sessionResumptionHandleRef.current && reconnectAttemptsRef.current > 0) {
+          log('Setup complete — resumed session, skipping greeting');
+        } else {
+          log('Setup complete — sending greeting trigger');
+          sessionRef.current.sendClientContent({
+            turns: [{ role: 'user', parts: [{ text: '(call connected)' }] }],
+            turnComplete: true,
+          });
+        }
       }
     };
   }, [playback.enqueueAudio, playback.flush, log]);
@@ -292,10 +326,11 @@ export function useGeminiLive() {
     connectOptionsRef.current = options;
     connectingRef.current = true;
     greetingSentRef.current = false;
-    // Only reset transcript on fresh connections, not reconnects.
-    // Reconnects reuse the same sessionId — preserve accumulated transcript.
+    // Only reset transcript and resumption handle on fresh connections, not reconnects.
+    // Reconnects reuse the same sessionId — preserve accumulated transcript and handle.
     if (isFreshConnection) {
       transcriptRef.current = [];
+      sessionResumptionHandleRef.current = null;
     }
     // Always flush any buffered utterance from a prior connection into the transcript
     if (currentUserUtterance.current.trim()) {
@@ -362,7 +397,8 @@ export function useGeminiLive() {
       }
 
       // 4. NOW open the WebSocket — mic is confirmed ready
-      log(`Opening WebSocket — model=${GEMINI_MODEL}`);
+      const resumptionHandle = isReconnect ? sessionResumptionHandleRef.current : null;
+      log(`Opening WebSocket — model=${GEMINI_MODEL}${resumptionHandle ? ', with resumption handle' : ''}`);
       const session = await ai.live.connect({
         model: GEMINI_MODEL,
         config: {
@@ -372,6 +408,7 @@ export function useGeminiLive() {
               disabled: true,
             },
           },
+          ...(resumptionHandle ? { sessionResumption: { handle: resumptionHandle } } : {}),
           // inputAudioTranscription: {},
           // outputAudioTranscription: {},
           // ↑ Disabled: causes connection stall on BidiGenerateContentConstrained endpoint.
@@ -483,12 +520,16 @@ export function useGeminiLive() {
         // Gate: ref-based, always synchronous — blocks mic while model is speaking
         if (playback.isSpeakingRef.current) return;
 
+        // Gate: block mic while tool calls are pending — sending audio during
+        // tool execution causes 1008 disconnections on the Gemini Live API.
+        if (isToolExecutingRef.current) return;
+
         audioChunkCount++;
         if (audioChunkCount <= 3 || audioChunkCount % 50 === 0) {
           log(`Sending audio chunk #${audioChunkCount} (${base64.length} chars)`);
         }
         sessionRef.current.sendRealtimeInput({
-          media: { data: base64, mimeType: 'audio/pcm;rate=16000' },
+          audio: { data: base64, mimeType: 'audio/pcm;rate=16000' },
         });
       };
       log('Audio capture wired to session (ref-gated)');
@@ -545,6 +586,9 @@ export function useGeminiLive() {
       } catch (err) {
         const detail = err instanceof Error ? err.message : String(err);
         log(`Reconnect attempt ${attempt + 1} failed: ${detail}`);
+        // Clear resumption handle so next attempt falls back to a fresh session
+        // (the constrained endpoint may not support session resumption)
+        sessionResumptionHandleRef.current = null;
         attemptReconnectRef.current(); // try next attempt
       }
     }, backoffMs);
@@ -570,7 +614,7 @@ export function useGeminiLive() {
         video.onVideoFrame.current = (base64: string) => {
           if (sessionRef.current) {
             sessionRef.current.sendRealtimeInput({
-              media: { data: base64, mimeType: 'image/jpeg' },
+              video: { data: base64, mimeType: 'image/jpeg' },
             });
           }
         };

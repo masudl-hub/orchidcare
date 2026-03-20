@@ -46,8 +46,6 @@ interface DemoChatRequest {
   messages: DemoMessage[];
   media?: { type: string; data: string }[];
   demoToken?: string | null;
-  // Legacy field from identify-feature.tsx MockChat
-  exchangeCount?: number;
 }
 
 interface VoiceTokenRequest {

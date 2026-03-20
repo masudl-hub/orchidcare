@@ -1,14 +1,11 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-// Pure JavaScript image resizer - no WASM required
-import { resize } from "https://deno.land/x/deno_image@0.0.4/mod.ts";
 import { decode as base64Decode } from "https://deno.land/std@0.208.0/encoding/base64.ts";
 
 // Shared modules
-import { resolvePlants, savePlant, modifyPlant, deletePlant, createReminder, deleteReminder, logCareEvent, saveUserInsight, updateNotificationPreferences, updateProfile, checkAgentPermission, capturePlantSnapshot, comparePlantSnapshots, checkPlantSensors, associateReading, setPlantRanges, getSensorHistory, comparePlantEnvironments, manageDevice, dismissSensorAlert, TOOL_CAPABILITY_MAP } from "../_shared/tools.ts";
-import { callResearchAgent, callMapsShoppingAgent, verifyStoreInventory, searchProducts, parseDistance, geocodeLocation } from "../_shared/research.ts";
-import { loadHierarchicalContext, buildEnrichedSystemPrompt, formatTimeUntil, formatTimeSince, formatTimeAgo, formatInsightKey } from "../_shared/context.ts";
-import type { HierarchicalContext, PlantResolutionResult, StoreRecommendation, StoreSearchResult, StoreVerification } from "../_shared/types.ts";
+import { resolvePlants, checkAgentPermission, capturePlantSnapshot, TOOL_CAPABILITY_MAP } from "../_shared/tools.ts";
+import { callResearchAgent, callMapsShoppingAgent, geocodeLocation } from "../_shared/research.ts";
+import { loadHierarchicalContext, buildEnrichedSystemPrompt } from "../_shared/context.ts";
 import { allAgentToolsOpenAI } from "../_shared/toolDefinitions.ts";
 import { executeSharedTool } from "../_shared/toolRouter.ts";
 
@@ -16,113 +13,6 @@ const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
-
-// ============================================
-// MEDIA PROCESSING CONFIGURATION
-// ============================================
-const MEDIA_CONFIG = {
-  // Master toggle for all media resizing
-  RESIZE_MEDIA: true,  // Set to false to disable all resizing
-
-  // Image settings (only apply when RESIZE_MEDIA = true)
-  IMAGE_MAX_DIMENSION: 1536,  // Max pixels on longest edge
-  IMAGE_QUALITY: 85,          // JPEG quality (1-100) - note: deno_image outputs JPEG
-
-  // Video settings
-  VIDEO_MAX_SIZE_MB: 5,       // Warn if video exceeds this
-};
-
-// ============================================
-// IMAGE RESIZING FOR VISION (Pure JS - no WASM)
-// ============================================
-interface ResizedImageResult {
-  base64: string;
-  mimeType: string;
-  originalBytes: number;
-  resizedBytes: number;
-  dimensions: { width: number; height: number };
-  wasResized: boolean;
-}
-
-/**
- * Helper to convert Uint8Array to base64 in chunks (avoids stack overflow)
- */
-function uint8ArrayToBase64(data: Uint8Array): string {
-  let binary = "";
-  const chunkSize = 8192;
-  for (let i = 0; i < data.length; i += chunkSize) {
-    const chunk = data.subarray(i, i + chunkSize);
-    binary += String.fromCharCode.apply(null, Array.from(chunk));
-  }
-  return btoa(binary);
-}
-
-/**
- * Resize image for vision API using pure JavaScript (deno_image)
- * Works reliably in Deno Edge Runtime without WASM
- */
-async function resizeImageForVision(
-  imageData: Uint8Array,
-  originalMimeType: string
-): Promise<ResizedImageResult> {
-  const originalBytes = imageData.length;
-
-  // If resizing disabled, return original as base64
-  if (!MEDIA_CONFIG.RESIZE_MEDIA) {
-    const base64 = uint8ArrayToBase64(imageData);
-    return {
-      base64,
-      mimeType: originalMimeType,
-      originalBytes,
-      resizedBytes: originalBytes,
-      dimensions: { width: 0, height: 0 },
-      wasResized: false,
-    };
-  }
-
-  try {
-    const maxDim = MEDIA_CONFIG.IMAGE_MAX_DIMENSION;
-
-    // Use deno_image to resize - it handles both JPG and PNG
-    // It maintains aspect ratio by default and outputs JPEG
-    const resizedData = await resize(imageData, {
-      width: maxDim,
-      height: maxDim,
-      aspectRatio: true, // Maintain aspect ratio
-    });
-
-    const wasResized = resizedData.length < originalBytes;
-    const base64 = uint8ArrayToBase64(resizedData);
-
-    if (wasResized) {
-      const savings = ((1 - resizedData.length / originalBytes) * 100).toFixed(1);
-      console.log(`[MediaProcessing] Image optimized: ${originalBytes} -> ${resizedData.length} bytes (${savings}% reduction)`);
-    } else {
-      console.log(`[MediaProcessing] Image already optimal size: ${originalBytes} bytes`);
-    }
-
-    return {
-      base64,
-      mimeType: "image/jpeg", // deno_image outputs JPEG
-      originalBytes,
-      resizedBytes: resizedData.length,
-      dimensions: { width: maxDim, height: maxDim }, // Approximate - actual size respects aspect ratio
-      wasResized,
-    };
-  } catch (err) {
-    // Fallback: return original if resize fails
-    console.error("[MediaProcessing] Resize failed, using original:", err);
-    const base64 = uint8ArrayToBase64(imageData);
-    return {
-      base64,
-      mimeType: originalMimeType,
-      originalBytes,
-      resizedBytes: originalBytes,
-      dimensions: { width: 0, height: 0 },
-      wasResized: false,
-    };
-  }
-}
 
 // ============================================================================
 // MESSAGING SANITIZATION UTILITIES
@@ -361,13 +251,6 @@ Return ONLY valid JSON with this structure:
     console.log(`[extractContent] Full payload keys:`, Object.keys(payload || {}));
 
     const choice = payload?.choices?.[0];
-    const paths = [
-      { name: "choice.message.content", value: choice?.message?.content },
-      { name: "choice.message.text", value: choice?.message?.text },
-      { name: "choice.text", value: choice?.text },
-      { name: "choice.delta.content", value: choice?.delta?.content },
-    ];
-
     const maybe = choice?.message?.content ?? choice?.message?.text ?? choice?.text ?? choice?.delta?.content ?? "";
 
     if (typeof maybe === "string") {
@@ -503,6 +386,7 @@ interface ImageGuideStep {
   step: number;
   description: string;
   imageUrl: string;
+  storagePath?: string;
 }
 
 /**
@@ -550,7 +434,6 @@ async function callImageGenerationAgent(
   plantSpecies: string | null,
   stepCount: number,
   LOVABLE_API_KEY: string,
-  SUPABASE_URL: string,
   telegramChatId?: string,
   telegramBotToken?: string,
 ): Promise<{ success: boolean; images?: ImageGuideStep[]; error?: string }> {
@@ -1520,9 +1403,7 @@ serve(async (req: Request) => {
     const isProactiveTrigger = req.headers.get("X-Proactive-Trigger") === "true";
     const contentType = req.headers.get("content-type") || "";
 
-    let fromNumber: string;
     let body: string;
-    let mediaUrl0: string | null = null;
     let numMedia = 0;
     let messageSid: string;
     let proactiveContext: { events: any[]; eventSummary: string } | null = null;
@@ -1556,7 +1437,6 @@ serve(async (req: Request) => {
 
       profile = existingProfile;
       body = payload.message || "";
-      fromNumber = `telegram:${payload.profileId}`;
       messageSid = crypto.randomUUID();
 
       // Handle media from internal caller (base64-encoded)
@@ -1605,7 +1485,6 @@ serve(async (req: Request) => {
       }
 
       profile = existingProfile;
-      fromNumber = `telegram:${proactivePayload.profileId}`;
 
       // Build a natural "internal thought" that Orchid will use to generate the message
       // This feels like Orchid naturally thinking of the user, not a system command
@@ -1621,10 +1500,11 @@ serve(async (req: Request) => {
 
       console.log(`[${correlationId}] Proactive context: ${eventDescriptions}`);
     } else {
-      // Non-internal requests are not supported (Telegram-only)
-      console.error(`[orchid-agent] Received non-internal request. Returning empty response.`);
-      return new Response('<?xml version="1.0" encoding="UTF-8"?><Response></Response>', {
-        headers: { ...corsHeaders, "Content-Type": "text/xml" },
+      // Only internal agent calls and proactive triggers are supported
+      console.error(`[orchid-agent] Received unsupported request type. Returning error.`);
+      return new Response(JSON.stringify({ error: "Unsupported request type" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
@@ -1633,10 +1513,7 @@ serve(async (req: Request) => {
     console.log(
       `[${correlationId}] ${isProactiveTrigger ? "🔔 Proactive" : "📨 Internal"} TELEGRAM for profile ${profile?.id}`,
     );
-    if (numMedia > 0) console.log(`[${correlationId}] Media attached: ${mediaUrl0 || "internal base64"}`);
-
-
-
+    if (numMedia > 0) console.log(`[${correlationId}] Media attached: internal base64`);
 
 
 
@@ -1654,13 +1531,8 @@ serve(async (req: Request) => {
 
         if (existing) {
           console.log(`[${correlationId}] Duplicate message_sid ${messageSid} — skipping`);
-          if (isInternalAgentCall) {
-            return new Response(JSON.stringify({ reply: "", deduplicated: true }), {
-              headers: { ...corsHeaders, "Content-Type": "application/json" },
-            });
-          }
-          return new Response('<?xml version="1.0" encoding="UTF-8"?><Response></Response>', {
-            headers: { ...corsHeaders, "Content-Type": "text/xml" },
+          return new Response(JSON.stringify({ reply: "", deduplicated: true }), {
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
           });
         }
       }
@@ -1673,7 +1545,7 @@ serve(async (req: Request) => {
           direction: "inbound",
           content: body,
           message_sid: messageSid,
-          media_urls: numMedia > 0 && mediaUrl0 ? [mediaUrl0] : null,
+          media_urls: null,
         })
         .select()
         .single();
@@ -1726,8 +1598,6 @@ serve(async (req: Request) => {
       };
     });
 
-    const hasMedia = (numMedia > 0 && mediaUrl0) || (numMedia > 0 && internalMediaInfo);
-
     // Fetch media if present
     let mediaInfo: MediaInfo | null = null;
     if (internalMediaInfo) {
@@ -1748,7 +1618,6 @@ serve(async (req: Request) => {
 
     // Best-effort upload of incoming plant photos to storage
     let uploadedPhotoPath: string | null = null;
-    let uploadedPhotoUrl: string | null = null;
     if (mediaInfo && mediaInfo.mediaType === "image" && profile?.id) {
       try {
         const uploadResult = await uploadPlantPhoto(
@@ -1759,7 +1628,6 @@ serve(async (req: Request) => {
         );
         if (uploadResult) {
           uploadedPhotoPath = uploadResult.storagePath;
-          uploadedPhotoUrl = uploadResult.signedUrl || null;
           console.log(`[${correlationId}] Photo uploaded to storage: ${uploadedPhotoPath}`);
         }
       } catch (err) {
@@ -2074,7 +1942,7 @@ ${proactiveContext.events.map((e: any) => `- ${e.message_hint}`).join("\n")}
                   SERPAPI: Deno.env.get("SERPAPI_KEY") || undefined,
                 },
                 sourceMessageId: inboundMessage?.id,
-                photoUrl: uploadedPhotoPath || mediaUrl0 || undefined,
+                photoUrl: uploadedPhotoPath || undefined,
               },
               functionName,
               args,
@@ -2109,7 +1977,7 @@ ${proactiveContext.events.map((e: any) => `- ${e.message_hint}`).join("\n")}
                     .from("plant_identifications")
                     .insert({
                       profile_id: profile?.id,
-                      photo_url: uploadedPhotoPath || mediaUrl0,
+                      photo_url: uploadedPhotoPath,
                       species_guess: toolResult.data.species,
                       confidence: toolResult.data.confidence,
                       care_tips: toolResult.data.careSummary,
@@ -2132,7 +2000,7 @@ ${proactiveContext.events.map((e: any) => `- ${e.message_hint}`).join("\n")}
 
                   // Auto-capture plant snapshot for visual memory
                   // Try to match to an existing saved plant
-                  if (uploadedPhotoPath || mediaUrl0) {
+                  if (uploadedPhotoPath) {
                     const species = toolResult.data.species || "Unknown";
                     // Find ALL matching plants — exact species first, then fuzzy
                     const { data: exactMatch } = await supabase
@@ -2190,7 +2058,7 @@ ${proactiveContext.events.map((e: any) => `- ${e.message_hint}`).join("\n")}
                           context: "identification",
                           source: "telegram_photo",
                         },
-                        uploadedPhotoPath || mediaUrl0,
+                        uploadedPhotoPath,
                         inboundMessage?.id,
                       );
                       console.log(`[VisualMemory] Auto-captured snapshot for ${plant.nickname || plant.name}`);
@@ -2285,7 +2153,7 @@ ${proactiveContext.events.map((e: any) => `- ${e.message_hint}`).join("\n")}
                     .insert({
                       profile_id: profile?.id,
                       plant_id: diagnosePlantId,
-                      photo_url: uploadedPhotoPath || mediaUrl0,
+                      photo_url: uploadedPhotoPath,
                       diagnosis: toolResult.data.diagnosis,
                       severity: toolResult.data.severity,
                       treatment: toolResult.data.treatment,
@@ -2307,7 +2175,7 @@ ${proactiveContext.events.map((e: any) => `- ${e.message_hint}`).join("\n")}
                   }
 
                   // Auto-capture snapshot for diagnosis visual memory
-                  if ((uploadedPhotoPath || mediaUrl0) && diagnosePlantId) {
+                  if ((uploadedPhotoPath) && diagnosePlantId) {
                     const diagPlant = await supabase
                       .from("plants")
                       .select("name, nickname, species")
@@ -2340,7 +2208,7 @@ ${proactiveContext.events.map((e: any) => `- ${e.message_hint}`).join("\n")}
                           source: "telegram_photo",
                           health_notes: `${toolResult.data.diagnosis} (${toolResult.data.severity}). Treatment: ${toolResult.data.treatment || "none"}`,
                         },
-                        uploadedPhotoPath || mediaUrl0,
+                        uploadedPhotoPath,
                         inboundMessage?.id,
                       );
                       console.log(`[VisualMemory] Auto-captured diagnosis snapshot for ${diagPlant.data.nickname || diagPlant.data.name}`);
@@ -2380,6 +2248,8 @@ ${proactiveContext.events.map((e: any) => `- ${e.message_hint}`).join("\n")}
                 functionName,
                 { type: "environment" },
               );
+            } else if (functionName === "analyze_environment") {
+              toolResult = { success: false, error: "No photo attached. Please send a photo of the environment so I can assess the growing conditions." };
             } else if (functionName === "generate_visual_guide") {
               // Thread telegramChatId for fire-and-forget delivery
               const telegramChatId = (channel === "telegram" && profile?.telegram_chat_id)
@@ -2396,7 +2266,6 @@ ${proactiveContext.events.map((e: any) => `- ${e.message_hint}`).join("\n")}
                 args.plant_species || null,
                 args.step_count || 3,
                 LOVABLE_API_KEY,
-                SUPABASE_URL!,
                 telegramChatId,
                 telegramBotToken,
               );
@@ -2463,7 +2332,7 @@ ${proactiveContext.events.map((e: any) => `- ${e.message_hint}`).join("\n")}
                   nickname: args.nickname,
                   location: args.location,
                 },
-                uploadedPhotoPath || mediaUrl0 || undefined,
+                uploadedPhotoPath || undefined,
                 inboundMessage?.id,
               );
               if (toolResult.success && toolResult.snapshot) {
@@ -3056,117 +2925,30 @@ ${proactiveContext.events.map((e: any) => `- ${e.message_hint}`).join("\n")}
       console.error("[ContextEngineering] Background compression error:", err);
     });
 
-    // Smart message chunking for long responses (Telegram 4096 char limit)
-    const MAX_CHUNK_SIZE = 1500; // Leave buffer for emoji/formatting
-
-    const smartChunkMessage = (text: string): string[] => {
-      if (text.length <= MAX_CHUNK_SIZE) return [text];
-
-      const chunks: string[] = [];
-      let remaining = text;
-
-      while (remaining.length > 0) {
-        if (remaining.length <= MAX_CHUNK_SIZE) {
-          chunks.push(remaining.trim());
-          break;
-        }
-
-        // Find the best split point within the limit
-        const searchArea = remaining.substring(0, MAX_CHUNK_SIZE);
-
-        // Priority 1: Split between numbered list items (e.g., "1. Store" to "2. Store")
-        const listItemMatch = searchArea.match(/.*\n\n(?=\d+\.\s\*\*)/s);
-        if (listItemMatch) {
-          chunks.push(listItemMatch[0].trim());
-          remaining = remaining.substring(listItemMatch[0].length).trim();
-          continue;
-        }
-
-        // Priority 2: Split at double newlines (paragraph breaks)
-        const doubleNewline = searchArea.lastIndexOf("\n\n");
-        if (doubleNewline > MAX_CHUNK_SIZE * 0.3) {
-          chunks.push(remaining.substring(0, doubleNewline).trim());
-          remaining = remaining.substring(doubleNewline + 2).trim();
-          continue;
-        }
-
-        // Priority 3: Split at single newline
-        const singleNewline = searchArea.lastIndexOf("\n");
-        if (singleNewline > MAX_CHUNK_SIZE * 0.3) {
-          chunks.push(remaining.substring(0, singleNewline).trim());
-          remaining = remaining.substring(singleNewline + 1).trim();
-          continue;
-        }
-
-        // Priority 4: Split at sentence end (. or ! or ?)
-        const sentenceEnd = Math.max(
-          searchArea.lastIndexOf(". "),
-          searchArea.lastIndexOf("! "),
-          searchArea.lastIndexOf("? "),
-        );
-        if (sentenceEnd > MAX_CHUNK_SIZE * 0.3) {
-          chunks.push(remaining.substring(0, sentenceEnd + 1).trim());
-          remaining = remaining.substring(sentenceEnd + 2).trim();
-          continue;
-        }
-
-        // Fallback: Hard split at limit
-        chunks.push(remaining.substring(0, MAX_CHUNK_SIZE).trim());
-        remaining = remaining.substring(MAX_CHUNK_SIZE).trim();
-      }
-
-      return chunks.filter((c) => c.length > 0);
-    };
-
     // ========================================================================
-    // INTERNAL AGENT CALL RESPONSE: Return JSON instead of sending via Twilio
+    // RETURN JSON RESPONSE
     // ========================================================================
-    if (isInternalAgentCall) {
-      console.log(`[${correlationId}] Returning internal JSON response (${aiReply.length} chars, ${mediaToSend.length} media)`);
-      return new Response(JSON.stringify({
-        reply: aiReply,
-        mediaToSend: mediaToSend,
-        toolsUsed: toolsUsed,
-        structuredResults: Object.keys(structuredResults).length > 0 ? structuredResults : undefined,
-      }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-
-
-
-    // Return empty TwiML (we're using the API to send)
-    return new Response('<?xml version="1.0" encoding="UTF-8"?><Response></Response>', {
-      headers: {
-        ...corsHeaders,
-        "Content-Type": "application/xml",
-      },
+    console.log(`[${correlationId}] Returning JSON response (${aiReply.length} chars, ${mediaToSend.length} media)`);
+    return new Response(JSON.stringify({
+      reply: aiReply,
+      mediaToSend: mediaToSend,
+      toolsUsed: toolsUsed,
+      structuredResults: Object.keys(structuredResults).length > 0 ? structuredResults : undefined,
+    }), {
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (error) {
     console.error("Webhook error:", error);
 
-    // Mode-aware error response: JSON for internal callers, XML for Telegram
-    const wasInternalCall = req.headers.get("X-Internal-Agent-Call") === "true";
-
-    if (wasInternalCall) {
-      return new Response(JSON.stringify({
-        error: "Internal agent error",
-        detail: String(error).substring(0, 200),
-        reply: "I had a little hiccup! Could you try again? 🌱",
-        mediaToSend: [],
-        toolsUsed: [],
-      }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    return new Response('<?xml version="1.0" encoding="UTF-8"?><Response></Response>', {
-      headers: {
-        ...corsHeaders,
-        "Content-Type": "application/xml",
-      },
+    return new Response(JSON.stringify({
+      error: "Internal agent error",
+      detail: String(error).substring(0, 200),
+      reply: "I had a little hiccup! Could you try again? 🌱",
+      mediaToSend: [],
+      toolsUsed: [],
+    }), {
+      status: 500,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 });

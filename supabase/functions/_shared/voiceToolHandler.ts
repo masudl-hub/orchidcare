@@ -2,7 +2,7 @@
 // Delegates shared tools to toolRouter.ts, handles voice-specific tools locally.
 
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { capturePlantSnapshot } from "./tools.ts";
+import { capturePlantSnapshot, checkAgentPermission, TOOL_CAPABILITY_MAP } from "./tools.ts";
 import { callMapsShoppingAgent } from "./research.ts";
 import { callDeepThink } from "./tools.ts";
 import { executeSharedTool } from "./toolRouter.ts";
@@ -19,6 +19,20 @@ export async function executeTool(
 ): Promise<Record<string, unknown>> {
   const startTime = Date.now();
   console.log(`[ToolExecutor] ${toolName}, args=${JSON.stringify(args).substring(0, 500)}`);
+
+  // Permission check — same gate as orchid-agent text path
+  const requiredCapability = TOOL_CAPABILITY_MAP[toolName];
+  if (requiredCapability && profileId) {
+    const hasPermission = await checkAgentPermission(supabase, profileId, requiredCapability);
+    if (!hasPermission) {
+      console.log(`[ToolExecutor] Permission denied for ${toolName} (requires: ${requiredCapability})`);
+      return {
+        success: false,
+        error: `This action requires the "${requiredCapability}" permission which is currently disabled. You can enable it in your settings.`,
+        permissionDenied: true,
+      };
+    }
+  }
 
   // Try shared dispatch first (handles ~20 common tools)
   const shared = await executeSharedTool(

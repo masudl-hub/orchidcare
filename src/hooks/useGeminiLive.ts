@@ -140,8 +140,8 @@ export function useGeminiLive() {
             try {
               // For capture_plant_snapshot, inject the latest video frame
               let toolArgs = fc.args as Record<string, unknown>;
-              if (fc.name === 'capture_plant_snapshot' && video.lastFrameDataUrl) {
-                const base64 = video.lastFrameDataUrl.split(',')[1];
+              if (fc.name === 'capture_plant_snapshot' && video.lastFrameDataUrlRef.current) {
+                const base64 = video.lastFrameDataUrlRef.current.split(',')[1];
                 if (base64) {
                   toolArgs = { ...toolArgs, image_base64: base64 };
                   log('capture_plant_snapshot: injected video frame');

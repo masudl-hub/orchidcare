@@ -9,6 +9,8 @@ interface UseVideoCaptureReturn {
   videoStream: MediaStream | null;
   /** Last captured frame as a data URL (updated at 1fps, null when inactive). */
   lastFrameDataUrl: string | null;
+  /** Ref version of lastFrameDataUrl — always current inside closures. */
+  lastFrameDataUrlRef: MutableRefObject<string | null>;
   /** Triggers the OS camera permission prompt without starting capture. */
   requestPermission: () => Promise<void>;
   startCapture: () => Promise<void>;
@@ -29,6 +31,8 @@ export function useVideoCapture(): UseVideoCaptureReturn {
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const videoElRef = useRef<HTMLVideoElement | null>(null);
+  /** Ref mirror of lastFrameDataUrl — always current inside closures (no stale capture). */
+  const lastFrameDataUrlRef = useRef<string | null>(null);
 
   /** Callback ref — parent hook sets this to forward frames to the session. */
   const onVideoFrame = useRef<((base64: string) => void) | null>(null);
@@ -60,6 +64,7 @@ export function useVideoCapture(): UseVideoCaptureReturn {
       ctx.drawImage(videoElRef.current, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
       const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
       setLastFrameDataUrl(dataUrl);
+      lastFrameDataUrlRef.current = dataUrl;
       const base64 = dataUrl.split(',')[1];
       if (base64) onVideoFrame.current(base64);
     }, 1000);
@@ -137,6 +142,7 @@ export function useVideoCapture(): UseVideoCaptureReturn {
     canvasRef.current = null;
     setVideoStream(null);
     setLastFrameDataUrl(null);
+    lastFrameDataUrlRef.current = null;
     setIsActive(false);
   }, []);
 
@@ -199,5 +205,5 @@ export function useVideoCapture(): UseVideoCaptureReturn {
     startInterval(canvas);
   }, [facingMode]);
 
-  return { isActive, videoStream, lastFrameDataUrl, requestPermission, startCapture, stopCapture, onVideoFrame, facingMode, toggleFacingMode };
+  return { isActive, videoStream, lastFrameDataUrl, lastFrameDataUrlRef, requestPermission, startCapture, stopCapture, onVideoFrame, facingMode, toggleFacingMode };
 }

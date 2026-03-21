@@ -646,7 +646,10 @@ export function useGeminiLive() {
   // captureSnapshot — sends a text prompt to the agent to capture a snapshot
   // ---------------------------------------------------------------------------
   const captureSnapshot = useCallback(() => {
-    if (!sessionRef.current || !video.isActive) return;
+    if (!sessionRef.current || !video.isActive) {
+      log('captureSnapshot skipped — no session or video inactive');
+      return;
+    }
     log('User tapped capture snapshot button');
     sessionRef.current.sendClientContent({
       turns: [{ role: 'user', parts: [{ text: 'Please capture a snapshot of the plant I\'m showing you right now. Save it to my visual memory.' }] }],

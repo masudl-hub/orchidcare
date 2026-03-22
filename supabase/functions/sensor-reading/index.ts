@@ -182,11 +182,11 @@ async function handleDeviceReading(req: Request) {
       careEvent = "water";
       supabase
         .from("care_events")
-        .insert({
+        .insert([{
           plant_id: reading.plant_id,
           event_type: "water",
           notes: `Auto-detected by sensor: soil moisture increased by ${soilDelta}%`,
-        })
+        }])
         .then(({ error }) => {
           if (error) console.error("[SensorReading] Failed to log care event:", error);
           else console.log(`[SensorReading] Auto-logged watering event for plant ${reading.plant_id}`);

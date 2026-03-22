@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
 import { useSensorData, type MetricStatus, type SensorReading } from "@/hooks/useSensorData";
 import { useDevices, useUpdateDevice, useCreateDevice, useSendDeviceCommand } from "@/hooks/useDevices";
 import { Droplets, Thermometer, Wind, AlertTriangle, ChevronRight, Wifi, Plus, Copy, Check, ChevronDown, X } from "lucide-react";
@@ -240,6 +241,7 @@ function getDeviceStatus(lastSeenAt: string | null): DeviceStatus {
 
 // Inline sensor picker — used in both empty state and header
 function SensorPicker({ plantId, onDone }: { plantId: string; onDone?: () => void }) {
+  const queryClient = useQueryClient();
   const { data: devices } = useDevices();
   const updateDevice = useUpdateDevice();
   const createDevice = useCreateDevice();
@@ -299,7 +301,7 @@ function SensorPicker({ plantId, onDone }: { plantId: string; onDone?: () => voi
           </button>
         </div>
         <button
-          onClick={() => { setNewToken(null); onDone?.(); }}
+          onClick={() => { setNewToken(null); queryClient.invalidateQueries({ queryKey: ["devices"] }); onDone?.(); }}
           className="cursor-pointer"
           style={{
             fontFamily: mono, fontSize: '9px', color: 'rgba(255,255,255,0.65)',

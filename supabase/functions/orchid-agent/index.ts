@@ -1225,7 +1225,7 @@ Return JSON: {"summary": "2-3 sentence summary", "key_topics": ["topic1", "topic
 
     // Save the summary
     const messageIds = toSummarize.map((m: any) => m.id);
-    await supabase.from("conversation_summaries").insert({
+    await supabase.from("conversation_summaries").insert([{
       profile_id: profileId,
       summary: summaryJson.summary,
       key_topics: summaryJson.key_topics,
@@ -1233,7 +1233,7 @@ Return JSON: {"summary": "2-3 sentence summary", "key_topics": ["topic1", "topic
       start_time: toSummarize[0].created_at,
       end_time: toSummarize[4].created_at,
       source_message_ids: messageIds,
-    });
+    }]);
 
     // Save extracted insights
     if (extractedInsights.length > 0) {

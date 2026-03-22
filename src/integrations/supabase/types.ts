@@ -18,38 +18,50 @@ export type Database = {
         Row: {
           correlation_id: string | null
           created_at: string | null
+          execution_path: string | null
           id: string
           metadata: Json | null
           operation_type: string
+          previous_state: Json | null
           profile_id: string
           record_id: string | null
           source_message_id: string | null
           table_name: string
           tool_name: string | null
+          undone_at: string | null
+          undone_by: string | null
         }
         Insert: {
           correlation_id?: string | null
           created_at?: string | null
+          execution_path?: string | null
           id?: string
           metadata?: Json | null
           operation_type: string
+          previous_state?: Json | null
           profile_id: string
           record_id?: string | null
           source_message_id?: string | null
           table_name: string
           tool_name?: string | null
+          undone_at?: string | null
+          undone_by?: string | null
         }
         Update: {
           correlation_id?: string | null
           created_at?: string | null
+          execution_path?: string | null
           id?: string
           metadata?: Json | null
           operation_type?: string
+          previous_state?: Json | null
           profile_id?: string
           record_id?: string | null
           source_message_id?: string | null
           table_name?: string
           tool_name?: string | null
+          undone_at?: string | null
+          undone_by?: string | null
         }
         Relationships: [
           {
@@ -1359,6 +1371,79 @@ export type Database = {
           },
         ]
       }
+      session_consents: {
+        Row: {
+          expires_at: string
+          granted_at: string
+          id: string
+          profile_id: string
+          session_id: string
+          tool_name: string
+        }
+        Insert: {
+          expires_at?: string
+          granted_at?: string
+          id?: string
+          profile_id: string
+          session_id: string
+          tool_name: string
+        }
+        Update: {
+          expires_at?: string
+          granted_at?: string
+          id?: string
+          profile_id?: string
+          session_id?: string
+          tool_name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "session_consents_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tool_policies: {
+        Row: {
+          created_at: string
+          heartbeat_allowed: boolean
+          id: string
+          interactive_tier: Database["public"]["Enums"]["action_tier"]
+          profile_id: string
+          tool_name: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          heartbeat_allowed?: boolean
+          id?: string
+          interactive_tier?: Database["public"]["Enums"]["action_tier"]
+          profile_id: string
+          tool_name: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          heartbeat_allowed?: boolean
+          id?: string
+          interactive_tier?: Database["public"]["Enums"]["action_tier"]
+          profile_id?: string
+          tool_name?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tool_policies_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_insights: {
         Row: {
           confidence: number | null
@@ -1462,6 +1547,7 @@ export type Database = {
       }
     }
     Enums: {
+      action_tier: "auto" | "session_consent" | "always_confirm"
       agent_capability:
         | "read_plants"
         | "manage_plants"
@@ -1606,6 +1692,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      action_tier: ["auto", "session_consent", "always_confirm"],
       agent_capability: [
         "read_plants",
         "manage_plants",

@@ -1506,11 +1506,11 @@ export async function manageDevice(
       case "identify": {
         const { error } = await supabase
           .from("device_commands")
-          .insert({
+          .insert([{
             device_id: device.id,
             command: "identify",
             status: "pending",
-          });
+          }]);
         if (error) return { success: false, error: error.message };
         console.log(`[manageDevice] Sent identify command to ${device.name}`);
         return { success: true, action: "identify_sent", device: device.name, note: "The device LED will blink within 30 seconds" };

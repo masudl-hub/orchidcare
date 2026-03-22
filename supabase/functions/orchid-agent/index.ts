@@ -1639,6 +1639,67 @@ serve(async (req: Request) => {
       }
     }
 
+    // ── SHORT-CIRCUIT: Confirmed tool re-execution ──────────────────────
+    // When the user confirms a pending action, skip the LLM entirely and
+    // re-execute the tool directly with the saved args + photo path.
+    if (confirmationGranted && payload?.pendingToolName && payload?.pendingArgs) {
+      const pendingToolName = payload.pendingToolName as string;
+      const pendingArgs = payload.pendingArgs as Record<string, unknown>;
+      const pendingPhotoPath = (payload.pendingPhotoPath as string) || uploadedPhotoPath || undefined;
+
+      console.log(`[${correlationId}] Short-circuit confirmed tool: ${pendingToolName}, photoPath: ${pendingPhotoPath || "none"}`);
+
+      const shared = await executeSharedTool(
+        {
+          supabase,
+          profileId: profile?.id,
+          apiKeys: { PERPLEXITY: PERPLEXITY_API_KEY, LOVABLE: LOVABLE_API_KEY, GEMINI: GEMINI_API_KEY, SERPAPI: SERPAPI_KEY },
+          sourceMessageId: inboundMessage?.id,
+          photoUrl: pendingPhotoPath,
+          sessionId: `${profile?.id}:${channel}`,
+          confirmationGranted: true,
+        },
+        pendingToolName,
+        pendingArgs,
+      );
+
+      let confirmReply = "";
+      if (shared.handled && shared.result) {
+        if (shared.result.success) {
+          confirmReply = shared.result.reply as string || `Done! "${pendingToolName}" completed successfully.`;
+        } else {
+          confirmReply = shared.result.error as string || `"${pendingToolName}" encountered an issue.`;
+        }
+
+        // Log the confirmed operation
+        await logAgentOperation(
+          supabase, profile?.id, correlationId,
+          "confirmed_execution", pendingToolName, shared.result.record_id as string || null, pendingToolName,
+          { status: "confirmed", args: pendingArgs, photoPath: pendingPhotoPath, result: shared.result },
+        );
+      } else {
+        confirmReply = `Tool "${pendingToolName}" is not available.`;
+      }
+
+      // Save outbound reply
+      const outboundRow = {
+        profile_id: profile?.id,
+        channel,
+        direction: "outbound",
+        content: confirmReply,
+        message_sid: `confirmed-${correlationId}`,
+      };
+      await supabase.from("conversations").insert([outboundRow]);
+
+      return new Response(JSON.stringify({
+        reply: confirmReply,
+        mediaToSend: [],
+        toolsUsed: [pendingToolName],
+      }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     // Auto-transcribe voice notes before main processing
     let effectiveMessage = body || "";
     let voiceTranscript: VoiceTranscription | null = null;
@@ -1972,6 +2033,7 @@ ${proactiveContext.events.map((e: any) => `- ${e.message_hint}`).join("\n")}
                     args,
                     reason: toolResult.reason,
                     tier: toolResult.tier,
+                    photoPath: uploadedPhotoPath || null,
                   },
                   mediaToSend: [],
                   toolsUsed,

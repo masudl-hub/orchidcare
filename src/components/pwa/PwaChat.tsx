@@ -475,6 +475,9 @@ export function PwaChat() {
                             message: `(User confirmed: ${action.tool_name})`,
                             confirmationGranted: true,
                             skipInboundSave: true,
+                            pendingToolName: action.tool_name,
+                            pendingArgs: action.args,
+                            pendingPhotoPath: action.photoPath || null,
                           },
                         });
                         const responseText = typeof response.data === 'string' ? response.data : JSON.stringify(response.data);

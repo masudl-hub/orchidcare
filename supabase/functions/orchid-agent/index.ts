@@ -1956,13 +1956,13 @@ ${proactiveContext.events.map((e: any) => `- ${e.message_hint}`).join("\n")}
 
                 // Save outbound message so it appears in conversation history on refresh
                 const confirmReply = toolResult.reason || `"${functionName}" requires your confirmation.`;
-                await supabase.from("conversations").insert({
+                await supabase.from("conversations").insert([{
                   profile_id: profile?.id,
                   channel,
                   direction: "outbound",
                   content: confirmReply,
                   message_sid: `confirm-${correlationId}`,
-                }).catch(() => {}); // best-effort
+                }]); // best-effort
 
                 return new Response(JSON.stringify({
                   reply: confirmReply,

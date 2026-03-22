@@ -105,7 +105,7 @@ export async function savePlant(
 
     const { data: plant, error } = await supabase
       .from("plants")
-      .insert({
+      .insert([{
         profile_id: profileId,
         name: args.species,
         species: args.species,
@@ -113,7 +113,7 @@ export async function savePlant(
         location_in_home: args.location || null,
         notes: args.notes || null,
         photo_url: photoUrl || null,
-      })
+      }])
       .select()
       .single();
 

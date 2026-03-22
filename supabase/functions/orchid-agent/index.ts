@@ -1273,7 +1273,7 @@ async function logAgentOperation(
   metadata?: Record<string, any>,
 ): Promise<void> {
   try {
-    await supabase.from("agent_operations").insert({
+    await supabase.from("agent_operations").insert([{
       profile_id: profileId,
       correlation_id: correlationId,
       operation_type: operationType,
@@ -1281,7 +1281,7 @@ async function logAgentOperation(
       record_id: recordId,
       tool_name: toolName,
       metadata: metadata || null,
-    });
+    }]);
   } catch (error) {
     // Don't fail operations due to audit logging errors
     console.error(`[Audit] Failed to log operation:`, error);

@@ -311,6 +311,7 @@ export type Database = {
           id: string
           media_urls: string[] | null
           message_sid: string | null
+          metadata: Json | null
           profile_id: string
           rating: number | null
           summarized: boolean | null
@@ -323,6 +324,7 @@ export type Database = {
           id?: string
           media_urls?: string[] | null
           message_sid?: string | null
+          metadata?: Json | null
           profile_id: string
           rating?: number | null
           summarized?: boolean | null
@@ -335,6 +337,7 @@ export type Database = {
           id?: string
           media_urls?: string[] | null
           message_sid?: string | null
+          metadata?: Json | null
           profile_id?: string
           rating?: number | null
           summarized?: boolean | null

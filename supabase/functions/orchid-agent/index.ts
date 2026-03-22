@@ -15,6 +15,32 @@ const corsHeaders = {
 };
 
 // ============================================================================
+// RETRY WITH EXPONENTIAL BACKOFF
+// ============================================================================
+
+async function fetchWithRetry(
+  url: string,
+  options: RequestInit,
+  maxRetries = 3
+): Promise<Response> {
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    const response = await fetch(url, options);
+    if (response.ok || ![502, 503, 429].includes(response.status)) {
+      return response;
+    }
+    if (attempt < maxRetries - 1) {
+      const delay = Math.pow(2, attempt) * 1000; // 1s, 2s, 4s
+      console.log(`[Orchestrator] Retry ${attempt + 1}/${maxRetries - 1} after ${response.status}, waiting ${delay}ms...`);
+      await new Promise(r => setTimeout(r, delay));
+    } else {
+      console.log(`[Orchestrator] All ${maxRetries} attempts failed with ${response.status}`);
+      return response;
+    }
+  }
+  return fetch(url, options); // unreachable
+}
+
+// ============================================================================
 // MESSAGING SANITIZATION UTILITIES
 // ============================================================================
 
@@ -1861,7 +1887,7 @@ ${proactiveContext.events.map((e: any) => `- ${e.message_hint}`).join("\n")}
 
     // Call orchestrator
     console.log("Calling orchestrator (gemini-3-flash-preview)...");
-    const orchestratorResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    const orchestratorResponse = await fetchWithRetry("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${LOVABLE_API_KEY}`,
@@ -2918,7 +2944,7 @@ ${proactiveContext.events.map((e: any) => `- ${e.message_hint}`).join("\n")}
           const isLastIteration = toolIteration >= MAX_TOOL_ITERATIONS;
           console.log(`Calling orchestrator with tool results (iteration ${toolIteration})...`);
 
-          const followUpResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+          const followUpResponse = await fetchWithRetry("https://ai.gateway.lovable.dev/v1/chat/completions", {
             method: "POST",
             headers: {
               Authorization: `Bearer ${LOVABLE_API_KEY}`,

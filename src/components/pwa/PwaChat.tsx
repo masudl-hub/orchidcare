@@ -67,7 +67,7 @@ export function PwaChat() {
         .select('id, content, direction, created_at, media_urls, rating, metadata')
         .eq('profile_id', profile!.id)
         .eq('channel', 'pwa')
-        .order('created_at', { ascending: true });
+        .order('created_at', { ascending: true }) as { data: Array<{ id: string; content: string; direction: string; created_at: string; media_urls: string[] | null; rating: number | null; metadata: Record<string, unknown> | null }> | null };
 
       return data || [];
     },

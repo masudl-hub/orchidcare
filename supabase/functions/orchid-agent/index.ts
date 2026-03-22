@@ -2944,7 +2944,7 @@ ${proactiveContext.events.map((e: any) => `- ${e.message_hint}`).join("\n")}
           const isLastIteration = toolIteration >= MAX_TOOL_ITERATIONS;
           console.log(`Calling orchestrator with tool results (iteration ${toolIteration})...`);
 
-          const followUpResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+          const followUpResponse = await fetchWithRetry("https://ai.gateway.lovable.dev/v1/chat/completions", {
             method: "POST",
             headers: {
               Authorization: `Bearer ${LOVABLE_API_KEY}`,

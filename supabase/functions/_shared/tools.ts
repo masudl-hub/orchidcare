@@ -1437,14 +1437,14 @@ export async function manageDevice(
       }
 
       const deviceName = args.new_name || "New Sensor";
-      const { error } = await supabase.from("devices").insert({
+      const { error } = await supabase.from("devices").insert([{
         profile_id: profileId,
         plant_id: plantId,
         device_token_hash: tokenHash,
         device_token_prefix: plainToken.substring(0, 12),
         name: deviceName,
         status: "active",
-      });
+      }]);
       if (error) return { success: false, error: error.message };
 
       console.log(`[manageDevice] Provisioned new device "${deviceName}" for profile ${profileId}`);

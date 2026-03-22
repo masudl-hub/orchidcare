@@ -146,7 +146,7 @@ async function handleDeviceReading(req: Request) {
   // Insert reading
   const { data: reading, error: insertError } = await supabase
     .from("sensor_readings")
-    .insert({
+    .insert([{
       device_id: device.id,
       plant_id: device.plant_id,
       profile_id: device.profile_id,
@@ -156,7 +156,7 @@ async function handleDeviceReading(req: Request) {
       light_lux: payload.light_lux,
       battery_pct: payload.battery_pct,
       reading_metadata: payload.metadata || null,
-    })
+    }])
     .select("id, plant_id")
     .single();
 

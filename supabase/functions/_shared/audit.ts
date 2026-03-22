@@ -32,7 +32,7 @@ export async function logOutboundMessage(
           .toString(16)
       : null;
 
-    await supabase.from('outbound_message_audit').insert({
+    await supabase.from('outbound_message_audit').insert([{
       source_function: params.sourceFunction,
       source_mode: params.sourceMode,
       profile_id: params.profileId,
@@ -45,7 +45,7 @@ export async function logOutboundMessage(
       error_code: params.errorCode ?? null,
       error_detail: params.errorDetail ?? null,
       trigger_payload: params.triggerPayload ?? null,
-    });
+    }]);
   } catch (err) {
     // Audit logging should never break the main flow
     console.error('[Audit] Failed to log outbound message:', err);

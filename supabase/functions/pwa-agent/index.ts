@@ -121,6 +121,11 @@ serve(async (req: Request) => {
     if (skipInboundSave) {
       payload.skipInboundSave = true;
     }
+    if (pendingToolName) {
+      payload.pendingToolName = pendingToolName;
+      payload.pendingArgs = pendingArgs;
+      payload.pendingPhotoPath = pendingPhotoPath;
+    }
 
     console.log(`[pwa-agent] Forwarding to orchid-agent for profile ${profile.id}, msg length: ${(message || "").length}, hasMedia: ${!!mediaBase64}`);
 

@@ -70,7 +70,7 @@ export async function logProactiveRun(
   },
 ): Promise<void> {
   try {
-    await supabase.from('proactive_run_audit').insert({
+    await supabase.from('proactive_run_audit').insert([{
       run_started_at: params.runStartedAt.toISOString(),
       run_ended_at: params.runEndedAt.toISOString(),
       trigger_source: params.triggerSource ?? null,
@@ -81,7 +81,7 @@ export async function logProactiveRun(
       skip_reasons: params.skipReasons ?? null,
       duration_ms: params.runEndedAt.getTime() - params.runStartedAt.getTime(),
       error: params.error ?? null,
-    });
+    }]);
   } catch (err) {
     console.error('[Audit] Failed to log proactive run:', err);
   }

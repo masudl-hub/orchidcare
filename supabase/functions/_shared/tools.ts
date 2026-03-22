@@ -1680,7 +1680,7 @@ export async function evaluateSensorAlerts(
 
         if (!existing || existing.length === 0) {
           // Create new alert
-          await supabase.from("sensor_alerts").insert({
+          await supabase.from("sensor_alerts").insert([{
             plant_id: plantId,
             profile_id: profileId,
             device_id: deviceId,
@@ -1694,7 +1694,7 @@ export async function evaluateSensorAlerts(
               : (check.value < (check.idealMin ?? 0) ? check.idealMin : check.idealMax),
             message,
             status: "active",
-          });
+          }]);
           console.log(`[evaluateSensorAlerts] Created alert: ${alertType} for ${plantName}`);
         }
       } else {

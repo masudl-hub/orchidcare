@@ -1048,12 +1048,12 @@ Return ONLY valid JSON with this structure:
     }
 
     // Store in generated_content
-    await supabase.from("generated_content").insert({
+    await supabase.from("generated_content").insert([{
       profile_id: profileId,
       content_type: "voice_transcript",
       task_description: transcription.intent,
       content: transcription,
-    });
+    }]);
 
     console.log("[VoiceAgent] Transcription complete:", transcription.transcript.substring(0, 100));
     return { success: true, data: transcription };

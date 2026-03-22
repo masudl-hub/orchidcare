@@ -343,13 +343,13 @@ async function handleSimulate(req: Request) {
     const demoHash = await hashToken(demoToken);
     const { data: newDevice, error: createError } = await supabase
       .from("devices")
-      .insert({
+      .insert([{
         profile_id: profileId,
         device_token_hash: demoHash,
         device_token_prefix: demoToken.substring(0, 8),
         name: "Demo Sensor",
         status: "active",
-      })
+      }])
       .select("id, plant_id")
       .single();
 

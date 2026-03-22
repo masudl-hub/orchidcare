@@ -429,7 +429,7 @@ async function handlePendingConfirmation(
   const confirmId = crypto.randomUUID().substring(0, 8);
 
   // Store pending action in agent_operations (survives cold starts)
-  await supabase.from("agent_operations").insert({
+  await supabase.from("agent_operations").insert([{
     profile_id: profileId,
     operation_type: "pending_confirmation",
     table_name: pendingAction.tool_name,
@@ -437,7 +437,7 @@ async function handlePendingConfirmation(
     correlation_id: confirmId,
     metadata: { args: pendingAction.args, tier: pendingAction.tier, reason: pendingAction.reason },
     execution_path: "interactive",
-  });
+  }]);
 
   await ctx.reply(pendingAction.reason, {
     reply_markup: {

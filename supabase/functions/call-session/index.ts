@@ -626,14 +626,14 @@ CRITICAL: Only extract facts EXPLICITLY stated by the user. Do not infer or gues
           updatePayload.summary = summaryJson.summary;
 
           // Also save to conversation_summaries table for context loading
-          const { error: summaryInsertError } = await supabase.from("conversation_summaries").insert({
+          const { error: summaryInsertError } = await supabase.from("conversation_summaries").insert([{
             profile_id: profile.id,
             summary: summaryJson.summary,
             key_topics: summaryJson.key_topics,
             message_count: transcript.length,
             start_time: conversationRows[0].created_at,
             end_time: conversationRows[conversationRows.length - 1].created_at,
-          });
+          }]);
 
           if (summaryInsertError) {
             console.error(`[CallSession] /end: conversation_summaries insert FAILED:`, summaryInsertError.message, summaryInsertError.details);

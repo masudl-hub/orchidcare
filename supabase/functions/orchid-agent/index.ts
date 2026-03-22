@@ -806,12 +806,12 @@ CRITICAL REQUIREMENTS:
     }
 
     // Store in generated_content for history
-    await supabase.from("generated_content").insert({
+    await supabase.from("generated_content").insert([{
       profile_id: profileId,
       content_type: "image_guide",
       task_description: task,
       content: { steps: images, plant_species: plantSpecies },
-    });
+    }]);
 
     console.log(`[ImageGenAgent] Successfully generated ${images.length}/${stepCount} step images in parallel`);
 

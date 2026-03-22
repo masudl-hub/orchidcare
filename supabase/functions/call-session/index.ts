@@ -175,10 +175,10 @@ async function handleCreate(
   const dbStart = Date.now();
   const { data: session, error } = await supabase
     .from("call_sessions")
-    .insert({
+    .insert([{
       profile_id: profile.id,
       status: "pending",
-    })
+    }])
     .select()
     .single();
 

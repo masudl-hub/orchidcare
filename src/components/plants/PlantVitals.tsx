@@ -241,6 +241,7 @@ function getDeviceStatus(lastSeenAt: string | null): DeviceStatus {
 
 // Inline sensor picker — used in both empty state and header
 function SensorPicker({ plantId, onDone }: { plantId: string; onDone?: () => void }) {
+  const queryClient = useQueryClient();
   const { data: devices } = useDevices();
   const updateDevice = useUpdateDevice();
   const createDevice = useCreateDevice();

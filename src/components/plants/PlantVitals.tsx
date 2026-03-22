@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
 import { useSensorData, type MetricStatus, type SensorReading } from "@/hooks/useSensorData";
 import { useDevices, useUpdateDevice, useCreateDevice, useSendDeviceCommand } from "@/hooks/useDevices";
 import { Droplets, Thermometer, Wind, AlertTriangle, ChevronRight, Wifi, Plus, Copy, Check, ChevronDown, X } from "lucide-react";

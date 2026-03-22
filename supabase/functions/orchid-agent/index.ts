@@ -15,6 +15,32 @@ const corsHeaders = {
 };
 
 // ============================================================================
+// RETRY WITH EXPONENTIAL BACKOFF
+// ============================================================================
+
+async function fetchWithRetry(
+  url: string,
+  options: RequestInit,
+  maxRetries = 3
+): Promise<Response> {
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    const response = await fetch(url, options);
+    if (response.ok || ![502, 503, 429].includes(response.status)) {
+      return response;
+    }
+    if (attempt < maxRetries - 1) {
+      const delay = Math.pow(2, attempt) * 1000; // 1s, 2s, 4s
+      console.log(`[Orchestrator] Retry ${attempt + 1}/${maxRetries - 1} after ${response.status}, waiting ${delay}ms...`);
+      await new Promise(r => setTimeout(r, delay));
+    } else {
+      console.log(`[Orchestrator] All ${maxRetries} attempts failed with ${response.status}`);
+      return response;
+    }
+  }
+  return fetch(url, options); // unreachable
+}
+
+// ============================================================================
 // MESSAGING SANITIZATION UTILITIES
 // ============================================================================
 

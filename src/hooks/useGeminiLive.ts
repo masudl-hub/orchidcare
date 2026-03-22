@@ -146,13 +146,26 @@ export function useGeminiLive() {
         const serverResponses = await Promise.all(
           serverCalls.map(async (fc) => {
             try {
-              // For capture_plant_snapshot, inject the latest video frame
+              // For capture_plant_snapshot, inject a high-res video frame
               let toolArgs = fc.args as Record<string, unknown>;
-              if (fc.name === 'capture_plant_snapshot' && video.lastFrameDataUrlRef.current) {
-                const base64 = video.lastFrameDataUrlRef.current.split(',')[1];
-                if (base64) {
-                  toolArgs = { ...toolArgs, image_base64: base64 };
-                  log('capture_plant_snapshot: injected video frame');
+              if (fc.name === 'capture_plant_snapshot') {
+                // Prefer high-res capture (native camera resolution, 0.95 quality)
+                const highRes = video.captureHighResFrame();
+                if (highRes) {
+                  const base64 = highRes.split(',')[1];
+                  if (base64) {
+                    toolArgs = { ...toolArgs, image_base64: base64 };
+                    log('capture_plant_snapshot: injected HIGH-RES video frame');
+                  }
+                } else if (video.lastFrameDataUrlRef.current) {
+                  // Fallback to the 1fps stream frame if high-res isn't available
+                  const base64 = video.lastFrameDataUrlRef.current.split(',')[1];
+                  if (base64) {
+                    toolArgs = { ...toolArgs, image_base64: base64 };
+                    log('capture_plant_snapshot: injected low-res fallback frame');
+                  }
+                } else {
+                  log('capture_plant_snapshot: NO video frame available — camera may not be active');
                 }
               }
 

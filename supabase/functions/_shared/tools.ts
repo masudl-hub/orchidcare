@@ -197,18 +197,17 @@ export async function modifyPlant(
 export async function deletePlant(
   supabase: any,
   profileId: string,
-  args: { plant_identifier: string; user_confirmed?: boolean },
+  args: { plant_identifier: string },
 ): Promise<{
   success: boolean;
   deletedName?: string;
   deletedCount?: number;
   deletedNames?: string[];
   filter?: { type: string; value?: string };
-  requiresConfirmation?: boolean;
-  plantsToDelete?: number;
-  plantNames?: string;
   error?: string;
 }> {
+  // Policy enforcement (always_confirm tier) is handled upstream by policyEnforcer.
+  // If execution reaches here, the action has been approved.
   try {
     const resolution = await resolvePlants(supabase, profileId, args.plant_identifier);
 
@@ -217,28 +216,8 @@ export async function deletePlant(
       return { success: false, error: `Couldn't find any plants matching "${args.plant_identifier}"${filterDesc}` };
     }
 
-    // Require explicit confirmation for bulk deletes
-    if (resolution.isBulk && !args.user_confirmed) {
-      const plantNames = resolution.plants.map((p) => p.nickname || p.species || p.name).join(", ");
-      const filterDesc =
-        resolution.filter?.type === "location"
-          ? ` in the ${resolution.filter.value}`
-          : resolution.filter?.type === "species"
-            ? ` (${resolution.filter.value})`
-            : "";
-      console.log(`[deletePlant] Bulk delete requires confirmation for ${resolution.plants.length} plants`);
-      return {
-        success: false,
-        requiresConfirmation: true,
-        plantsToDelete: resolution.plants.length,
-        plantNames,
-        filter: resolution.filter,
-        error: `This will delete ${resolution.plants.length} plants${filterDesc}: ${plantNames}. Please confirm.`,
-      };
-    }
-
     if (resolution.isBulk) {
-      // Bulk delete (confirmed)
+      // Bulk delete
       const deletedNames: string[] = [];
       for (const plant of resolution.plants) {
         const { error } = await supabase.from("plants").delete().eq("id", plant.id);

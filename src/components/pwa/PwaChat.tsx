@@ -51,6 +51,7 @@ interface PwaMessage {
   createdAt: string;
   rating?: number | null;
   media?: { type: string; data: string }[];
+  pendingAction?: { tool_name: string; args: Record<string, unknown>; reason: string; tier: string };
 }
 
 function getCanvasHeightPercent(): number {
@@ -77,7 +78,7 @@ export function PwaChat() {
   const [canvasHeightPct, setCanvasHeightPct] = useState(getCanvasHeightPercent);
 
   const artifactIdCounter = useRef(0);
-  const sendMessageRef = useRef<(text: string) => void>(() => { });
+  const sendMessageRef = useRef<(text: string, media?: { type: string; data: string }[], extraBody?: Record<string, unknown>) => void>(() => { });
 
   // Online/offline detection
   useEffect(() => {
@@ -322,7 +323,7 @@ export function PwaChat() {
 
   // Send message to pwa-agent
   const sendMessage = useCallback(
-    async (text: string, media?: { type: string; data: string }[]) => {
+    async (text: string, media?: { type: string; data: string }[], extraBody?: Record<string, unknown>) => {
       if (!isOnline) {
         setErrorMsg("You're offline. Connect to the internet to chat.");
         return;
@@ -352,7 +353,7 @@ export function PwaChat() {
           throw new Error('Not authenticated');
         }
 
-        const body: Record<string, unknown> = { message: text };
+        const body: Record<string, unknown> = { message: text, ...extraBody };
         if (media && media.length > 0) {
           body.mediaBase64 = media[0].data;
           body.mediaMimeType = media[0].type;
@@ -439,6 +440,92 @@ export function PwaChat() {
 
         if (!replyData) {
           throw new Error('No response received');
+        }
+
+        // Handle confirmation-required actions
+        if (replyData.pendingAction) {
+          const action = replyData.pendingAction;
+          const confirmId = crypto.randomUUID();
+          const confirmTime = new Date().toISOString();
+          const confirmMsg: PwaMessage = {
+            id: confirmId,
+            role: 'assistant',
+            content: action.reason,
+            createdAt: confirmTime,
+            pendingAction: action,
+          };
+          setMessages(prev => [...prev, confirmMsg]);
+
+          // Create artifact with Allow/Reject buttons
+          const confirmArtifact: ArtifactEntry = {
+            id: `artifact-confirm-${confirmId}`,
+            element: (
+              <div>
+                <ChatResponse text={action.reason} />
+                <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
+                  <button
+                    onClick={() => {
+                      // Remove the confirmation message and re-send with confirmation
+                      setMessages(prev => prev.filter(m => m.id !== confirmId));
+                      setArtifacts(prev => prev.filter(a => a.id !== `artifact-confirm-${confirmId}`));
+                      sendMessageRef.current(
+                        `[CONFIRMED: ${action.tool_name}]`,
+                        undefined,
+                        { confirmationGranted: true, pendingToolName: action.tool_name, pendingToolArgs: action.args }
+                      );
+                    }}
+                    style={{
+                      fontFamily: 'ui-monospace, monospace',
+                      fontSize: '12px',
+                      padding: '6px 16px',
+                      border: '1px solid rgba(255,255,255,0.3)',
+                      borderRadius: '6px',
+                      background: 'rgba(255,255,255,0.1)',
+                      color: '#fff',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Allow
+                  </button>
+                  <button
+                    onClick={() => {
+                      setMessages(prev => prev.filter(m => m.id !== confirmId));
+                      setArtifacts(prev => prev.filter(a => a.id !== `artifact-confirm-${confirmId}`));
+                      const rejectMsg: PwaMessage = {
+                        id: crypto.randomUUID(),
+                        role: 'assistant',
+                        content: 'Action rejected.',
+                        createdAt: new Date().toISOString(),
+                      };
+                      setMessages(prev => [...prev, rejectMsg]);
+                    }}
+                    style={{
+                      fontFamily: 'ui-monospace, monospace',
+                      fontSize: '12px',
+                      padding: '6px 16px',
+                      border: '1px solid rgba(255,255,255,0.15)',
+                      borderRadius: '6px',
+                      background: 'transparent',
+                      color: 'rgba(255,255,255,0.5)',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Reject
+                  </button>
+                </div>
+              </div>
+            ),
+            userMessage: text !== '(photo)' ? text : undefined,
+            userMessageId: userMsg.id,
+            artifactType: 'chat',
+            artifactData: { text: action.reason },
+            responseMessage: action.reason,
+            createdAt: confirmTime,
+          };
+          setArtifacts(prev => [...prev, confirmArtifact]);
+          setIsLoading(false);
+          setLoadingLabel('');
+          return;
         }
 
         const reply = replyData.reply || '';

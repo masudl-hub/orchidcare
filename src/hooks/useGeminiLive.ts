@@ -23,6 +23,14 @@ export function useGeminiLive() {
   const [debugLog, setDebugLog] = useState<string[]>([]);
   const [currentFormation, setCurrentFormation] = useState<Formation | null>(null);
   const [currentAnnotations, setCurrentAnnotations] = useState<AnnotationSet | null>(null);
+  const [pendingConfirmation, setPendingConfirmation] = useState<{
+    toolCallId: string;
+    toolName: string;
+    args: Record<string, unknown>;
+    reason: string;
+    tier: string;
+    resolve: (granted: boolean) => void;
+  } | null>(null);
 
   // Formation queue — LLM may fire show_visual multiple times; we play them in sequence.
   const formationQueueRef = useRef<Formation[]>([]);
@@ -152,21 +160,55 @@ export function useGeminiLive() {
               if (toolsAuthHeaderRef.current) {
                 toolFetchHeaders['Authorization'] = toolsAuthHeaderRef.current;
               }
-              const res = await fetch(toolsUrlRef.current, {
-                method: 'POST',
-                headers: toolFetchHeaders,
-                body: JSON.stringify({
-                  sessionId: sessionIdRef.current,
-                  initData: initDataRef.current,
-                  toolName: fc.name,
-                  toolArgs,
-                  toolCallId: fc.id,
-                  ...extraAuthRef.current,
-                }),
-              });
-              const data = await res.json();
+              const callTool = async (extraBody?: Record<string, unknown>) => {
+                const res = await fetch(toolsUrlRef.current, {
+                  method: 'POST',
+                  headers: toolFetchHeaders,
+                  body: JSON.stringify({
+                    sessionId: sessionIdRef.current,
+                    initData: initDataRef.current,
+                    toolName: fc.name,
+                    toolArgs,
+                    toolCallId: fc.id,
+                    ...extraAuthRef.current,
+                    ...extraBody,
+                  }),
+                });
+                return { res, data: await res.json() };
+              };
+
+              let { res, data } = await callTool();
+
+              // Policy gate: if the server says confirmation is required, show UI and wait
+              const result = data.result || data;
+              if (result.requiresConfirmation) {
+                log(`${fc.name}: requires confirmation (${result.tier})`);
+                const granted = await new Promise<boolean>((resolve) => {
+                  setPendingConfirmation({
+                    toolCallId: fc.id!,
+                    toolName: fc.name!,
+                    args: toolArgs,
+                    reason: result.reason || `"${fc.name}" requires your approval`,
+                    tier: result.tier,
+                    resolve,
+                  });
+                });
+                setPendingConfirmation(null);
+
+                if (!granted) {
+                  log(`${fc.name}: user rejected`);
+                  return {
+                    id: fc.id!, name: fc.name!,
+                    response: { success: false, error: 'User declined this action.' },
+                  };
+                }
+
+                // Re-call with confirmation granted
+                log(`${fc.name}: user approved, re-executing`);
+                ({ res, data } = await callTool({ confirmationGranted: true }));
+              }
+
               if (!res.ok) {
-                // Return an explicit failure so the LLM cannot pretend the call succeeded.
                 const errMsg = data.error || `HTTP ${res.status}`;
                 log(`tool error: ${fc.name} → ${errMsg}`);
                 return {
@@ -779,6 +821,7 @@ export function useGeminiLive() {
     advanceFormationQueue,
     currentAnnotations,
     setCurrentAnnotations,
+    pendingConfirmation,
     connect,
     disconnect,
     interruptModel,

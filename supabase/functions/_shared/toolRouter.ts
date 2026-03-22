@@ -30,6 +30,8 @@ import {
 } from "./tools.ts";
 import { callResearchAgent, verifyStoreInventory, searchProducts, analyzeUrl } from "./research.ts";
 import { callDeepThink } from "./tools.ts";
+import { enforcePolicy } from "./policyEnforcer.ts";
+import { TOOL_POLICIES } from "./toolDefinitions.ts";
 
 export interface ToolContext {
   supabase: any;
@@ -43,6 +45,12 @@ export interface ToolContext {
   sourceMessageId?: string;
   /** Optional media URL for save_plant photo attachment. */
   photoUrl?: string;
+  /** "interactive" (chat/call), "heartbeat", or "proactive". Defaults to "interactive". */
+  executionPath?: "interactive" | "heartbeat" | "proactive";
+  /** Session/correlation ID for session_consent tracking. */
+  sessionId?: string;
+  /** True if the client already showed a confirmation UI and user approved. */
+  confirmationGranted?: boolean;
 }
 
 interface DispatchResult {
@@ -56,6 +64,49 @@ export async function executeSharedTool(
   args: Record<string, unknown>,
 ): Promise<DispatchResult> {
   const { supabase, profileId, apiKeys, sourceMessageId, photoUrl } = ctx;
+
+  // ── Policy enforcement for write-path tools ────────────────────────────
+  if (TOOL_POLICIES[toolName]) {
+    let decision: Awaited<ReturnType<typeof enforcePolicy>>;
+    try {
+      decision = await enforcePolicy(
+        supabase,
+        profileId,
+        toolName,
+        ctx.executionPath || "interactive",
+        ctx.sessionId,
+        ctx.confirmationGranted,
+      );
+    } catch (err) {
+      // If policy enforcement completely fails, fail-closed for destructive tools
+      const defaults = TOOL_POLICIES[toolName];
+      const isDestructive = defaults?.riskLevel === "destructive";
+      console.error(`[ToolRouter] Policy enforcement failed for ${toolName}:`, err);
+      if (isDestructive) {
+        return handled({
+          success: false,
+          requiresConfirmation: true,
+          tier: "always_confirm",
+          tool_name: toolName,
+          pendingArgs: args,
+          reason: `"${toolName}" requires confirmation (policy check unavailable)`,
+        });
+      }
+      // Non-destructive: proceed (fail-open for safe tools)
+      decision = { allowed: true, tier: "auto" };
+    }
+
+    if (!decision.allowed) {
+      return handled({
+        success: false,
+        requiresConfirmation: decision.requiresConfirmation || false,
+        tier: decision.tier,
+        tool_name: toolName,
+        pendingArgs: args,
+        reason: decision.reason || "Action not permitted",
+      });
+    }
+  }
 
   switch (toolName) {
     // ── DB / Plant Management ────────────────────────────────────────────

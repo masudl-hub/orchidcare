@@ -325,7 +325,7 @@ async function callAgent(
   mediaBase64?: string,
   mediaMimeType?: string,
   telegramChatId?: number,
-): Promise<{ reply: string; mediaToSend: Array<{ url: string; caption?: string }> }> {
+): Promise<{ reply: string; mediaToSend: Array<{ url: string; caption?: string }>; pendingAction?: { tool_name: string; args: Record<string, unknown>; reason: string; tier: string } }> {
   const orchidAgentUrl = `${SUPABASE_URL}/functions/v1/orchid-agent`;
 
   const payload: any = {
@@ -398,6 +398,7 @@ async function callAgent(
     return {
       reply: data.reply || "I processed your message but have nothing to say!",
       mediaToSend: data.mediaToSend || [],
+      pendingAction: data.requiresConfirmation ? data.pendingAction : undefined,
     };
   } catch (error) {
     const elapsed = Date.now() - startTime;
@@ -411,6 +412,43 @@ async function callAgent(
   } finally {
     clearTimeout(timeout);
   }
+}
+
+/**
+ * If the agent returned a pending confirmation, show inline keyboard buttons
+ * and store the pending action in the database (survives cold starts).
+ * Returns true if confirmation was shown (caller should skip normal reply flow).
+ */
+async function handlePendingConfirmation(
+  ctx: any,
+  pendingAction: { tool_name: string; args: Record<string, unknown>; reason: string; tier: string } | undefined,
+  profileId: string,
+): Promise<boolean> {
+  if (!pendingAction) return false;
+
+  const confirmId = crypto.randomUUID().substring(0, 8);
+
+  // Store pending action in agent_operations (survives cold starts)
+  await supabase.from("agent_operations").insert({
+    profile_id: profileId,
+    operation_type: "pending_confirmation",
+    table_name: pendingAction.tool_name,
+    tool_name: pendingAction.tool_name,
+    correlation_id: confirmId,
+    metadata: { args: pendingAction.args, tier: pendingAction.tier, reason: pendingAction.reason },
+    execution_path: "interactive",
+  });
+
+  await ctx.reply(pendingAction.reason, {
+    reply_markup: {
+      inline_keyboard: [[
+        { text: "Allow", callback_data: `confirm:${confirmId}:allow` },
+        { text: "Reject", callback_data: `confirm:${confirmId}:reject` },
+      ]],
+    },
+  });
+
+  return true;
 }
 
 // ============================================================================
@@ -801,6 +839,87 @@ bot.on("callback_query:data", async (ctx) => {
   console.log(`[TelegramBot] callback_query: chatId=${chatId}, data="${data}"`);
   await ctx.answerCallbackQuery();
 
+  // ---- POLICY CONFIRMATION ----
+  if (data.startsWith("confirm:")) {
+    const [, confirmId, action] = data.split(":");
+
+    // Look up pending action from database (survives cold starts)
+    const { data: pendingOp } = await supabase
+      .from("agent_operations")
+      .select("profile_id, tool_name, metadata")
+      .eq("correlation_id", confirmId)
+      .eq("operation_type", "pending_confirmation")
+      .maybeSingle();
+
+    if (!pendingOp) {
+      await ctx.reply("This confirmation has expired. Please try the action again.");
+      return;
+    }
+
+    // Mark as resolved so it can't be re-used
+    await supabase
+      .from("agent_operations")
+      .update({ operation_type: "confirmation_resolved" })
+      .eq("correlation_id", confirmId)
+      .eq("operation_type", "pending_confirmation");
+
+    if (action === "reject") {
+      await ctx.reply("Action rejected.");
+      return;
+    }
+
+    const pendingArgs = pendingOp.metadata?.args || {};
+    const pendingToolName = pendingOp.tool_name;
+    const pendingProfileId = pendingOp.profile_id;
+
+    // Execute the confirmed tool directly via toolRouter
+    const stopTyping = startTypingIndicator(chatId);
+    try {
+      const { executeSharedTool } = await import("../_shared/toolRouter.ts");
+      const result = await executeSharedTool(
+        {
+          supabase,
+          profileId: pendingProfileId,
+          apiKeys: {
+            PERPLEXITY: Deno.env.get("PERPLEXITY_API_KEY") || undefined,
+            LOVABLE: Deno.env.get("LOVABLE_API_KEY") || Deno.env.get("OPENROUTER_API_KEY") || undefined,
+            GEMINI: Deno.env.get("GEMINI_API_KEY") || undefined,
+            SERPAPI: Deno.env.get("SERPAPI_KEY") || undefined,
+          },
+          confirmationGranted: true,
+        },
+        pendingToolName,
+        pendingArgs,
+      );
+
+      if (result.handled && result.result?.success) {
+        // Ask the agent to summarize what happened
+        const { reply, mediaToSend } = await callAgent(
+          pendingProfileId,
+          `[System: The action "${pendingToolName}" was confirmed and executed. Result: ${JSON.stringify(result.result).substring(0, 500)}. Summarize what happened for the user naturally.]`,
+          "telegram",
+          undefined,
+          undefined,
+          chatId,
+        );
+        const chunks = splitMessage(reply);
+        for (const chunk of chunks) { await ctx.reply(chunk); }
+        for (const media of mediaToSend) {
+          try { await ctx.replyWithPhoto(media.url, { caption: media.caption || undefined }); } catch { /* non-fatal */ }
+        }
+      } else {
+        const errMsg = result.result?.error || "Action failed";
+        await ctx.reply(`Could not complete the action: ${errMsg}`);
+      }
+    } catch (err) {
+      console.error(`[TelegramBot] confirm callback error:`, err);
+      await ctx.reply("Something went wrong executing that action. Please try again.");
+    } finally {
+      stopTyping();
+    }
+    return;
+  }
+
   const profile = await getOrCreateProfile(chatId, username);
   if (!profile) return;
 
@@ -982,7 +1101,13 @@ bot.on("message:text", async (ctx) => {
   const stopTyping = startTypingIndicator(chatId);
   const correlationId = generateCorrelationId('tg_text');
   try {
-    const { reply, mediaToSend } = await callAgent(profile.id, text, "telegram", undefined, undefined, chatId);
+    const { reply, mediaToSend, pendingAction } = await callAgent(profile.id, text, "telegram", undefined, undefined, chatId);
+
+    // If agent needs confirmation, show inline keyboard and stop
+    if (await handlePendingConfirmation(ctx, pendingAction, profile.id)) {
+      stopTyping();
+      return;
+    }
 
     // Send text reply (split if needed)
     const chunks = splitMessage(reply);
@@ -1086,7 +1211,9 @@ bot.on("message:photo", async (ctx) => {
   const message = caption || "What can you tell me about this plant?";
   const stopTyping = startTypingIndicator(chatId);
   try {
-    const { reply, mediaToSend } = await callAgent(profile.id, message, "telegram", photoData.base64, photoData.mimeType, chatId);
+    const { reply, mediaToSend, pendingAction } = await callAgent(profile.id, message, "telegram", photoData.base64, photoData.mimeType, chatId);
+
+    if (await handlePendingConfirmation(ctx, pendingAction, profile.id)) return;
 
     const chunks = splitMessage(reply);
     console.log(`[TelegramBot] message:photo: sending reply — ${chunks.length} chunks, ${reply.length} total chars`);
@@ -1145,7 +1272,9 @@ bot.on("message:video", async (ctx) => {
   const message = caption || "Here's a video of my plant.";
   const stopTyping = startTypingIndicator(chatId);
   try {
-    const { reply, mediaToSend } = await callAgent(profile.id, message, "telegram", videoData.base64, "video/mp4", chatId);
+    const { reply, mediaToSend, pendingAction } = await callAgent(profile.id, message, "telegram", videoData.base64, "video/mp4", chatId);
+
+    if (await handlePendingConfirmation(ctx, pendingAction, profile.id)) { stopTyping(); return; }
 
     const chunks = splitMessage(reply);
     for (const chunk of chunks) {
@@ -1192,7 +1321,9 @@ bot.on("message:voice", async (ctx) => {
 
   const stopTyping = startTypingIndicator(chatId);
   try {
-    const { reply, mediaToSend } = await callAgent(profile.id, "Voice message from user.", "telegram", voiceData.base64, "audio/ogg", chatId);
+    const { reply, mediaToSend, pendingAction } = await callAgent(profile.id, "Voice message from user.", "telegram", voiceData.base64, "audio/ogg", chatId);
+
+    if (await handlePendingConfirmation(ctx, pendingAction, profile.id)) { stopTyping(); return; }
 
     const chunks = splitMessage(reply);
     for (const chunk of chunks) {
@@ -1236,7 +1367,9 @@ bot.on("message:audio", async (ctx) => {
   const mimeType = audio.mime_type || "audio/ogg";
   const stopTyping = startTypingIndicator(chatId);
   try {
-    const { reply, mediaToSend } = await callAgent(profile.id, "Audio message from user.", "telegram", audioData.base64, mimeType, chatId);
+    const { reply, mediaToSend, pendingAction } = await callAgent(profile.id, "Audio message from user.", "telegram", audioData.base64, mimeType, chatId);
+
+    if (await handlePendingConfirmation(ctx, pendingAction, profile.id)) { stopTyping(); return; }
 
     const chunks = splitMessage(reply);
     for (const chunk of chunks) {
@@ -1287,7 +1420,9 @@ bot.on("message:document", async (ctx) => {
     const message = caption || "What can you tell me about this plant?";
     const stopTyping = startTypingIndicator(chatId);
     try {
-      const { reply, mediaToSend } = await callAgent(profile.id, message, "telegram", photoData.base64, doc.mime_type, chatId);
+      const { reply, mediaToSend, pendingAction } = await callAgent(profile.id, message, "telegram", photoData.base64, doc.mime_type, chatId);
+
+      if (await handlePendingConfirmation(ctx, pendingAction, profile.id)) { stopTyping(); return; }
 
       const chunks = splitMessage(reply);
       for (const chunk of chunks) {

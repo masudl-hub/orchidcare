@@ -2,7 +2,7 @@
 // Delegates shared tools to toolRouter.ts, handles voice-specific tools locally.
 
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { capturePlantSnapshot, checkAgentPermission, TOOL_CAPABILITY_MAP } from "./tools.ts";
+import { capturePlantSnapshot } from "./tools.ts";
 import { callMapsShoppingAgent } from "./research.ts";
 import { callDeepThink } from "./tools.ts";
 import { executeSharedTool } from "./toolRouter.ts";
@@ -16,31 +16,24 @@ export async function executeTool(
   LOVABLE_API_KEY?: string,
   GEMINI_API_KEY?: string,
   sourceMessageId?: string,
+  sessionId?: string,
+  confirmationGranted?: boolean,
 ): Promise<Record<string, unknown>> {
   const startTime = Date.now();
   console.log(`[ToolExecutor] ${toolName}, args=${JSON.stringify(args).substring(0, 500)}`);
 
-  // Permission check — same gate as orchid-agent text path
-  const requiredCapability = TOOL_CAPABILITY_MAP[toolName];
-  if (requiredCapability && profileId) {
-    const hasPermission = await checkAgentPermission(supabase, profileId, requiredCapability);
-    if (!hasPermission) {
-      console.log(`[ToolExecutor] Permission denied for ${toolName} (requires: ${requiredCapability})`);
-      return {
-        success: false,
-        error: `This action requires the "${requiredCapability}" permission which is currently disabled. You can enable it in your settings.`,
-        permissionDenied: true,
-      };
-    }
-  }
+  // Policy enforcement is handled inside executeSharedTool via policyEnforcer.
+  // No manual permission check needed here.
 
-  // Try shared dispatch first (handles ~20 common tools)
+  // Try shared dispatch first (handles ~20 common tools + policy enforcement)
   const shared = await executeSharedTool(
     {
       supabase,
       profileId,
       apiKeys: { PERPLEXITY: PERPLEXITY_API_KEY, LOVABLE: LOVABLE_API_KEY, GEMINI: GEMINI_API_KEY },
       sourceMessageId,
+      sessionId,
+      confirmationGranted,
     },
     toolName,
     args,
@@ -149,31 +142,26 @@ export async function executeTool(
     }
 
     case "capture_plant_snapshot": {
-      if (!args.confirmed) {
-        result = {
-          success: false,
-          error: "User confirmation required. Ask them first, then call with confirmed=true.",
-        };
-      } else {
-        result = await capturePlantSnapshot(
-          supabase,
-          profileId,
-          {
-            plant_identifier: args.plant_identifier as string,
-            description: args.description as string,
-            context: (args.context as string) || "user_requested",
-            health_notes: args.health_notes as string | undefined,
-            image_base64: args.image_base64 as string | undefined,
-            save_if_missing: args.save_if_missing as boolean | undefined,
-            species: args.species as string | undefined,
-            nickname: args.nickname as string | undefined,
-            location: args.location as string | undefined,
-            source: "voice_call_capture",
-          },
-          undefined,
-          sourceMessageId,
-        );
-      }
+      // Policy enforcement (session_consent) is handled by toolRouter via policyEnforcer.
+      // If we reach here, the action is already permitted.
+      result = await capturePlantSnapshot(
+        supabase,
+        profileId,
+        {
+          plant_identifier: args.plant_identifier as string,
+          description: args.description as string,
+          context: (args.context as string) || "user_requested",
+          health_notes: args.health_notes as string | undefined,
+          image_base64: args.image_base64 as string | undefined,
+          save_if_missing: args.save_if_missing as boolean | undefined,
+          species: args.species as string | undefined,
+          nickname: args.nickname as string | undefined,
+          location: args.location as string | undefined,
+          source: "voice_call_capture",
+        },
+        undefined,
+        sourceMessageId,
+      );
       break;
     }
 

@@ -7,6 +7,15 @@ import { CallControls } from './CallControls';
 
 const mono = 'ui-monospace, monospace';
 
+interface PendingConfirmation {
+  toolCallId: string;
+  toolName: string;
+  args: Record<string, unknown>;
+  reason: string;
+  tier: string;
+  resolve: (granted: boolean) => void;
+}
+
 interface CallScreenProps {
   status: string;
   isSpeaking: boolean;
@@ -29,6 +38,7 @@ interface CallScreenProps {
   onEndCall: () => void;
   onCaptureSnapshot?: () => void;
   onInterrupt?: () => void;
+  pendingConfirmation?: PendingConfirmation | null;
 }
 
 export function CallScreen({
@@ -53,6 +63,7 @@ export function CallScreen({
   onEndCall,
   onCaptureSnapshot,
   onInterrupt,
+  pendingConfirmation,
 }: CallScreenProps) {
   // Attach video stream to the preview element.
   // Depend on isVideoActive too so the effect re-runs when the <video> mounts.
@@ -373,6 +384,65 @@ export function CallScreen({
               {statusText}
             </p>
           </div>
+
+          {/* Confirmation card */}
+          {pendingConfirmation && (
+            <div style={{
+              flexShrink: 0,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '12px',
+              padding: '12px 20px',
+              margin: '0 16px 8px',
+              background: 'rgba(0,0,0,0.7)',
+              borderRadius: '12px',
+              border: '1px solid rgba(255,255,255,0.15)',
+              zIndex: 20,
+            }}>
+              <p style={{
+                fontFamily: mono,
+                fontSize: '12px',
+                color: 'rgba(255,255,255,0.85)',
+                margin: 0,
+                flex: 1,
+              }}>
+                {pendingConfirmation.reason}
+              </p>
+              <button
+                onClick={() => pendingConfirmation.resolve(true)}
+                style={{
+                  fontFamily: mono,
+                  fontSize: '12px',
+                  padding: '6px 16px',
+                  border: '1px solid rgba(255,255,255,0.3)',
+                  borderRadius: '6px',
+                  background: 'rgba(255,255,255,0.1)',
+                  color: '#fff',
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                Allow
+              </button>
+              <button
+                onClick={() => pendingConfirmation.resolve(false)}
+                style={{
+                  fontFamily: mono,
+                  fontSize: '12px',
+                  padding: '6px 16px',
+                  border: '1px solid rgba(255,255,255,0.15)',
+                  borderRadius: '6px',
+                  background: 'transparent',
+                  color: 'rgba(255,255,255,0.5)',
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                Reject
+              </button>
+            </div>
+          )}
 
           {/* Controls */}
           <div style={{

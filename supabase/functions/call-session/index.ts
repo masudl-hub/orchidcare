@@ -25,6 +25,7 @@ interface ToolsBody {
   toolName: string;
   toolArgs?: Record<string, unknown>;
   toolCallId?: string;
+  confirmationGranted?: boolean;
 }
 
 interface EndBody {
@@ -397,7 +398,7 @@ async function handleTools(
 
   console.log(`[CallSession] /tools: session verified (status=${session.status}), executing ${toolName}...`);
 
-  // Execute the tool
+  // Execute the tool (policy enforcement happens inside toolRouter via policyEnforcer)
   const toolResult = await executeTool(
     supabase,
     profile.id,
@@ -406,6 +407,9 @@ async function handleTools(
     perplexityApiKey,
     lovableApiKey,
     geminiApiKey,
+    undefined, // sourceMessageId
+    sessionId,
+    body.confirmationGranted,
   );
 
   // Increment tool_calls_count atomically

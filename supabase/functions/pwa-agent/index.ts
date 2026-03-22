@@ -82,10 +82,11 @@ serve(async (req: Request) => {
     // 3. Parse request body
     // ---------------------------------------------------------------------------
     const body = await req.json();
-    const { message, mediaBase64, mediaMimeType } = body as {
+    const { message, mediaBase64, mediaMimeType, confirmationGranted } = body as {
       message: string;
       mediaBase64?: string;
       mediaMimeType?: string;
+      confirmationGranted?: boolean;
     };
 
     if (!message && !mediaBase64) {
@@ -109,6 +110,9 @@ serve(async (req: Request) => {
     if (mediaBase64 && mediaMimeType) {
       payload.mediaBase64 = mediaBase64;
       payload.mediaMimeType = mediaMimeType;
+    }
+    if (confirmationGranted) {
+      payload.confirmationGranted = true;
     }
 
     console.log(`[pwa-agent] Forwarding to orchid-agent for profile ${profile.id}, msg length: ${(message || "").length}, hasMedia: ${!!mediaBase64}`);
@@ -171,6 +175,14 @@ serve(async (req: Request) => {
       }
     }
 
+    // If a tool requires confirmation, emit a confirmation event instead of done
+    if (agentResult.requiresConfirmation && agentResult.pendingAction) {
+      events.push(JSON.stringify({
+        event: "confirmation_required",
+        data: agentResult.pendingAction,
+      }));
+    }
+
     events.push(
       JSON.stringify({
         event: "done",
@@ -178,6 +190,7 @@ serve(async (req: Request) => {
           reply: agentResult.reply || "",
           mediaToSend: agentResult.mediaToSend || [],
           structuredResults: agentResult.structuredResults || undefined,
+          pendingAction: agentResult.requiresConfirmation ? agentResult.pendingAction : undefined,
         },
       })
     );

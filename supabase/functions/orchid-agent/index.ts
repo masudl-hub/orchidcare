@@ -3,7 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { decode as base64Decode } from "https://deno.land/std@0.208.0/encoding/base64.ts";
 
 // Shared modules
-import { resolvePlants, checkAgentPermission, capturePlantSnapshot, TOOL_CAPABILITY_MAP } from "../_shared/tools.ts";
+import { resolvePlants, capturePlantSnapshot } from "../_shared/tools.ts";
 import { callResearchAgent, callMapsShoppingAgent, geocodeLocation } from "../_shared/research.ts";
 import { loadHierarchicalContext, buildEnrichedSystemPrompt } from "../_shared/context.ts";
 import { allAgentToolsOpenAI } from "../_shared/toolDefinitions.ts";
@@ -1410,6 +1410,7 @@ serve(async (req: Request) => {
     let requestChannel = "telegram";
     let profile: any = null;
     let internalMediaInfo: { base64: string; mimeType: string } | null = null;
+    let confirmationGranted = false;
 
     if (isInternalAgentCall && !isProactiveTrigger && contentType.includes("application/json")) {
       // ====================================================================
@@ -1459,7 +1460,8 @@ serve(async (req: Request) => {
       }
 
       requestChannel = payload.channel || "telegram";
-      console.log(`[${correlationId}] Internal call channel: ${requestChannel}, message length: ${body.length}`);
+      confirmationGranted = !!payload.confirmationGranted;
+      console.log(`[${correlationId}] Internal call channel: ${requestChannel}, message length: ${body.length}${confirmationGranted ? ', confirmationGranted=true' : ''}`);
     } else if (isProactiveTrigger && contentType.includes("application/json")) {
       // ====================================================================
       // PROACTIVE MODE: Triggered by proactive-agent with event context
@@ -1897,24 +1899,9 @@ ${proactiveContext.events.map((e: any) => `- ${e.message_hint}`).join("\n")}
             console.log(`[${correlationId}] Executing tool: ${functionName}`, args);
             toolsUsed.push(functionName);
 
-            // Check agent permission for this tool
-            const requiredCapability = TOOL_CAPABILITY_MAP[functionName];
-            if (requiredCapability && profile?.id) {
-              const hasPermission = await checkAgentPermission(supabase, profile.id, requiredCapability);
-              if (!hasPermission) {
-                console.log(`[${correlationId}] Permission denied for ${functionName} (requires: ${requiredCapability})`);
-                toolResults.push({
-                  id: toolCall.id,
-                  name: functionName,
-                  result: {
-                    success: false,
-                    error: `This action requires the "${requiredCapability}" permission which is currently disabled. You can enable it at viridisml.lovable.app/settings`,
-                    permissionDenied: true,
-                  },
-                });
-                continue; // Skip to next tool call
-              }
-            }
+            // Policy enforcement is handled inside executeSharedTool via policyEnforcer.
+            // If a tool requires confirmation, the result will contain requiresConfirmation: true
+            // and the client/bot will show a confirmation UI.
 
             // Pre-log the operation so UI can show "thinking..." -> "researching..." instantly
             await logAgentOperation(
@@ -1943,12 +1930,35 @@ ${proactiveContext.events.map((e: any) => `- ${e.message_hint}`).join("\n")}
                 },
                 sourceMessageId: inboundMessage?.id,
                 photoUrl: uploadedPhotoPath || undefined,
+                sessionId: correlationId,
+                confirmationGranted,
               },
               functionName,
               args,
             );
             if (shared.handled) {
               toolResult = shared.result;
+
+              // Policy gate: if confirmation is required, return immediately
+              // so the client/bot can show a confirmation UI
+              if (toolResult?.requiresConfirmation) {
+                console.log(`[${correlationId}] Tool ${functionName} requires confirmation (${toolResult.tier})`);
+                return new Response(JSON.stringify({
+                  reply: "",
+                  requiresConfirmation: true,
+                  pendingAction: {
+                    tool_name: functionName,
+                    args,
+                    reason: toolResult.reason,
+                    tier: toolResult.tier,
+                  },
+                  mediaToSend: [],
+                  toolsUsed,
+                }), {
+                  headers: { ...corsHeaders, "Content-Type": "application/json" },
+                });
+              }
+
               // Special post-processing: sync in-memory profile for subsequent tools
               if (functionName === "update_profile" && toolResult?.success && profile) {
                 if (args.field === "pets" || args.field === "primary_concerns") {

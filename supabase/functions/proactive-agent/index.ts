@@ -741,6 +741,11 @@ Return JSON: {"should_message": boolean, "reasoning": "1 sentence why/why not", 
             const agentResponse = await webhookResponse.json();
             console.log(`[ProactiveAgent] Agent response for profile ${profile.id} | correlation=${correlationId} | duration_ms=${agentCallDuration} | has_reply=${!!agentResponse.reply}`);
 
+            // If the agent tried to call a gated tool, log it but don't block the message
+            if (agentResponse.requiresConfirmation) {
+              console.warn(`[ProactiveAgent] Agent hit a gated tool (${agentResponse.pendingAction?.tool_name}) during proactive message for profile ${profile.id} — skipping tool, no message sent`);
+            }
+
             if (agentResponse.reply && TELEGRAM_BOT_TOKEN) {
               const telegramUrl = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`;
               const tgResponse = await fetch(telegramUrl, {

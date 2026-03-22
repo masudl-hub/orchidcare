@@ -16,6 +16,22 @@ interface ToolParam {
   required?: string[];
 }
 
+type ActionTier = "auto" | "session_consent" | "always_confirm";
+type ToolCategory = "read_only" | "plant_management" | "care_tracking" | "sensors_devices" | "media_snapshots" | "profile_preferences" | "shopping" | "ai_tools";
+
+interface ToolPolicy {
+  /** Default interactive tier for new users. */
+  defaultTier: ActionTier;
+  /** Whether the heartbeat agent can use this tool by default. */
+  defaultHeartbeatAllowed: boolean;
+  /** Groups tools in Settings UI. */
+  category: ToolCategory;
+  /** Human-readable label for Settings UI. */
+  label: string;
+  /** Risk level — drives UI styling (info, caution, destructive). */
+  riskLevel: "safe" | "caution" | "destructive";
+}
+
 interface ToolDef {
   name: string;
   description: string;
@@ -25,7 +41,25 @@ interface ToolDef {
   };
   /** Gemini Live only — marks tool as non-blocking (streamed result). Ignored by OpenAI converter. */
   behavior?: "NON_BLOCKING";
+  /** Policy metadata — drives enforcement, settings UI, and seed triggers. */
+  policy?: ToolPolicy;
 }
+
+// ─── Policy Defaults ──────────────────────────────────────────────────────────
+// Read-only tools don't need a policy entry (always allowed, tier 0).
+// Only tools that write data or have side effects get policy metadata.
+
+const POLICY_AUTO = (category: ToolCategory, label: string, heartbeat = false): ToolPolicy => ({
+  defaultTier: "auto", defaultHeartbeatAllowed: heartbeat, category, label, riskLevel: "safe",
+});
+
+const POLICY_SESSION = (category: ToolCategory, label: string): ToolPolicy => ({
+  defaultTier: "session_consent", defaultHeartbeatAllowed: false, category, label, riskLevel: "caution",
+});
+
+const POLICY_CONFIRM = (category: ToolCategory, label: string): ToolPolicy => ({
+  defaultTier: "always_confirm", defaultHeartbeatAllowed: false, category, label, riskLevel: "destructive",
+});
 
 // ─── Format Converters ───────────────────────────────────────────────────────
 
@@ -172,20 +206,16 @@ Use for updating nickname, location, or notes.`,
     name: "delete_plant",
     description: `Remove plants from collection. Supports BULK operations:
 - Single plant: "my monstera" / "Planty"
-- All plants: "all plants" (DANGEROUS - requires confirmation!)
+- All plants: "all plants"
 - By location: "all plants in the bedroom"
 - By type: "all succulents"
 
-CRITICAL: For bulk deletes, you MUST list what will be deleted and ask for explicit user confirmation BEFORE calling with user_confirmed=true.`,
+Note: Deletion is gated by the user's action policy. The system will prompt for confirmation automatically — do not ask for confirmation yourself.`,
     parameters: {
       properties: {
         plant_identifier: {
           type: "string",
           description: "Plant ID from context (preferred) or name/bulk pattern",
-        },
-        user_confirmed: {
-          type: "boolean",
-          description: "Set to true ONLY after user explicitly confirms the deletion. Required for bulk deletes.",
         },
       },
       required: ["plant_identifier"],
@@ -909,7 +939,7 @@ const voiceOnlyTools: ToolDef[] = [
   {
     name: "capture_plant_snapshot",
     description:
-      "Capture a visual snapshot of a plant for the visual memory chronicle. NEVER call without explicit user consent — always ask first ('Want me to save a snapshot?') and wait for confirmation. If the plant isn't saved yet, call save_plant first, then capture the snapshot. Provide a thorough description of what you see.",
+      "Capture a visual snapshot of a plant for the visual memory chronicle. If the plant isn't saved yet, call save_plant first, then capture the snapshot. Provide a thorough description of what you see. Note: snapshot capture is gated by the user's action policy — the system handles confirmation automatically.",
     parameters: {
       properties: {
         plant_identifier: {
@@ -923,10 +953,6 @@ const voiceOnlyTools: ToolDef[] = [
         },
         context: { type: "string", description: "Why: identification, diagnosis, routine_check, user_requested" },
         health_notes: { type: "string", description: "Optional health observations at this point in time" },
-        confirmed: {
-          type: "boolean",
-          description: "Must be true — ask the user for confirmation before calling this tool",
-        },
         save_if_missing: {
           type: "boolean",
           description: "Set to true to auto-save the plant if it doesn't exist yet. Requires species.",
@@ -935,7 +961,7 @@ const voiceOnlyTools: ToolDef[] = [
         nickname: { type: "string", description: "Optional nickname for the new plant (used with save_if_missing)" },
         location: { type: "string", description: "Optional location in home (used with save_if_missing)" },
       },
-      required: ["plant_identifier", "description", "confirmed"],
+      required: ["plant_identifier", "description"],
     },
   },
   {
@@ -994,6 +1020,54 @@ const voiceOnlyTools: ToolDef[] = [
     },
   },
 ];
+
+// ─── Tool Policy Map ──────────────────────────────────────────────────────────
+// Single source of truth for policy defaults. Drives: policyEnforcer, Settings UI,
+// seed trigger, developer docs. Tools without an entry are always allowed (read-only).
+
+export const TOOL_POLICIES: Record<string, ToolPolicy> = {
+  // Plant Management
+  save_plant:         POLICY_AUTO("plant_management", "Save plants"),
+  modify_plant:       POLICY_AUTO("plant_management", "Modify plants", true),
+  delete_plant:       POLICY_CONFIRM("plant_management", "Delete plants"),
+
+  // Care Tracking
+  log_care_event:     POLICY_AUTO("care_tracking", "Log care events", true),
+  create_reminder:    POLICY_AUTO("care_tracking", "Create reminders", true),
+  delete_reminder:    POLICY_AUTO("care_tracking", "Delete reminders", true),
+
+  // Sensors & Devices
+  associate_reading:  POLICY_AUTO("sensors_devices", "Link sensor readings"),
+  set_plant_ranges:   POLICY_AUTO("sensors_devices", "Set sensor ranges", true),
+  dismiss_sensor_alert: POLICY_AUTO("sensors_devices", "Dismiss alerts", true),
+  manage_device:      POLICY_SESSION("sensors_devices", "Manage devices"),
+
+  // Media & Snapshots
+  capture_plant_snapshot: POLICY_SESSION("media_snapshots", "Capture snapshots"),
+  generate_image:     POLICY_AUTO("media_snapshots", "Generate images"),
+
+  // Profile & Preferences
+  update_profile:     POLICY_SESSION("profile_preferences", "Update profile"),
+  update_notification_preferences: POLICY_SESSION("profile_preferences", "Change notifications"),
+  save_user_insight:  POLICY_AUTO("profile_preferences", "Save observations"),
+};
+
+/** Export types for consumers (policyEnforcer, Settings UI, etc.) */
+export type { ActionTier, ToolCategory, ToolPolicy };
+
+/** All tools with write side-effects (for seeding tool_policies on profile creation). */
+export function getToolPolicyDefaults(): { tool_name: string; interactive_tier: ActionTier; heartbeat_allowed: boolean }[] {
+  return Object.entries(TOOL_POLICIES).map(([tool_name, p]) => ({
+    tool_name,
+    interactive_tier: p.defaultTier,
+    heartbeat_allowed: p.defaultHeartbeatAllowed,
+  }));
+}
+
+/** Full policy catalog for Settings UI (includes labels, categories, risk levels). */
+export function getToolPolicyCatalog(): (ToolPolicy & { tool_name: string })[] {
+  return Object.entries(TOOL_POLICIES).map(([tool_name, p]) => ({ tool_name, ...p }));
+}
 
 // ─── Pre-built Exports ───────────────────────────────────────────────────────
 

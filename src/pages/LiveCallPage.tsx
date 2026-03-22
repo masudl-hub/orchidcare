@@ -399,6 +399,7 @@ function LiveCallPageInner() {
       onEndCall={handleEndCall}
       onCaptureSnapshot={gemini.captureSnapshot}
       onInterrupt={gemini.interruptModel}
+      pendingConfirmation={gemini.pendingConfirmation}
     />
   );
 }

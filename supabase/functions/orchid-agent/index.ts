@@ -2033,6 +2033,7 @@ ${proactiveContext.events.map((e: any) => `- ${e.message_hint}`).join("\n")}
                     args,
                     reason: toolResult.reason,
                     tier: toolResult.tier,
+                    photoPath: uploadedPhotoPath || null,
                   },
                   mediaToSend: [],
                   toolsUsed,

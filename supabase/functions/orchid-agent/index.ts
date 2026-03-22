@@ -1887,7 +1887,7 @@ ${proactiveContext.events.map((e: any) => `- ${e.message_hint}`).join("\n")}
 
     // Call orchestrator
     console.log("Calling orchestrator (gemini-3-flash-preview)...");
-    const orchestratorResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    const orchestratorResponse = await fetchWithRetry("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${LOVABLE_API_KEY}`,

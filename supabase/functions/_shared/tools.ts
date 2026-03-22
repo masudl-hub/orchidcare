@@ -283,7 +283,7 @@ export async function createReminder(
     for (const plant of resolution.plants) {
       const { data: reminder, error } = await supabase
         .from("reminders")
-        .insert({
+        .insert([{
           profile_id: profileId,
           plant_id: plant.id,
           reminder_type: args.reminder_type,
@@ -292,7 +292,7 @@ export async function createReminder(
           notes: args.notes || null,
           is_active: true,
           source_message_id: sourceMessageId || null,
-        })
+        }])
         .select()
         .single();
 

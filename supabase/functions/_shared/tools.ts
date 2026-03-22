@@ -1146,7 +1146,7 @@ export async function setPlantRanges(
     // Insert new active range
     const { data: range, error } = await supabase
       .from("sensor_ranges")
-      .insert({
+      .insert([{
         plant_id: plant.id,
         profile_id: profileId,
         soil_moisture_min: r.soil_moisture?.min,
@@ -1168,7 +1168,7 @@ export async function setPlantRanges(
         reasoning: args.reasoning || null,
         is_active: true,
         source_message_id: sourceMessageId || null,
-      })
+      }])
       .select("id")
       .single();
 

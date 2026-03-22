@@ -1543,14 +1543,14 @@ serve(async (req: Request) => {
 
       const { data: msgData } = await supabase
         .from("conversations")
-        .insert({
+        .insert([{
           profile_id: profile?.id,
           channel,
           direction: "inbound",
           content: body,
           message_sid: messageSid,
           media_urls: null,
-        })
+        }])
         .select()
         .single();
       inboundMessage = msgData;

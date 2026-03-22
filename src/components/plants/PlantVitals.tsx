@@ -301,7 +301,7 @@ function SensorPicker({ plantId, onDone }: { plantId: string; onDone?: () => voi
           </button>
         </div>
         <button
-          onClick={() => { setNewToken(null); onDone?.(); }}
+          onClick={() => { setNewToken(null); queryClient.invalidateQueries({ queryKey: ["devices"] }); onDone?.(); }}
           className="cursor-pointer"
           style={{
             fontFamily: mono, fontSize: '9px', color: 'rgba(255,255,255,0.65)',

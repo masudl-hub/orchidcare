@@ -98,9 +98,8 @@ export function useCreateDevice() {
       // Return the plaintext token — this is the only time it's visible
       return { device: data as Device, token };
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["devices"] });
-    },
+    // NOTE: No auto-invalidation here — callers must manually invalidate
+    // after the user has copied the token (prevents re-render from killing token state)
   });
 }
 

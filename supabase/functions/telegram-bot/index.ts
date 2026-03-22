@@ -196,11 +196,11 @@ async function getOrCreateProfile(chatId: number, username?: string): Promise<an
   console.log(`[TelegramBot] getOrCreateProfile: no existing profile, creating new one for chatId=${chatId}`);
   const { data: newProfile, error } = await supabase
     .from("profiles")
-    .insert({
+    .insert([{
       telegram_chat_id: chatId,
       telegram_username: username || null,
       personality: "warm",
-    })
+    }])
     .select()
     .single();
 

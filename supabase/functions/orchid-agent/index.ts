@@ -2006,13 +2006,13 @@ ${proactiveContext.events.map((e: any) => `- ${e.message_hint}`).join("\n")}
 
                   const { data: identification } = await supabase
                     .from("plant_identifications")
-                    .insert({
+                    .insert([{
                       profile_id: profile?.id,
                       photo_url: uploadedPhotoPath,
                       species_guess: toolResult.data.species,
                       confidence: toolResult.data.confidence,
                       care_tips: toolResult.data.careSummary,
-                    })
+                    }])
                     .select()
                     .single();
 

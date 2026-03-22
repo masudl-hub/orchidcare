@@ -261,14 +261,14 @@ Return JSON: {"summary": "3-5 sentence summary", "key_topics": ["topic1", "topic
     const now = new Date().toISOString();
     const { error: summaryInsertError } = await supabase
       .from("conversation_summaries")
-      .insert({
+      .insert([{
         profile_id: profileId,
         summary: summaryJson.summary,
         key_topics: summaryJson.key_topics,
         message_count: 1,
         start_time: now,
         end_time: now,
-      });
+      }]);
 
     if (summaryInsertError) {
       console.error(`[SummariseCall] conversation_summaries insert FAILED:`, summaryInsertError.message);
@@ -279,13 +279,13 @@ Return JSON: {"summary": "3-5 sentence summary", "key_topics": ["topic1", "topic
     // 3. Insert a single conversation row for context loading
     const { error: convInsertError } = await supabase
       .from("conversations")
-      .insert({
+      .insert([{
         profile_id: profileId,
         channel: "voice",
         direction: "outbound",
         content: summaryJson.summary,
         summarized: true,
-      });
+      }]);
 
     if (convInsertError) {
       console.error(`[SummariseCall] conversations insert FAILED:`, convInsertError.message);

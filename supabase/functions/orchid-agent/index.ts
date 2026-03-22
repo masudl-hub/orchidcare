@@ -806,12 +806,12 @@ CRITICAL REQUIREMENTS:
     }
 
     // Store in generated_content for history
-    await supabase.from("generated_content").insert({
+    await supabase.from("generated_content").insert([{
       profile_id: profileId,
       content_type: "image_guide",
       task_description: task,
       content: { steps: images, plant_species: plantSpecies },
-    });
+    }]);
 
     console.log(`[ImageGenAgent] Successfully generated ${images.length}/${stepCount} step images in parallel`);
 
@@ -957,12 +957,12 @@ Return ONLY valid JSON with this structure:
     }
 
     // Store in generated_content
-    await supabase.from("generated_content").insert({
+    await supabase.from("generated_content").insert([{
       profile_id: profileId,
       content_type: "video_analysis",
       task_description: analysisFocus,
       content: analysis,
-    });
+    }]);
 
     console.log("[VideoAgent] Analysis complete:", analysis.summary);
     return { success: true, data: analysis };
@@ -1048,12 +1048,12 @@ Return ONLY valid JSON with this structure:
     }
 
     // Store in generated_content
-    await supabase.from("generated_content").insert({
+    await supabase.from("generated_content").insert([{
       profile_id: profileId,
       content_type: "voice_transcript",
       task_description: transcription.intent,
       content: transcription,
-    });
+    }]);
 
     console.log("[VoiceAgent] Transcription complete:", transcription.transcript.substring(0, 100));
     return { success: true, data: transcription };
@@ -1225,7 +1225,7 @@ Return JSON: {"summary": "2-3 sentence summary", "key_topics": ["topic1", "topic
 
     // Save the summary
     const messageIds = toSummarize.map((m: any) => m.id);
-    await supabase.from("conversation_summaries").insert({
+    await supabase.from("conversation_summaries").insert([{
       profile_id: profileId,
       summary: summaryJson.summary,
       key_topics: summaryJson.key_topics,
@@ -1233,7 +1233,7 @@ Return JSON: {"summary": "2-3 sentence summary", "key_topics": ["topic1", "topic
       start_time: toSummarize[0].created_at,
       end_time: toSummarize[4].created_at,
       source_message_ids: messageIds,
-    });
+    }]);
 
     // Save extracted insights
     if (extractedInsights.length > 0) {
@@ -1273,7 +1273,7 @@ async function logAgentOperation(
   metadata?: Record<string, any>,
 ): Promise<void> {
   try {
-    await supabase.from("agent_operations").insert({
+    await supabase.from("agent_operations").insert([{
       profile_id: profileId,
       correlation_id: correlationId,
       operation_type: operationType,
@@ -1281,7 +1281,7 @@ async function logAgentOperation(
       record_id: recordId,
       tool_name: toolName,
       metadata: metadata || null,
-    });
+    }]);
   } catch (error) {
     // Don't fail operations due to audit logging errors
     console.error(`[Audit] Failed to log operation:`, error);
@@ -1543,14 +1543,14 @@ serve(async (req: Request) => {
 
       const { data: msgData } = await supabase
         .from("conversations")
-        .insert({
+        .insert([{
           profile_id: profile?.id,
           channel,
           direction: "inbound",
           content: body,
           message_sid: messageSid,
           media_urls: null,
-        })
+        }])
         .select()
         .single();
       inboundMessage = msgData;
@@ -1956,13 +1956,13 @@ ${proactiveContext.events.map((e: any) => `- ${e.message_hint}`).join("\n")}
 
                 // Save outbound message so it appears in conversation history on refresh
                 const confirmReply = toolResult.reason || `"${functionName}" requires your confirmation.`;
-                await supabase.from("conversations").insert({
+                await supabase.from("conversations").insert([{
                   profile_id: profile?.id,
                   channel,
                   direction: "outbound",
                   content: confirmReply,
                   message_sid: `confirm-${correlationId}`,
-                }).catch(() => {}); // best-effort
+                }]); // best-effort
 
                 return new Response(JSON.stringify({
                   reply: confirmReply,
@@ -2006,13 +2006,13 @@ ${proactiveContext.events.map((e: any) => `- ${e.message_hint}`).join("\n")}
 
                   const { data: identification } = await supabase
                     .from("plant_identifications")
-                    .insert({
+                    .insert([{
                       profile_id: profile?.id,
                       photo_url: uploadedPhotoPath,
                       species_guess: toolResult.data.species,
                       confidence: toolResult.data.confidence,
                       care_tips: toolResult.data.careSummary,
-                    })
+                    }])
                     .select()
                     .single();
 
@@ -2181,14 +2181,14 @@ ${proactiveContext.events.map((e: any) => `- ${e.message_hint}`).join("\n")}
 
                   const { data: diagnosis } = await supabase
                     .from("plant_identifications")
-                    .insert({
+                    .insert([{
                       profile_id: profile?.id,
                       plant_id: diagnosePlantId,
                       photo_url: uploadedPhotoPath,
                       diagnosis: toolResult.data.diagnosis,
                       severity: toolResult.data.severity,
                       treatment: toolResult.data.treatment,
-                    })
+                    }])
                     .select()
                     .single();
 
@@ -2489,7 +2489,7 @@ ${proactiveContext.events.map((e: any) => `- ${e.message_hint}`).join("\n")}
 
               // NON-BLOCKING: Cache store results in generated_content for follow-up queries
               if (toolResult.success && toolResult.data?.stores?.length > 0 && profile?.id) {
-                supabase.from("generated_content").insert({
+                supabase.from("generated_content").insert([{
                   profile_id: profile.id,
                   content_type: "store_search",
                   content: {
@@ -2499,9 +2499,9 @@ ${proactiveContext.events.map((e: any) => `- ${e.message_hint}`).join("\n")}
                     timestamp: new Date().toISOString()
                   },
                   task_description: `Store search: ${args.product_query} near ${profile.location}`
-                }).then(() => {
+                }]).then(() => {
                   console.log(`[${correlationId}] Cached ${toolResult.data.stores.length} store results`);
-                }).catch(() => { });
+                });
               }
 
               // AGENTIC RETRY: If no stores found, automatically trigger research fallback
@@ -2912,7 +2912,7 @@ ${proactiveContext.events.map((e: any) => `- ${e.message_hint}`).join("\n")}
     console.log("Orchid Reply:", aiReply);
 
     // Store outgoing message
-    await supabase.from("conversations").insert({
+    await supabase.from("conversations").insert([{
       profile_id: profile?.id,
       channel,
       direction: "outbound",
@@ -2920,7 +2920,7 @@ ${proactiveContext.events.map((e: any) => `- ${e.message_hint}`).join("\n")}
       // Store storage paths (bucket:path) so they can be re-signed on reload.
       // Falls back to raw signed URLs for any legacy/external images not in our storage.
       media_urls: mediaPathsForDB.length > 0 ? mediaPathsForDB : (mediaToSend.length > 0 ? mediaToSend.map(m => m.url) : null),
-    });
+    }]);
 
     // Trigger background compression check
     maybeCompressHistory(supabase, profile?.id, LOVABLE_API_KEY).catch((err) => {

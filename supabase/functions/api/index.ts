@@ -141,14 +141,14 @@ serve(async (req) => {
             console.error(`[REST API] orchid-agent failed: ${agentResponse.status}`);
 
             // Log the error
-            await supabase.from("api_usage_log").insert({
+            await supabase.from("api_usage_log").insert([{
                 api_key_id: keyRecord.id,
                 profile_id: keyRecord.profile_id,
                 end_user_id,
                 status: "error",
                 error_message: `Agent returned ${agentResponse.status}`,
                 latency_ms: latencyMs,
-            });
+            }]);
 
             return new Response(
                 JSON.stringify({ error: "Agent processing failed", details: errorText }),
@@ -164,13 +164,13 @@ serve(async (req) => {
         // Log the successful call and increment total_calls (fire and forget)
         supabase
             .from("api_usage_log")
-            .insert({
+            .insert([{
                 api_key_id: keyRecord.id,
                 profile_id: keyRecord.profile_id,
                 end_user_id,
                 status: "success",
                 latency_ms: latencyMs,
-            })
+            }])
             .then();
 
         supabase

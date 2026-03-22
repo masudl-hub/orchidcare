@@ -146,7 +146,7 @@ async function handleDeviceReading(req: Request) {
   // Insert reading
   const { data: reading, error: insertError } = await supabase
     .from("sensor_readings")
-    .insert({
+    .insert([{
       device_id: device.id,
       plant_id: device.plant_id,
       profile_id: device.profile_id,
@@ -156,7 +156,7 @@ async function handleDeviceReading(req: Request) {
       light_lux: payload.light_lux,
       battery_pct: payload.battery_pct,
       reading_metadata: payload.metadata || null,
-    })
+    }])
     .select("id, plant_id")
     .single();
 
@@ -182,11 +182,11 @@ async function handleDeviceReading(req: Request) {
       careEvent = "water";
       supabase
         .from("care_events")
-        .insert({
+        .insert([{
           plant_id: reading.plant_id,
           event_type: "water",
           notes: `Auto-detected by sensor: soil moisture increased by ${soilDelta}%`,
-        })
+        }])
         .then(({ error }) => {
           if (error) console.error("[SensorReading] Failed to log care event:", error);
           else console.log(`[SensorReading] Auto-logged watering event for plant ${reading.plant_id}`);
@@ -343,13 +343,13 @@ async function handleSimulate(req: Request) {
     const demoHash = await hashToken(demoToken);
     const { data: newDevice, error: createError } = await supabase
       .from("devices")
-      .insert({
+      .insert([{
         profile_id: profileId,
         device_token_hash: demoHash,
         device_token_prefix: demoToken.substring(0, 8),
         name: "Demo Sensor",
         status: "active",
-      })
+      }])
       .select("id, plant_id")
       .single();
 

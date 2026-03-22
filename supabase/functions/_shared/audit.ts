@@ -32,7 +32,7 @@ export async function logOutboundMessage(
           .toString(16)
       : null;
 
-    await supabase.from('outbound_message_audit').insert({
+    await supabase.from('outbound_message_audit').insert([{
       source_function: params.sourceFunction,
       source_mode: params.sourceMode,
       profile_id: params.profileId,
@@ -45,7 +45,7 @@ export async function logOutboundMessage(
       error_code: params.errorCode ?? null,
       error_detail: params.errorDetail ?? null,
       trigger_payload: params.triggerPayload ?? null,
-    });
+    }]);
   } catch (err) {
     // Audit logging should never break the main flow
     console.error('[Audit] Failed to log outbound message:', err);
@@ -70,7 +70,7 @@ export async function logProactiveRun(
   },
 ): Promise<void> {
   try {
-    await supabase.from('proactive_run_audit').insert({
+    await supabase.from('proactive_run_audit').insert([{
       run_started_at: params.runStartedAt.toISOString(),
       run_ended_at: params.runEndedAt.toISOString(),
       trigger_source: params.triggerSource ?? null,
@@ -81,7 +81,7 @@ export async function logProactiveRun(
       skip_reasons: params.skipReasons ?? null,
       duration_ms: params.runEndedAt.getTime() - params.runStartedAt.getTime(),
       error: params.error ?? null,
-    });
+    }]);
   } catch (err) {
     console.error('[Audit] Failed to log proactive run:', err);
   }

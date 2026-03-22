@@ -105,7 +105,7 @@ export async function savePlant(
 
     const { data: plant, error } = await supabase
       .from("plants")
-      .insert({
+      .insert([{
         profile_id: profileId,
         name: args.species,
         species: args.species,
@@ -113,7 +113,7 @@ export async function savePlant(
         location_in_home: args.location || null,
         notes: args.notes || null,
         photo_url: photoUrl || null,
-      })
+      }])
       .select()
       .single();
 
@@ -283,7 +283,7 @@ export async function createReminder(
     for (const plant of resolution.plants) {
       const { data: reminder, error } = await supabase
         .from("reminders")
-        .insert({
+        .insert([{
           profile_id: profileId,
           plant_id: plant.id,
           reminder_type: args.reminder_type,
@@ -292,7 +292,7 @@ export async function createReminder(
           notes: args.notes || null,
           is_active: true,
           source_message_id: sourceMessageId || null,
-        })
+        }])
         .select()
         .single();
 
@@ -437,12 +437,12 @@ export async function logCareEvent(
     for (const plant of resolution.plants) {
       const { data: event, error } = await supabase
         .from("care_events")
-        .insert({
+        .insert([{
           plant_id: plant.id,
           event_type: args.event_type,
           notes: args.notes || null,
           source_message_id: sourceMessageId || null,
-        })
+        }])
         .select()
         .single();
 
@@ -754,7 +754,7 @@ export async function capturePlantSnapshot(
     // Save the snapshot record
     const { data: snapshot, error } = await supabase
       .from("plant_snapshots")
-      .insert({
+      .insert([{
         plant_id: plant.id,
         profile_id: profileId,
         image_path: imagePath,
@@ -763,7 +763,7 @@ export async function capturePlantSnapshot(
         source: args.source || "telegram_photo",
         health_notes: args.health_notes || null,
         source_message_id: sourceMessageId || null,
-      })
+      }])
       .select()
       .single();
 
@@ -1146,7 +1146,7 @@ export async function setPlantRanges(
     // Insert new active range
     const { data: range, error } = await supabase
       .from("sensor_ranges")
-      .insert({
+      .insert([{
         plant_id: plant.id,
         profile_id: profileId,
         soil_moisture_min: r.soil_moisture?.min,
@@ -1168,7 +1168,7 @@ export async function setPlantRanges(
         reasoning: args.reasoning || null,
         is_active: true,
         source_message_id: sourceMessageId || null,
-      })
+      }])
       .select("id")
       .single();
 
@@ -1437,14 +1437,14 @@ export async function manageDevice(
       }
 
       const deviceName = args.new_name || "New Sensor";
-      const { error } = await supabase.from("devices").insert({
+      const { error } = await supabase.from("devices").insert([{
         profile_id: profileId,
         plant_id: plantId,
         device_token_hash: tokenHash,
         device_token_prefix: plainToken.substring(0, 12),
         name: deviceName,
         status: "active",
-      });
+      }]);
       if (error) return { success: false, error: error.message };
 
       console.log(`[manageDevice] Provisioned new device "${deviceName}" for profile ${profileId}`);
@@ -1506,11 +1506,11 @@ export async function manageDevice(
       case "identify": {
         const { error } = await supabase
           .from("device_commands")
-          .insert({
+          .insert([{
             device_id: device.id,
             command: "identify",
             status: "pending",
-          });
+          }]);
         if (error) return { success: false, error: error.message };
         console.log(`[manageDevice] Sent identify command to ${device.name}`);
         return { success: true, action: "identify_sent", device: device.name, note: "The device LED will blink within 30 seconds" };
@@ -1680,7 +1680,7 @@ export async function evaluateSensorAlerts(
 
         if (!existing || existing.length === 0) {
           // Create new alert
-          await supabase.from("sensor_alerts").insert({
+          await supabase.from("sensor_alerts").insert([{
             plant_id: plantId,
             profile_id: profileId,
             device_id: deviceId,
@@ -1694,7 +1694,7 @@ export async function evaluateSensorAlerts(
               : (check.value < (check.idealMin ?? 0) ? check.idealMin : check.idealMax),
             message,
             status: "active",
-          });
+          }]);
           console.log(`[evaluateSensorAlerts] Created alert: ${alertType} for ${plantName}`);
         }
       } else {

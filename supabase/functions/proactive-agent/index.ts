@@ -833,14 +833,14 @@ Return JSON: {"should_message": boolean, "reasoning": "1 sentence why/why not", 
           triggered++;
           messagesDelivered++;
 
-          await supabase.from('proactive_messages').insert({
+          await supabase.from('proactive_messages').insert([{
             profile_id: profile.id,
             trigger_type: topEvents[0].type,
             trigger_data: topEvents.map(e => e.data),
             message_content: `[Triggered via unified agent] ${topEvents.map(e => e.message_hint).join(', ')}`,
             channel: 'telegram',
             sent_at: new Date().toISOString(),
-          });
+          }]);
 
           // Update next_due for reminders
           for (const event of topEvents) {

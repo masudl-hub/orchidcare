@@ -2181,14 +2181,14 @@ ${proactiveContext.events.map((e: any) => `- ${e.message_hint}`).join("\n")}
 
                   const { data: diagnosis } = await supabase
                     .from("plant_identifications")
-                    .insert({
+                    .insert([{
                       profile_id: profile?.id,
                       plant_id: diagnosePlantId,
                       photo_url: uploadedPhotoPath,
                       diagnosis: toolResult.data.diagnosis,
                       severity: toolResult.data.severity,
                       treatment: toolResult.data.treatment,
-                    })
+                    }])
                     .select()
                     .single();
 

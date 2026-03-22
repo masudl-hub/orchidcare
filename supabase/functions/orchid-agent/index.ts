@@ -957,12 +957,12 @@ Return ONLY valid JSON with this structure:
     }
 
     // Store in generated_content
-    await supabase.from("generated_content").insert({
+    await supabase.from("generated_content").insert([{
       profile_id: profileId,
       content_type: "video_analysis",
       task_description: analysisFocus,
       content: analysis,
-    });
+    }]);
 
     console.log("[VideoAgent] Analysis complete:", analysis.summary);
     return { success: true, data: analysis };

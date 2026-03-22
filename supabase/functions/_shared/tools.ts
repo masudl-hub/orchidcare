@@ -754,7 +754,7 @@ export async function capturePlantSnapshot(
     // Save the snapshot record
     const { data: snapshot, error } = await supabase
       .from("plant_snapshots")
-      .insert({
+      .insert([{
         plant_id: plant.id,
         profile_id: profileId,
         image_path: imagePath,
@@ -763,7 +763,7 @@ export async function capturePlantSnapshot(
         source: args.source || "telegram_photo",
         health_notes: args.health_notes || null,
         source_message_id: sourceMessageId || null,
-      })
+      }])
       .select()
       .single();
 

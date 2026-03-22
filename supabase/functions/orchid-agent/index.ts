@@ -2489,7 +2489,7 @@ ${proactiveContext.events.map((e: any) => `- ${e.message_hint}`).join("\n")}
 
               // NON-BLOCKING: Cache store results in generated_content for follow-up queries
               if (toolResult.success && toolResult.data?.stores?.length > 0 && profile?.id) {
-                supabase.from("generated_content").insert({
+                supabase.from("generated_content").insert([{
                   profile_id: profile.id,
                   content_type: "store_search",
                   content: {
@@ -2499,9 +2499,9 @@ ${proactiveContext.events.map((e: any) => `- ${e.message_hint}`).join("\n")}
                     timestamp: new Date().toISOString()
                   },
                   task_description: `Store search: ${args.product_query} near ${profile.location}`
-                }).then(() => {
+                }]).then(() => {
                   console.log(`[${correlationId}] Cached ${toolResult.data.stores.length} store results`);
-                }).catch(() => { });
+                });
               }
 
               // AGENTIC RETRY: If no stores found, automatically trigger research fallback

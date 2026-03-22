@@ -1,6 +1,7 @@
 import { useState } from "react";
-import { Cpu, Wifi, WifiOff, Zap, Edit2, Check, X, ChevronDown, Loader2 } from "lucide-react";
-import { useDevices, useUpdateDevice, useSendDeviceCommand, type Device } from "@/hooks/useDevices";
+import { useQueryClient } from "@tanstack/react-query";
+import { Cpu, Wifi, WifiOff, Zap, Edit2, Check, X, ChevronDown, Loader2, Plus, Copy } from "lucide-react";
+import { useDevices, useUpdateDevice, useCreateDevice, useSendDeviceCommand, type Device } from "@/hooks/useDevices";
 import { usePlants } from "@/hooks/usePlants";
 
 const mono = "ui-monospace, monospace";

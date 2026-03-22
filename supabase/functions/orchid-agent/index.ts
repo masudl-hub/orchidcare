@@ -2912,7 +2912,7 @@ ${proactiveContext.events.map((e: any) => `- ${e.message_hint}`).join("\n")}
     console.log("Orchid Reply:", aiReply);
 
     // Store outgoing message
-    await supabase.from("conversations").insert({
+    await supabase.from("conversations").insert([{
       profile_id: profile?.id,
       channel,
       direction: "outbound",
@@ -2920,7 +2920,7 @@ ${proactiveContext.events.map((e: any) => `- ${e.message_hint}`).join("\n")}
       // Store storage paths (bucket:path) so they can be re-signed on reload.
       // Falls back to raw signed URLs for any legacy/external images not in our storage.
       media_urls: mediaPathsForDB.length > 0 ? mediaPathsForDB : (mediaToSend.length > 0 ? mediaToSend.map(m => m.url) : null),
-    });
+    }]);
 
     // Trigger background compression check
     maybeCompressHistory(supabase, profile?.id, LOVABLE_API_KEY).catch((err) => {

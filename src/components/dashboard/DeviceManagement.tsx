@@ -263,12 +263,42 @@ function DeviceRow({ device, plants }: { device: Device; plants: { id: string; n
 }
 
 export function DeviceManagement() {
+  const queryClient = useQueryClient();
   const { data: devices, isLoading } = useDevices();
   const { data: plants } = usePlants();
+  const createDevice = useCreateDevice();
+  const [showAddNew, setShowAddNew] = useState(false);
+  const [newToken, setNewToken] = useState<string | null>(null);
+  const [newName, setNewName] = useState("New Sensor");
+  const [copied, setCopied] = useState(false);
 
   const plantList = (plants || []).map((p: any) => ({ id: p.id, nickname: p.nickname, name: p.name }));
   const activeDevices = (devices || []).filter(d => d.status !== "revoked");
   const revokedDevices = (devices || []).filter(d => d.status === "revoked");
+
+  const handleCreate = async () => {
+    try {
+      const result = await createDevice.mutateAsync({ name: newName });
+      setNewToken(result.token);
+      setShowAddNew(false);
+    } catch (e) {
+      console.error("Failed to create device:", e);
+    }
+  };
+
+  const handleCopy = () => {
+    if (newToken) {
+      navigator.clipboard.writeText(newToken);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
+
+  const handleDismissToken = () => {
+    setNewToken(null);
+    setNewName("New Sensor");
+    queryClient.invalidateQueries({ queryKey: ["devices"] });
+  };
 
   return (
     <div style={cardStyle}>
@@ -278,10 +308,108 @@ export function DeviceManagement() {
           <Wifi size={14} style={{ color: 'rgba(255,255,255,0.6)' }} />
           <span style={{ fontFamily: mono, fontSize: '12px', color: 'rgba(255,255,255,0.85)' }}>sensor devices</span>
         </div>
-        <span style={{ fontFamily: mono, fontSize: '9px', color: 'rgba(255,255,255,0.55)' }}>
-          {activeDevices.length} active
-        </span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span style={{ fontFamily: mono, fontSize: '9px', color: 'rgba(255,255,255,0.55)' }}>
+            {activeDevices.length} active
+          </span>
+          {!newToken && !showAddNew && (
+            <button
+              onClick={() => setShowAddNew(true)}
+              className="cursor-pointer"
+              style={{
+                display: 'flex', alignItems: 'center', gap: '3px',
+                fontFamily: mono, fontSize: '9px', color: 'rgba(255,255,255,0.65)',
+                background: 'none', border: '1px solid rgba(255,255,255,0.08)',
+                padding: '2px 8px',
+              }}
+            >
+              <Plus size={10} /> add
+            </button>
+          )}
+        </div>
       </div>
+
+      {/* Token display after creation */}
+      {newToken && (
+        <div style={{ marginBottom: '12px', padding: '12px', border: '1px solid rgba(74,222,128,0.2)', background: 'rgba(74,222,128,0.04)' }}>
+          <div style={{ fontFamily: mono, fontSize: '10px', color: '#4ade80', marginBottom: '8px' }}>
+            sensor created
+          </div>
+          <div style={{ fontFamily: mono, fontSize: '9px', color: 'rgba(255,255,255,0.8)', marginBottom: '8px' }}>
+            Copy this token into your ESP32 firmware. It won't be shown again.
+          </div>
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: '6px',
+            padding: '8px 10px', background: 'rgba(255,255,255,0.04)',
+            border: '1px solid rgba(255,255,255,0.1)',
+          }}>
+            <code style={{ fontFamily: mono, fontSize: '10px', color: 'rgba(255,255,255,0.95)', flex: 1, wordBreak: 'break-all' }}>
+              {newToken}
+            </code>
+            <button onClick={handleCopy} className="cursor-pointer" style={{
+              background: 'none', border: 'none', padding: '4px', color: copied ? '#4ade80' : 'rgba(255,255,255,0.65)', flexShrink: 0,
+            }}>
+              {copied ? <Check size={14} /> : <Copy size={14} />}
+            </button>
+          </div>
+          <button
+            onClick={handleDismissToken}
+            className="cursor-pointer"
+            style={{
+              fontFamily: mono, fontSize: '9px', color: 'rgba(255,255,255,0.65)',
+              background: 'none', border: 'none', padding: '6px 0', marginTop: '8px',
+            }}
+          >
+            done
+          </button>
+        </div>
+      )}
+
+      {/* Add new sensor form */}
+      {showAddNew && !newToken && (
+        <div style={{ marginBottom: '12px', padding: '12px', border: '1px solid rgba(255,255,255,0.08)' }}>
+          <div style={{ fontFamily: mono, fontSize: '10px', color: 'rgba(255,255,255,0.8)', marginBottom: '8px' }}>
+            new sensor
+          </div>
+          <input
+            type="text"
+            value={newName}
+            onChange={e => setNewName(e.target.value)}
+            placeholder="Sensor name"
+            autoFocus
+            style={{
+              fontFamily: mono, fontSize: '11px', color: 'white', width: '100%',
+              backgroundColor: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)',
+              padding: '6px 10px', outline: 'none', marginBottom: '8px',
+            }}
+          />
+          <div style={{ display: 'flex', gap: '6px' }}>
+            <button
+              onClick={handleCreate}
+              disabled={createDevice.isPending}
+              className="cursor-pointer"
+              style={{
+                fontFamily: mono, fontSize: '9px', padding: '5px 12px',
+                color: '#4ade80', border: '1px solid rgba(74,222,128,0.3)',
+                background: 'rgba(74,222,128,0.06)',
+              }}
+            >
+              {createDevice.isPending ? 'creating...' : 'create'}
+            </button>
+            <button
+              onClick={() => { setShowAddNew(false); setNewName("New Sensor"); }}
+              className="cursor-pointer"
+              style={{
+                fontFamily: mono, fontSize: '9px', padding: '5px 12px',
+                color: 'rgba(255,255,255,0.65)', border: '1px solid rgba(255,255,255,0.06)',
+                background: 'transparent',
+              }}
+            >
+              cancel
+            </button>
+          </div>
+        </div>
+      )}
 
       {isLoading ? (
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '16px 0' }}>
@@ -295,7 +423,7 @@ export function DeviceManagement() {
             no sensors registered
           </div>
           <div style={{ fontFamily: mono, fontSize: '9px', color: 'rgba(255,255,255,0.5)' }}>
-            ask orchid to set up a sensor device
+            click "add" above to register your first sensor
           </div>
         </div>
       ) : (

@@ -437,12 +437,12 @@ export async function logCareEvent(
     for (const plant of resolution.plants) {
       const { data: event, error } = await supabase
         .from("care_events")
-        .insert({
+        .insert([{
           plant_id: plant.id,
           event_type: args.event_type,
           notes: args.notes || null,
           source_message_id: sourceMessageId || null,
-        })
+        }])
         .select()
         .single();
 

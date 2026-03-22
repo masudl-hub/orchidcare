@@ -19,6 +19,12 @@ interface UseVideoCaptureReturn {
   onVideoFrame: MutableRefObject<((base64: string) => void) | null>;
   facingMode: 'environment' | 'user';
   toggleFacingMode: () => Promise<void>;
+  /**
+   * Capture a single high-resolution frame from the live camera at native
+   * resolution and JPEG quality 0.95. Returns a data URL, or null if the
+   * camera isn't active.
+   */
+  captureHighResFrame: () => string | null;
 }
 
 export function useVideoCapture(): UseVideoCaptureReturn {
@@ -42,7 +48,10 @@ export function useVideoCapture(): UseVideoCaptureReturn {
   // -----------------------------------------------------------------------
   function startInterval(canvas: HTMLCanvasElement) {
     intervalRef.current = setInterval(() => {
-      if (!onVideoFrame.current || !videoElRef.current || !canvasRef.current) return;
+      // Only require the video element and canvas — NOT onVideoFrame.
+      // This ensures lastFrameDataUrlRef is always populated when the
+      // camera is active, even if onVideoFrame hasn't been wired yet.
+      if (!videoElRef.current || !canvasRef.current) return;
       const ctx = canvasRef.current.getContext('2d');
       if (!ctx) return;
 
@@ -53,11 +62,9 @@ export function useVideoCapture(): UseVideoCaptureReturn {
 
       let sx = 0, sy = 0, sw = vw, sh = vh;
       if (videoAspect > displayAspect) {
-        // Video wider than display — crop sides (same as objectFit: cover)
         sw = Math.round(vh * displayAspect);
         sx = Math.round((vw - sw) / 2);
       } else {
-        // Video taller than display — crop top/bottom
         sh = Math.round(vw / displayAspect);
         sy = Math.round((vh - sh) / 2);
       }
@@ -65,10 +72,31 @@ export function useVideoCapture(): UseVideoCaptureReturn {
       const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
       setLastFrameDataUrl(dataUrl);
       lastFrameDataUrlRef.current = dataUrl;
+
+      // Optionally forward to the live session (Gemini realtime input)
       const base64 = dataUrl.split(',')[1];
-      if (base64) onVideoFrame.current(base64);
+      if (base64 && onVideoFrame.current) {
+        onVideoFrame.current(base64);
+      }
     }, 1000);
   }
+
+  // -----------------------------------------------------------------------
+  // captureHighResFrame — grabs a single frame at native camera resolution
+  // -----------------------------------------------------------------------
+  const captureHighResFrame = useCallback((): string | null => {
+    const video = videoElRef.current;
+    if (!video || !video.videoWidth || !video.videoHeight) return null;
+
+    const canvas = document.createElement('canvas');
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return null;
+
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    return canvas.toDataURL('image/jpeg', 0.95);
+  }, []);
 
   // -----------------------------------------------------------------------
   // requestPermission — triggers the OS camera prompt without capturing
@@ -79,14 +107,14 @@ export function useVideoCapture(): UseVideoCaptureReturn {
   }, []);
 
   // -----------------------------------------------------------------------
-  // startCapture — acquires rear camera, starts 1fps frame capture
+  // startCapture — acquires camera, starts 1fps frame capture
   // -----------------------------------------------------------------------
   const startCapture = useCallback(async () => {
     const stream = await navigator.mediaDevices.getUserMedia({
       video: {
-        facingMode, // use current facing mode state
-        width: { ideal: 640 },
-        height: { ideal: 480 },
+        facingMode,
+        width: { ideal: 1920 },
+        height: { ideal: 1080 },
       },
     });
     streamRef.current = stream;
@@ -106,11 +134,9 @@ export function useVideoCapture(): UseVideoCaptureReturn {
     const canvas = document.createElement('canvas');
     const displayAspect = window.innerWidth / window.innerHeight;
     if (displayAspect >= 1) {
-      // Landscape (laptop / desktop)
       canvas.width = 640;
       canvas.height = Math.round(640 / displayAspect);
     } else {
-      // Portrait (phone)
       canvas.height = 640;
       canvas.width = Math.round(640 * displayAspect);
     }
@@ -152,33 +178,28 @@ export function useVideoCapture(): UseVideoCaptureReturn {
   const toggleFacingMode = useCallback(async () => {
     const newMode = facingMode === 'environment' ? 'user' : 'environment';
 
-    // Stop current interval
     if (intervalRef.current) {
       clearInterval(intervalRef.current);
       intervalRef.current = null;
     }
-    // Stop current stream tracks
     if (streamRef.current) {
       streamRef.current.getTracks().forEach(t => t.stop());
     }
-    // Stop offscreen video
     if (videoElRef.current) {
       videoElRef.current.pause();
       videoElRef.current.srcObject = null;
     }
 
-    // Acquire new stream with opposite facing mode
     let newStream: MediaStream;
     try {
       newStream = await navigator.mediaDevices.getUserMedia({
         video: {
           facingMode: newMode,
-          width: { ideal: 640 },
-          height: { ideal: 480 },
+          width: { ideal: 1920 },
+          height: { ideal: 1080 },
         },
       });
     } catch (err) {
-      // Failed to acquire new camera — reset to clean inactive state
       streamRef.current = null;
       videoElRef.current = null;
       setVideoStream(null);
@@ -189,7 +210,6 @@ export function useVideoCapture(): UseVideoCaptureReturn {
     streamRef.current = newStream;
     setVideoStream(newStream);
 
-    // Re-setup offscreen video
     const video = document.createElement('video');
     video.srcObject = newStream;
     video.setAttribute('playsinline', 'true');
@@ -199,11 +219,10 @@ export function useVideoCapture(): UseVideoCaptureReturn {
 
     setFacingMode(newMode);
 
-    // Re-start capture interval (canvas already exists from startCapture)
     const canvas = canvasRef.current;
     if (!canvas) return;
     startInterval(canvas);
   }, [facingMode]);
 
-  return { isActive, videoStream, lastFrameDataUrl, lastFrameDataUrlRef, requestPermission, startCapture, stopCapture, onVideoFrame, facingMode, toggleFacingMode };
+  return { isActive, videoStream, lastFrameDataUrl, lastFrameDataUrlRef, requestPermission, startCapture, stopCapture, onVideoFrame, facingMode, toggleFacingMode, captureHighResFrame };
 }

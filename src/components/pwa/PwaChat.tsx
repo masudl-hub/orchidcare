@@ -402,7 +402,7 @@ export function PwaChat() {
         const responseText = typeof response.data === 'string' ? response.data : JSON.stringify(response.data);
         const lines = responseText.split('\n').filter((l: string) => l.trim());
 
-        let replyData: { reply: string; mediaToSend: any[]; structuredResults?: Record<string, any> } | null = null;
+        let replyData: { reply: string; mediaToSend: any[]; structuredResults?: Record<string, any>; pendingAction?: any } | null = null;
 
         for (const line of lines) {
           try {

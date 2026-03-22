@@ -4,9 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { PixelCanvas } from '@/lib/pixel-canvas/PixelCanvas';
 import type { Formation } from '@/lib/pixel-canvas/types';
 import { DemoInputBar } from '@/components/demo/DemoInputBar';
-import { ChatMessageStack, type ArtifactEntry } from '@/components/demo/ChatMessageStack';
-import { ChatResponse } from '@/components/demo/artifacts/ChatResponse';
-import { ShoppingResults } from './ShoppingResults';
+import { PwaChatStack, type PwaMessage } from './PwaChatStack';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -15,44 +13,7 @@ import { WifiOff } from 'lucide-react';
 
 const mono = 'ui-monospace, monospace';
 
-// Resolve a media URL from storage, always generating a fresh signed URL.
-// New format: "bucket:path" (e.g. "plant-photos:snapshots/abc/def/123.jpg")
-// Legacy format: full Supabase signed URL (expired after 1h — extract path and refresh)
-// External URLs (Telegram CDN, etc.) are returned as-is.
-async function resolveMediaUrl(url: string): Promise<string> {
-  if (!url) return '';
-
-  // New bucket:path format
-  if (!url.startsWith('https://') && url.includes(':')) {
-    const colonIdx = url.indexOf(':');
-    const bucket = url.slice(0, colonIdx);
-    const path = url.slice(colonIdx + 1);
-    const { data } = await supabase.storage.from(bucket).createSignedUrl(path, 3600);
-    return data?.signedUrl || '';
-  }
-
-  // Legacy Supabase signed URL — extract bucket + path and regenerate
-  const storageMatch = url.match(/\/storage\/v1\/object\/sign\/([^/]+)\/([^?]+)/);
-  if (storageMatch) {
-    const bucket = storageMatch[1];
-    const path = decodeURIComponent(storageMatch[2]);
-    const { data } = await supabase.storage.from(bucket).createSignedUrl(path, 3600);
-    return data?.signedUrl ?? url;
-  }
-
-  // External URL (Telegram CDN, etc.) — return as-is
-  return url;
-}
-
-interface PwaMessage {
-  id: string;
-  role: 'user' | 'assistant';
-  content: string;
-  createdAt: string;
-  rating?: number | null;
-  media?: { type: string; data: string }[];
-  pendingAction?: { tool_name: string; args: Record<string, unknown>; reason: string; tier: string };
-}
+// PwaMessage type is imported from PwaChatStack
 
 function getCanvasHeightPercent(): number {
   const h = window.innerHeight;
@@ -66,7 +27,6 @@ export function PwaChat() {
   const location = useLocation();
   const navigate = useNavigate();
   const [messages, setMessages] = useState<PwaMessage[]>([]);
-  const [artifacts, setArtifacts] = useState<ArtifactEntry[]>([]);
   const [isHistoryLoaded, setIsHistoryLoaded] = useState(false);
   const [currentFormation, setCurrentFormation] = useState<Formation | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -76,8 +36,6 @@ export function PwaChat() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [canvasHeightPct, setCanvasHeightPct] = useState(getCanvasHeightPercent);
-
-  const artifactIdCounter = useRef(0);
   const sendMessageRef = useRef<(text: string, media?: { type: string; data: string }[], extraBody?: Record<string, unknown>) => void>(() => { });
 
   // Online/offline detection
@@ -106,7 +64,7 @@ export function PwaChat() {
     queryFn: async () => {
       const { data } = await supabase
         .from('conversations')
-        .select('id, content, direction, created_at, media_urls, rating')
+        .select('id, content, direction, created_at, media_urls, rating, metadata')
         .eq('profile_id', profile!.id)
         .eq('channel', 'pwa')
         .order('created_at', { ascending: true });
@@ -117,7 +75,7 @@ export function PwaChat() {
     staleTime: 5 * 60 * 1000, // cached for 5 min — new messages appended locally
   });
 
-  // Hydrate messages + artifacts from cached query data
+  // Hydrate messages from DB — single source of truth, no artifacts
   const historyHydratedRef = useRef(false);
   useEffect(() => {
     if (!historyData || historyHydratedRef.current) {
@@ -133,48 +91,11 @@ export function PwaChat() {
         content: msg.content,
         createdAt: msg.created_at,
         rating: msg.rating,
+        mediaUrls: msg.media_urls || undefined,
+        metadata: msg.metadata || undefined,
       }));
       setMessages(historyMessages);
       setHasSentMessage(true);
-
-      // Create chat artifacts for history (async for media URL resolution)
-      (async () => {
-        const historyArtifacts: ArtifactEntry[] = [];
-        for (let i = 0; i < historyData.length; i++) {
-          if (historyData[i].direction === 'outbound') {
-            const userMsg = i > 0 && historyData[i - 1].direction === 'inbound' ? historyData[i - 1].content : undefined;
-            const rawUrls: string[] = historyData[i].media_urls || [];
-            const images = rawUrls.length > 0
-              ? (await Promise.all(rawUrls.map(async (url) => ({ url: await resolveMediaUrl(url), title: 'Image' })))).filter(img => img.url)
-              : undefined;
-
-            // Resolve user media URLs from the preceding inbound message
-            let userImageUrls: string[] | undefined;
-            if (i > 0 && historyData[i - 1].direction === 'inbound') {
-              const userRawUrls: string[] = historyData[i - 1].media_urls || [];
-              if (userRawUrls.length > 0) {
-                const resolved = await Promise.all(userRawUrls.map(resolveMediaUrl));
-                userImageUrls = resolved.filter(Boolean);
-              }
-            }
-
-            historyArtifacts.push({
-              id: historyData[i].id,
-              element: <ChatResponse text={historyData[i].content} images={images} />,
-              userMessage: userMsg,
-              userMessageId: i > 0 && historyData[i - 1].direction === 'inbound' ? historyData[i - 1].id : undefined,
-              userImageUrls,
-              artifactType: 'chat',
-              artifactData: { text: historyData[i].content },
-              responseMessage: historyData[i].content,
-              createdAt: historyData[i].created_at,
-              rating: historyData[i].rating,
-            });
-          }
-        }
-        setArtifacts(historyArtifacts);
-        artifactIdCounter.current = historyArtifacts.length;
-      })();
     }
     setIsHistoryLoaded(true);
   }, [historyData]);
@@ -198,27 +119,6 @@ export function PwaChat() {
   }, [isHistoryLoaded, location.pathname, navigate]);
 
   // Render artifact from type
-  const renderArtifact = useCallback(
-    (_type: string, _data: Record<string, unknown>, message: string, images?: { url: string; title: string }[], structuredResults?: Record<string, any>): React.ReactNode => {
-      const hasShoppingResults = structuredResults && (structuredResults.products?.length > 0 || structuredResults.stores?.length > 0);
-      return (
-        <>
-          <ChatResponse text={message} images={images?.map(img => ({ url: img.url, title: img.title }))} />
-          {hasShoppingResults && (
-            <ShoppingResults
-              products={structuredResults.products}
-              productSearchQuery={structuredResults.productSearchQuery}
-              stores={structuredResults.stores}
-              storeSearchQuery={structuredResults.storeSearchQuery}
-              storeLocation={structuredResults.storeLocation}
-            />
-          )}
-        </>
-      );
-    },
-    [],
-  );
-
   // Tool name → label
   const toolLabel = useCallback((name: string): string => {
     switch (name) {
@@ -274,27 +174,18 @@ export function PwaChat() {
   }, []);
 
   const handleRate = useCallback(async (id: string, newRating: number) => {
-    // Optimistic UI update
-    setArtifacts(prev => prev.map(art =>
-      art.id === id ? { ...art, rating: newRating } : art
-    ));
     setMessages(prev => prev.map(msg =>
       msg.id === id ? { ...msg, rating: newRating } : msg
     ));
 
-    // Persist to DB
     const { error } = await supabase
       .from('conversations')
       .update({ rating: newRating })
       .eq('id', id)
-      .eq('profile_id', profile?.id); // Basic security check
+      .eq('profile_id', profile?.id);
 
     if (error) {
       console.error('[PwaChat] failed to update rating:', error);
-      // Revert on failure
-      setArtifacts(prev => prev.map(art =>
-        art.id === id ? { ...art, rating: null } : art
-      ));
       setMessages(prev => prev.map(msg =>
         msg.id === id ? { ...msg, rating: null } : msg
       ));
@@ -312,14 +203,55 @@ export function PwaChat() {
       }
       // Remove message from local state
       setMessages(prev => prev.filter(msg => msg.id !== messageId));
-      // Remove any artifacts associated with this message (as assistant response or user message)
-      setArtifacts(prev => prev.filter(art => art.id !== messageId && art.userMessageId !== messageId));
       // Invalidate cache so next full load reflects the deletion
       queryClient.invalidateQueries({ queryKey: ['pwa-history'] });
     } catch (err) {
       console.error('[PwaChat] delete message error:', err);
     }
   }, [queryClient]);
+
+  // Confirmation handlers for policy-gated actions
+  const handleConfirm = useCallback(async (messageId: string, action: NonNullable<PwaMessage['metadata']>['pendingAction']) => {
+    if (!action) return;
+    setIsLoading(true);
+    setLoadingLabel('working');
+    try {
+      const response = await supabase.functions.invoke('pwa-agent', {
+        body: {
+          message: `(User confirmed: ${action.tool_name})`,
+          confirmationGranted: true,
+          skipInboundSave: true,
+        },
+      });
+      const responseText = typeof response.data === 'string' ? response.data : JSON.stringify(response.data);
+      const lines = responseText.split('\n').filter((l: string) => l.trim());
+      let resultReply = '';
+      for (const line of lines) {
+        try {
+          const evt = JSON.parse(line);
+          if (evt.event === 'done') resultReply = evt.data?.reply || '';
+        } catch { /* ignore */ }
+      }
+      if (!resultReply && response.data?.reply) resultReply = response.data.reply;
+      // Replace the confirmation message with the result
+      setMessages(prev => prev.map(m =>
+        m.id === messageId ? { ...m, content: resultReply || 'Done.', metadata: undefined } : m
+      ));
+    } catch (err) {
+      setMessages(prev => prev.map(m =>
+        m.id === messageId ? { ...m, content: 'Something went wrong. Please try again.', metadata: undefined } : m
+      ));
+    } finally {
+      setIsLoading(false);
+      setLoadingLabel('');
+    }
+  }, []);
+
+  const handleReject = useCallback((messageId: string) => {
+    setMessages(prev => prev.map(m =>
+      m.id === messageId ? { ...m, content: 'Action rejected.', metadata: undefined } : m
+    ));
+  }, []);
 
   // Send message to pwa-agent
   const sendMessage = useCallback(
@@ -445,124 +377,14 @@ export function PwaChat() {
         // Handle confirmation-required actions
         if (replyData.pendingAction) {
           const action = replyData.pendingAction;
-          const confirmId = crypto.randomUUID();
-          const confirmTime = new Date().toISOString();
           const confirmMsg: PwaMessage = {
-            id: confirmId,
+            id: crypto.randomUUID(),
             role: 'assistant',
             content: action.reason,
-            createdAt: confirmTime,
-            pendingAction: action,
+            createdAt: new Date().toISOString(),
+            metadata: { pendingAction: action },
           };
           setMessages(prev => [...prev, confirmMsg]);
-
-          // Create artifact with Allow/Reject buttons
-          const confirmArtifact: ArtifactEntry = {
-            id: `artifact-confirm-${confirmId}`,
-            element: (
-              <div>
-                <ChatResponse text={action.reason} />
-                <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
-                  <button
-                    onClick={async () => {
-                      // Direct API call with confirmation — don't create a new user message
-                      setIsLoading(true);
-                      setLoadingLabel('working');
-                      try {
-                        const { data: sessionData } = await supabase.auth.getSession();
-                        const response = await supabase.functions.invoke('pwa-agent', {
-                          body: {
-                            message: `(User confirmed: ${action.tool_name})`,
-                            confirmationGranted: true,
-                            skipInboundSave: true,
-                            pendingToolName: action.tool_name,
-                            pendingArgs: action.args,
-                            pendingPhotoPath: action.photoPath || null,
-                          },
-                        });
-                        const responseText = typeof response.data === 'string' ? response.data : JSON.stringify(response.data);
-                        const lines = responseText.split('\n').filter((l: string) => l.trim());
-                        let resultReply = '';
-                        for (const line of lines) {
-                          try {
-                            const evt = JSON.parse(line);
-                            if (evt.event === 'done') resultReply = evt.data?.reply || '';
-                          } catch { /* ignore */ }
-                        }
-                        if (!resultReply && response.data?.reply) resultReply = response.data.reply;
-                        // Replace confirmation artifact with the result
-                        setMessages(prev => prev.map(m =>
-                          m.id === confirmId ? { ...m, content: resultReply || 'Done.', pendingAction: undefined } : m
-                        ));
-                        setArtifacts(prev => prev.map(a =>
-                          a.id === `artifact-confirm-${confirmId}`
-                            ? { ...a, element: <ChatResponse text={resultReply || 'Done.'} />, responseMessage: resultReply }
-                            : a
-                        ));
-                      } catch (err) {
-                        setMessages(prev => prev.map(m =>
-                          m.id === confirmId ? { ...m, content: 'Something went wrong. Please try again.', pendingAction: undefined } : m
-                        ));
-                        setArtifacts(prev => prev.map(a =>
-                          a.id === `artifact-confirm-${confirmId}`
-                            ? { ...a, element: <ChatResponse text="Something went wrong. Please try again." /> }
-                            : a
-                        ));
-                      } finally {
-                        setIsLoading(false);
-                        setLoadingLabel('');
-                        setPendingUserMessage(null);
-                      }
-                    }}
-                    style={{
-                      fontFamily: 'ui-monospace, monospace',
-                      fontSize: '12px',
-                      padding: '6px 16px',
-                      border: '1px solid rgba(255,255,255,0.3)',
-                      borderRadius: '6px',
-                      background: 'rgba(255,255,255,0.1)',
-                      color: '#fff',
-                      cursor: 'pointer',
-                    }}
-                  >
-                    Allow
-                  </button>
-                  <button
-                    onClick={() => {
-                      setMessages(prev => prev.filter(m => m.id !== confirmId));
-                      setArtifacts(prev => prev.filter(a => a.id !== `artifact-confirm-${confirmId}`));
-                      const rejectMsg: PwaMessage = {
-                        id: crypto.randomUUID(),
-                        role: 'assistant',
-                        content: 'Action rejected.',
-                        createdAt: new Date().toISOString(),
-                      };
-                      setMessages(prev => [...prev, rejectMsg]);
-                    }}
-                    style={{
-                      fontFamily: 'ui-monospace, monospace',
-                      fontSize: '12px',
-                      padding: '6px 16px',
-                      border: '1px solid rgba(255,255,255,0.15)',
-                      borderRadius: '6px',
-                      background: 'transparent',
-                      color: 'rgba(255,255,255,0.5)',
-                      cursor: 'pointer',
-                    }}
-                  >
-                    Reject
-                  </button>
-                </div>
-              </div>
-            ),
-            userMessage: text !== '(photo)' ? text : undefined,
-            userMessageId: userMsg.id,
-            artifactType: 'chat',
-            artifactData: { text: action.reason },
-            responseMessage: action.reason,
-            createdAt: confirmTime,
-          };
-          setArtifacts(prev => [...prev, confirmArtifact]);
           setIsLoading(false);
           setLoadingLabel('');
           setPendingUserMessage(null);
@@ -570,57 +392,39 @@ export function PwaChat() {
         }
 
         const reply = replyData.reply || '';
-
-        // Extract images from mediaToSend
         const images = (replyData.mediaToSend || [])
           .filter((m: any) => m.url)
-          .map((m: any) => ({ url: m.url, title: m.caption || '' }));
-
-        // Add assistant message
-        const newId = crypto.randomUUID();
-        const newTime = new Date().toISOString();
-
-        const assistantMsg: PwaMessage = {
-          id: newId,
-          role: 'assistant',
-          content: reply,
-          createdAt: newTime,
-        };
-        setMessages(prev => [...prev, assistantMsg]);
-
-        // Render with images and/or structured shopping results if available
+          .map((m: any) => ({ url: m.url, caption: m.caption || '' }));
         const structuredResults = replyData.structuredResults || undefined;
 
-        const element = images.length > 0
-          ? renderArtifact('chat', { text: reply }, reply, images, structuredResults)
-          : renderArtifact('chat', { text: reply }, reply, undefined, structuredResults);
+        // Build metadata for rich content
+        const metadata: PwaMessage['metadata'] = {};
+        if (images.length > 0) metadata.images = images;
+        if (structuredResults && (structuredResults.products?.length > 0 || structuredResults.stores?.length > 0)) {
+          metadata.shopping = structuredResults;
+        }
 
-        const newArtifact: ArtifactEntry = {
-          id: `artifact-${++artifactIdCounter.current}`,
-          element,
-          userMessage: text !== '(photo)' ? text : undefined,
-          userMessageId: userMsg.id,
-          userImageUrls: media && media.length > 0
-            ? media.map(m => `data:${m.type};base64,${m.data}`)
-            : undefined,
-          artifactType: 'chat',
-          artifactData: { text: reply },
-          responseMessage: reply,
+        const assistantMsg: PwaMessage = {
+          id: crypto.randomUUID(),
+          role: 'assistant',
+          content: reply,
+          createdAt: new Date().toISOString(),
+          metadata: Object.keys(metadata).length > 0 ? metadata : undefined,
         };
-        setArtifacts(prev => [...prev, newArtifact]);
+        setMessages(prev => [...prev, assistantMsg]);
         setPendingUserMessage(null);
       } catch (err) {
         const detail = err instanceof Error ? err.message : String(err);
         setErrorMsg(detail);
         setPendingUserMessage(null);
         // Remove optimistically added user message
-        setMessages(messages);
+        setMessages(prev => prev.filter(m => m.id !== userMsg.id));
       } finally {
         setIsLoading(false);
         setLoadingLabel('thinking');
       }
     },
-    [messages, isOnline, renderArtifact, toolLabel],
+    [messages, isOnline, toolLabel],
   );
 
   sendMessageRef.current = sendMessage;
@@ -750,8 +554,8 @@ export function PwaChat() {
         }}
       >
         {hasSentMessage && (
-          <ChatMessageStack
-            artifacts={artifacts}
+          <PwaChatStack
+            messages={messages}
             isLoading={isLoading}
             loadingLabel={loadingLabel}
             pendingUserMessage={pendingUserMessage}
@@ -761,6 +565,8 @@ export function PwaChat() {
             onRate={handleRate}
             onDelete={handleDeleteMessage}
             onSuggestedAction={(text) => sendMessageRef.current(text)}
+            onConfirm={handleConfirm}
+            onReject={handleReject}
           />
         )}
       </div>

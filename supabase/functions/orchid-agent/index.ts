@@ -2015,7 +2015,7 @@ ${proactiveContext.events.map((e: any) => `- ${e.message_hint}`).join("\n")}
                   { status: "awaiting_confirmation", tier: toolResult.tier, args },
                 );
 
-                // Save outbound message so it appears in conversation history on refresh
+                // Save outbound message with pendingAction metadata so it persists on refresh
                 const confirmReply = toolResult.reason || `"${functionName}" requires your confirmation.`;
                 await supabase.from("conversations").insert([{
                   profile_id: profile?.id,
@@ -2023,7 +2023,15 @@ ${proactiveContext.events.map((e: any) => `- ${e.message_hint}`).join("\n")}
                   direction: "outbound",
                   content: confirmReply,
                   message_sid: `confirm-${correlationId}`,
-                }]); // best-effort
+                  metadata: {
+                    pendingAction: {
+                      tool_name: functionName,
+                      args,
+                      reason: toolResult.reason,
+                      tier: toolResult.tier,
+                    },
+                  },
+                }]).catch(() => {}); // best-effort
 
                 return new Response(JSON.stringify({
                   reply: confirmReply,
@@ -2973,15 +2981,22 @@ ${proactiveContext.events.map((e: any) => `- ${e.message_hint}`).join("\n")}
 
     console.log("Orchid Reply:", aiReply);
 
-    // Store outgoing message
+    // Store outgoing message with metadata for rich content persistence
+    const outboundMetadata: Record<string, unknown> = {};
+    if (mediaToSend.length > 0) {
+      outboundMetadata.images = mediaToSend.map(m => ({ url: m.url, caption: m.caption }));
+    }
+    if (Object.keys(structuredResults).length > 0) {
+      outboundMetadata.shopping = structuredResults;
+    }
+
     await supabase.from("conversations").insert([{
       profile_id: profile?.id,
       channel,
       direction: "outbound",
       content: aiReply,
-      // Store storage paths (bucket:path) so they can be re-signed on reload.
-      // Falls back to raw signed URLs for any legacy/external images not in our storage.
       media_urls: mediaPathsForDB.length > 0 ? mediaPathsForDB : (mediaToSend.length > 0 ? mediaToSend.map(m => m.url) : null),
+      metadata: Object.keys(outboundMetadata).length > 0 ? outboundMetadata : null,
     }]);
 
     // Trigger background compression check

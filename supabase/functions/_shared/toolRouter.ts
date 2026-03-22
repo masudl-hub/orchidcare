@@ -19,6 +19,7 @@ import {
   saveUserInsight,
   updateNotificationPreferences,
   updateProfile,
+  capturePlantSnapshot,
   comparePlantSnapshots,
   checkPlantSensors,
   associateReading,
@@ -145,6 +146,28 @@ export async function executeSharedTool(
           args.plant_identifier as string,
           (args.comparison_type as string) || "latest",
           apiKeys.LOVABLE,
+        ),
+      );
+
+    case "capture_plant_snapshot":
+      return handled(
+        await capturePlantSnapshot(
+          supabase,
+          profileId,
+          {
+            plant_identifier: args.plant_identifier as string,
+            description: args.description as string,
+            context: (args.context as string) || "user_requested",
+            health_notes: args.health_notes as string | undefined,
+            image_base64: args.image_base64 as string | undefined,
+            save_if_missing: args.save_if_missing as boolean | undefined,
+            species: args.species as string | undefined,
+            nickname: args.nickname as string | undefined,
+            location: args.location as string | undefined,
+            source: "shared_tool",
+          },
+          photoUrl,
+          sourceMessageId,
         ),
       );
 

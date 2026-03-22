@@ -772,6 +772,14 @@ export async function capturePlantSnapshot(
       return { success: false, error: error.message };
     }
 
+    // Update the plant's photo_url to the latest snapshot image
+    if (imagePath) {
+      await supabase
+        .from("plants")
+        .update({ photo_url: imagePath })
+        .eq("id", plant.id);
+    }
+
     const plantName = plant.nickname || plant.species || plant.name;
     console.log(`[capturePlantSnapshot] Saved snapshot for ${plantName}: ${snapshot.id}`);
     return { success: true, snapshot, plantName };

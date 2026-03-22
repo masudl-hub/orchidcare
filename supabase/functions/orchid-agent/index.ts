@@ -1411,6 +1411,7 @@ serve(async (req: Request) => {
     let profile: any = null;
     let internalMediaInfo: { base64: string; mimeType: string } | null = null;
     let confirmationGranted = false;
+    let skipInboundSave = false;
 
     if (isInternalAgentCall && !isProactiveTrigger && contentType.includes("application/json")) {
       // ====================================================================
@@ -1461,7 +1462,8 @@ serve(async (req: Request) => {
 
       requestChannel = payload.channel || "telegram";
       confirmationGranted = !!payload.confirmationGranted;
-      console.log(`[${correlationId}] Internal call channel: ${requestChannel}, message length: ${body.length}${confirmationGranted ? ', confirmationGranted=true' : ''}`);
+      skipInboundSave = !!payload.skipInboundSave;
+      console.log(`[${correlationId}] Internal call channel: ${requestChannel}, message length: ${body.length}${confirmationGranted ? ', confirmationGranted=true' : ''}${skipInboundSave ? ', skipInboundSave=true' : ''}`);
     } else if (isProactiveTrigger && contentType.includes("application/json")) {
       // ====================================================================
       // PROACTIVE MODE: Triggered by proactive-agent with event context
@@ -1520,9 +1522,9 @@ serve(async (req: Request) => {
 
 
 
-    // Store incoming message (skip for proactive - no actual inbound message)
+    // Store incoming message (skip for proactive and confirmation re-executions)
     let inboundMessage: any = null;
-    if (!isProactiveTrigger) {
+    if (!isProactiveTrigger && !skipInboundSave) {
       // Idempotency check: if this message_sid was already processed, return early
       if (messageSid) {
         const { data: existing } = await supabase
@@ -1930,7 +1932,9 @@ ${proactiveContext.events.map((e: any) => `- ${e.message_hint}`).join("\n")}
                 },
                 sourceMessageId: inboundMessage?.id,
                 photoUrl: uploadedPhotoPath || undefined,
-                sessionId: correlationId,
+                // Use profile+channel as stable session ID (not per-request correlationId)
+                // so session_consent persists across messages within a conversation
+                sessionId: `${profile?.id}:${channel}`,
                 confirmationGranted,
               },
               functionName,
@@ -1939,12 +1943,29 @@ ${proactiveContext.events.map((e: any) => `- ${e.message_hint}`).join("\n")}
             if (shared.handled) {
               toolResult = shared.result;
 
-              // Policy gate: if confirmation is required, return immediately
-              // so the client/bot can show a confirmation UI
+              // Policy gate: if confirmation is required, save state and return
               if (toolResult?.requiresConfirmation) {
                 console.log(`[${correlationId}] Tool ${functionName} requires confirmation (${toolResult.tier})`);
+
+                // Mark the "started" operation as awaiting confirmation (not orphaned)
+                await logAgentOperation(
+                  supabase, profile?.id, correlationId,
+                  "awaiting_confirmation", functionName, null, functionName,
+                  { status: "awaiting_confirmation", tier: toolResult.tier, args },
+                );
+
+                // Save outbound message so it appears in conversation history on refresh
+                const confirmReply = toolResult.reason || `"${functionName}" requires your confirmation.`;
+                await supabase.from("conversations").insert({
+                  profile_id: profile?.id,
+                  channel,
+                  direction: "outbound",
+                  content: confirmReply,
+                  message_sid: `confirm-${correlationId}`,
+                }).catch(() => {}); // best-effort
+
                 return new Response(JSON.stringify({
-                  reply: "",
+                  reply: confirmReply,
                   requiresConfirmation: true,
                   pendingAction: {
                     tool_name: functionName,
@@ -2327,36 +2348,7 @@ ${proactiveContext.events.map((e: any) => `- ${e.message_hint}`).join("\n")}
               } else {
                 toolResult = { success: false, error: "No audio message to transcribe" };
               }
-            } else if (functionName === "capture_plant_snapshot") {
-              toolResult = await capturePlantSnapshot(
-                supabase,
-                profile?.id,
-                {
-                  plant_identifier: args.plant_identifier,
-                  description: args.description,
-                  context: args.context || "user_requested",
-                  health_notes: args.health_notes,
-                  source: "telegram_photo",
-                  save_if_missing: args.save_if_missing,
-                  species: args.species,
-                  nickname: args.nickname,
-                  location: args.location,
-                },
-                uploadedPhotoPath || undefined,
-                inboundMessage?.id,
-              );
-              if (toolResult.success && toolResult.snapshot) {
-                await logAgentOperation(
-                  supabase,
-                  profile?.id,
-                  correlationId,
-                  "create",
-                  "plant_snapshots",
-                  toolResult.snapshot.id,
-                  functionName,
-                  { plant: toolResult.plantName, context: args.context },
-                );
-              }
+            // capture_plant_snapshot is now handled by toolRouter (shared path)
             } else if (functionName === "recall_media") {
               const source = args.source;
               const limit = Math.min(args.limit || 3, 5);

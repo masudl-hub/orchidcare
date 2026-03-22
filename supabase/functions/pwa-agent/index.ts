@@ -82,11 +82,12 @@ serve(async (req: Request) => {
     // 3. Parse request body
     // ---------------------------------------------------------------------------
     const body = await req.json();
-    const { message, mediaBase64, mediaMimeType, confirmationGranted } = body as {
+    const { message, mediaBase64, mediaMimeType, confirmationGranted, skipInboundSave } = body as {
       message: string;
       mediaBase64?: string;
       mediaMimeType?: string;
       confirmationGranted?: boolean;
+      skipInboundSave?: boolean;
     };
 
     if (!message && !mediaBase64) {
@@ -113,6 +114,9 @@ serve(async (req: Request) => {
     }
     if (confirmationGranted) {
       payload.confirmationGranted = true;
+    }
+    if (skipInboundSave) {
+      payload.skipInboundSave = true;
     }
 
     console.log(`[pwa-agent] Forwarding to orchid-agent for profile ${profile.id}, msg length: ${(message || "").length}, hasMedia: ${!!mediaBase64}`);

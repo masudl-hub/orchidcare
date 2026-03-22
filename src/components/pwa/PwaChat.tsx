@@ -464,15 +464,52 @@ export function PwaChat() {
                 <ChatResponse text={action.reason} />
                 <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
                   <button
-                    onClick={() => {
-                      // Remove the confirmation message and re-send with confirmation
-                      setMessages(prev => prev.filter(m => m.id !== confirmId));
-                      setArtifacts(prev => prev.filter(a => a.id !== `artifact-confirm-${confirmId}`));
-                      sendMessageRef.current(
-                        `[CONFIRMED: ${action.tool_name}]`,
-                        undefined,
-                        { confirmationGranted: true, pendingToolName: action.tool_name, pendingToolArgs: action.args }
-                      );
+                    onClick={async () => {
+                      // Direct API call with confirmation — don't create a new user message
+                      setIsLoading(true);
+                      setLoadingLabel('working');
+                      try {
+                        const { data: sessionData } = await supabase.auth.getSession();
+                        const response = await supabase.functions.invoke('pwa-agent', {
+                          body: {
+                            message: `(User confirmed: ${action.tool_name})`,
+                            confirmationGranted: true,
+                            skipInboundSave: true,
+                          },
+                        });
+                        const responseText = typeof response.data === 'string' ? response.data : JSON.stringify(response.data);
+                        const lines = responseText.split('\n').filter((l: string) => l.trim());
+                        let resultReply = '';
+                        for (const line of lines) {
+                          try {
+                            const evt = JSON.parse(line);
+                            if (evt.event === 'done') resultReply = evt.data?.reply || '';
+                          } catch { /* ignore */ }
+                        }
+                        if (!resultReply && response.data?.reply) resultReply = response.data.reply;
+                        // Replace confirmation artifact with the result
+                        setMessages(prev => prev.map(m =>
+                          m.id === confirmId ? { ...m, content: resultReply || 'Done.', pendingAction: undefined } : m
+                        ));
+                        setArtifacts(prev => prev.map(a =>
+                          a.id === `artifact-confirm-${confirmId}`
+                            ? { ...a, element: <ChatResponse text={resultReply || 'Done.'} />, responseMessage: resultReply }
+                            : a
+                        ));
+                      } catch (err) {
+                        setMessages(prev => prev.map(m =>
+                          m.id === confirmId ? { ...m, content: 'Something went wrong. Please try again.', pendingAction: undefined } : m
+                        ));
+                        setArtifacts(prev => prev.map(a =>
+                          a.id === `artifact-confirm-${confirmId}`
+                            ? { ...a, element: <ChatResponse text="Something went wrong. Please try again." /> }
+                            : a
+                        ));
+                      } finally {
+                        setIsLoading(false);
+                        setLoadingLabel('');
+                        setPendingUserMessage(null);
+                      }
                     }}
                     style={{
                       fontFamily: 'ui-monospace, monospace',
@@ -525,6 +562,7 @@ export function PwaChat() {
           setArtifacts(prev => [...prev, confirmArtifact]);
           setIsLoading(false);
           setLoadingLabel('');
+          setPendingUserMessage(null);
           return;
         }
 
